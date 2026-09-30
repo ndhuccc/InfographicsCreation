@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>優化：訓練神經網路的引擎 · Optimization Infographic</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#dfe6ea;--fg:#14232e;--mut:#55656f;--btn:#1b6f7f;--btnfg:#fff;--btn2:#fbfcfc;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#10181e;--fg:#e6eef1;--mut:#93a4ad;--btn:#3aa0b3;--btnfg:#04161b;--btn2:#1b2830}}
+:root[data-theme="dark"]{--bg:#10181e;--fg:#e6eef1;--mut:#93a4ad;--btn:#3aa0b3;--btnfg:#04161b;--btn2:#1b2830}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif}
+.wrap{max-width:1500px;margin:0 auto;padding:16px}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:12px}
+.bar .t{font-weight:700;font-size:15px;margin-right:auto}
+.bar .t small{display:block;font-weight:400;color:var(--mut);font-size:12px}
+button{font:inherit;font-size:14px;font-weight:700;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;background:var(--btn);color:var(--btnfg)}
+button.alt{background:var(--btn2);color:var(--fg);border:1px solid var(--mut)}
+button:focus-visible{outline:3px solid #e39b0b;outline-offset:2px}
+.stage{overflow:hidden;border-radius:4px;box-shadow:0 2px 14px rgba(0,0,0,.18)}
+canvas,.stage img{display:block;width:100%;height:auto}
+#msg{margin-top:10px;font-size:13px;color:var(--mut);min-height:1.4em}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="bar">
+    <div class="t">優化資訊圖表 Optimization Infographic<small>16:9 · 3200 × 1800 px · 繁體中文＋English</small></div>
+    <button id="dl" type="button">下載 JPG Download</button>
+    <button id="asimg" type="button" class="alt">轉成圖片（長按／右鍵儲存）</button>
+  </div>
+  <div class="stage" id="stage"><canvas id="c" width="3200" height="1800" role="img" aria-label="優化：訓練神經網路的引擎 資訊圖表"></canvas></div>
+  <div id="msg"></div>
+</div>
+<script id="src">
+(function(){
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const S=2,W=1600,H=900;
+const C={bg:'#EDF1F3',ink:'#14232E',mut:'#5A6A75',teal:'#1B6F7F',tealL:'#DCEBEF',tealM:'#A9CBD3',amb:'#E39B0B',ambD:'#8F5A00',ambL:'#FBEBC8',cor:'#B8432B',corL:'#F6DDD6',pan:'#FBFCFC',line:'#C5D2D9'};
+const FAM='"Noto Sans TC","PingFang TC","Microsoft JhengHei","Segoe UI Symbol","Arial Unicode MS",sans-serif';
+const F=(s,w)=>`${w||400} ${s}px ${FAM}`;
+
+function T(s,x,y,o){o=o||{};ctx.font=F(o.size||14,o.w||400);ctx.fillStyle=o.c||C.ink;ctx.textAlign=o.a||'left';ctx.textBaseline='alphabetic';ctx.fillText(s,x,y);return ctx.measureText(s).width;}
+function wrap(s,maxW,size,w){ctx.font=F(size,w);const toks=s.match(/[\x21-\x7E\u00A0-\u024F]+|\s+|[^\s]/gu)||[];const lines=[];let line='';
+  for(const t of toks){if(/^\s+$/.test(t)&&line===''){continue;}
+    if(ctx.measureText(line+t).width>maxW&&line.trim()!==''){lines.push(line.trimEnd());line=/^\s+$/.test(t)?'':t;}else line+=t;}
+  if(line.trim()!=='')lines.push(line.trimEnd());return lines;}
+function P(s,x,y,maxW,lh,size,w,c,a){const ls=wrap(s,maxW,size,w);ls.forEach((l,i)=>T(l,x,y+i*lh,{size:size,w:w,c:c,a:a}));return y+ls.length*lh;}
+function rr(x,y,w,h,r){ctx.beginPath();ctx.roundRect(x,y,w,h,r);}
+function panel(x,y,w,h,zh,en){rr(x,y,w,h,10);ctx.fillStyle=C.pan;ctx.fill();ctx.strokeStyle=C.line;ctx.lineWidth=1;ctx.stroke();
+  const tw=T(zh,x+18,y+29,{size:17,w:700});T(en,x+18+tw+10,y+29,{size:11.5,c:C.mut});}
+function arrow(x1,y1,x2,y2,col,lw,hs){hs=hs||7;ctx.strokeStyle=col;ctx.fillStyle=col;ctx.lineWidth=lw;ctx.lineCap='round';
+  const a=Math.atan2(y2-y1,x2-x1);ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2-Math.cos(a)*hs*0.6,y2-Math.sin(a)*hs*0.6);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(x2,y2);ctx.lineTo(x2-hs*Math.cos(a-0.45),y2-hs*Math.sin(a-0.45));ctx.lineTo(x2-hs*Math.cos(a+0.45),y2-hs*Math.sin(a+0.45));ctx.closePath();ctx.fill();}
+function dot(x,y,r,fill,stroke,lw){ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fillStyle=fill;ctx.fill();if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw||2;ctx.stroke();}}
+
+function draw(){
+  ctx.setTransform(S,0,0,S,0,0);
+  ctx.fillStyle=C.bg;ctx.fillRect(0,0,W,H);
+
+  /* ---------- Header ---------- */
+  ctx.save();ctx.beginPath();ctx.rect(0,0,W,100);ctx.clip();
+  for(let k=1;k<=11;k++){ctx.beginPath();for(let i=0;i<=120;i++){const a=i/120*Math.PI*2;const r=k*32+6*Math.sin(a*3+k)+4*Math.sin(a*5+k*2);
+      const x=1330+r*1.55*Math.cos(a),y=50+r*0.6*Math.sin(a);i?ctx.lineTo(x,y):ctx.moveTo(x,y);}
+    ctx.closePath();ctx.strokeStyle='rgba(27,111,127,0.17)';ctx.lineWidth=1.2;ctx.stroke();}
+  ctx.restore();
+  T('優化：訓練神經網路的引擎',40,62,{size:42,w:900});
+  T('Optimization: the engine that trains neural networks',40,92,{size:20,w:500,c:C.teal});
+  rr(1290,32,270,46,23);ctx.fillStyle=C.teal;ctx.fill();
+  T('本章 = 三步驟中的第 3 步',1425,52,{size:14,w:700,c:'#fff',a:'center'});
+  T('This chapter = Step 3: optimization / search',1425,68,{size:10.5,c:'#D6EAEE',a:'center'});
+
+  /* ---------- Panel 1: three steps ---------- */
+  panel(40,105,460,365,'機器學習三步驟','Three steps of ML (from Chap. 1)');
+  const steps=[
+    {n:'1',zh:'提出假設類別',en:'Hypothesis class',dz:'先決定要用什麼模型家族，例如多層神經網路',de:'Choose the model family, e.g. multilayer neural networks'},
+    {n:'2',zh:'用損失函數排名',en:'Loss function',dz:'定義「猜錯多少要付多少代價」，讓模型能比較好壞',de:'Price every wrong guess so models can be ranked'},
+    {n:'3',zh:'搜尋最佳假設',en:'Optimization / search',dz:'調整參數，把損失壓到最低——這就是本章的主角',de:'Tune the parameters to push the loss to a minimum'}];
+  steps.forEach((s,i)=>{const ry=149+i*105,hi=i===2;
+    rr(56,ry,428,96,8);ctx.fillStyle=hi?C.teal:'#F1F5F7';ctx.fill();if(!hi){ctx.strokeStyle=C.line;ctx.lineWidth=1;ctx.stroke();}
+    dot(86,ry+48,19,hi?'#fff':C.tealL,hi?null:C.teal,1.5);
+    T(s.n,86,ry+55,{size:20,w:900,c:C.teal,a:'center'});
+    T(s.zh,114,ry+30,{size:16,w:700,c:hi?'#fff':C.ink});
+    T(s.en,114,ry+47,{size:11.5,c:hi?'#CFE6EB':C.mut});
+    P(s.dz,114,ry+67,362,16,12.5,400,hi?'#fff':C.ink);
+    P(s.de,114,ry+84,362,13,10.5,400,hi?'#CFE6EB':C.mut);
+    if(hi){rr(392,ry+12,84,20,10);ctx.fillStyle=C.amb;ctx.fill();T('本章主角',434,ry+26,{size:11,w:700,c:C.ink,a:'center'});}
+  });
+
+  /* ---------- Panel 2: loss landscape ---------- */
+  panel(520,105,560,365,'損失地形：高維、非凸','Loss landscape: high-dimensional, non-convex');
+  const X0=545,XW=510,YB=440,HS=215;
+  const g=(t,c,w)=>Math.exp(-Math.pow((t-c)/w,2));
+  const Lf=t=>0.78+0.10*(1-t)-0.30*g(t,0.27,0.07)-0.50*g(t,0.55,0.022)-0.40*g(t,0.83,0.09)+0.015*Math.sin(t*38);
+  const X=t=>X0+XW*t,Y=l=>YB-l*HS;
+  const argmin=(lo,hi)=>{let b=lo,bv=1e9;for(let t=lo;t<=hi;t+=0.001){const v=Lf(t);if(v<bv){bv=v;b=t;}}return b;};
+  const tLoc=argmin(0.2,0.36),tSharp=argmin(0.5,0.6),tFlat=argmin(0.72,0.95);
+  // fill
+  ctx.beginPath();ctx.moveTo(X(0),YB);for(let i=0;i<=300;i++){const t=i/300;ctx.lineTo(X(t),Y(Lf(t)));}ctx.lineTo(X(1),YB);ctx.closePath();
+  const gr=ctx.createLinearGradient(0,220,0,YB);gr.addColorStop(0,'#C6DFE5');gr.addColorStop(1,'#E9F3F5');ctx.fillStyle=gr;ctx.fill();
+  // contour hints inside fill
+  ctx.strokeStyle='rgba(27,111,127,0.13)';ctx.lineWidth=1;
+  for(let k=1;k<=3;k++){ctx.beginPath();for(let i=0;i<=300;i++){const t=i/300;const yy=Y(Lf(t))+k*16;i?ctx.lineTo(X(t),Math.min(yy,YB)):ctx.moveTo(X(t),Math.min(yy,YB));}ctx.stroke();}
+  // curve
+  ctx.beginPath();for(let i=0;i<=300;i++){const t=i/300;i?ctx.lineTo(X(t),Y(Lf(t))):ctx.moveTo(X(t),Y(Lf(t)));}
+  ctx.strokeStyle=C.ink;ctx.lineWidth=2.6;ctx.lineJoin='round';ctx.stroke();
+  // axis
+  ctx.strokeStyle=C.mut;ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(X0,YB);ctx.lineTo(X0+XW,YB);ctx.stroke();
+  T('損失 Loss ↑',549,176,{size:11,w:700,c:C.mut});
+  T('參數 θ Parameters →',X0,458,{size:11,c:C.mut});
+  T('成因仍在研究中 Why: still an open question',X0+XW,458,{size:10.5,c:C.mut,a:'right'});
+  // start + descent dots
+  dot(X(0.045),Y(Lf(0.045)),6.5,C.ink);T('起點 Start',X(0.045)-8,Y(Lf(0.045))-14,{size:11,w:700});
+  [0.10,0.155,0.21].forEach((t,i)=>dot(X(t),Y(Lf(t)),4.2-i*0.2,C.amb,C.ink,1));
+  arrow(X(0.215),Y(Lf(0.215))-1,X(0.245),Y(Lf(0.245))+4,C.amb,2.4,8);
+  // formula chip
+  T('θ ← θ − η∇L(θ)',556,402,{size:14,w:700,c:C.ink});
+  T('沿負梯度走一步',556,418,{size:11,w:500,c:C.ink});
+  T('Step along −gradient',556,431,{size:10,c:C.mut});
+  // minima + tags
+  const mins=[{t:tLoc,cx:683,col:C.mut,zh:'局部最低點',en:'Local minimum'},{t:tSharp,cx:826,col:C.cor,zh:'尖銳最低點',en:'Sharp minimum'},{t:tFlat,cx:970,col:C.teal,zh:'平坦最低點',en:'Flat minimum'}];
+  mins.forEach(m=>{const px=X(m.t),py=Y(Lf(m.t));
+    ctx.strokeStyle=m.col;ctx.lineWidth=1.4;ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(m.cx,204);ctx.lineTo(px,py-6);ctx.stroke();ctx.setLineDash([]);
+    dot(px,py,6,m.col,'#fff',2);
+    rr(m.cx-68,156,136,48,7);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle=m.col;ctx.lineWidth=1.6;ctx.stroke();
+    T(m.zh,m.cx,177,{size:14,w:700,c:m.col,a:'center'});T(m.en,m.cx,193,{size:10.5,c:C.mut,a:'center'});});
+  // consequences (under the curve)
+  const sx=X(tSharp),fx=X(tFlat);
+  T('二階方法易落入',sx,400,{size:11.5,w:700,c:C.cor,a:'center'});T('泛化較差',sx,414,{size:11.5,w:700,c:C.cor,a:'center'});T('worse generalization',sx,428,{size:9.5,c:C.cor,a:'center'});
+  T('一階（尤其隨機版）常找到',fx+6,400,{size:11.5,w:700,c:C.teal,a:'center'});T('泛化較佳',fx+6,414,{size:11.5,w:700,c:C.teal,a:'center'});T('better generalization',fx+6,428,{size:9.5,c:C.teal,a:'center'});
+
+  /* ---------- Panel 3: backprop ---------- */
+  panel(1100,105,460,365,'反向傳播：鏈式法則往回算','Backpropagation');
+  const cy=252,layers=[{x:1140,n:3,zh:'輸入',en:'Input'},{x:1230,n:4,zh:'隱藏層',en:'Hidden'},{x:1320,n:4,zh:'隱藏層',en:'Hidden'},{x:1410,n:2,zh:'輸出',en:'Output'}];
+  const lossX=1500;
+  const ny=(L,i)=>cy+(i-(L.n-1)/2)*32;
+  ctx.lineWidth=0.8;ctx.strokeStyle='rgba(90,106,117,0.3)';
+  for(let l=0;l<3;l++){const A=layers[l],B=layers[l+1];for(let i=0;i<A.n;i++)for(let j=0;j<B.n;j++){ctx.beginPath();ctx.moveTo(A.x,ny(A,i));ctx.lineTo(B.x,ny(B,j));ctx.stroke();}}
+  for(let i=0;i<2;i++){ctx.beginPath();ctx.moveTo(1410,ny(layers[3],i));ctx.lineTo(lossX,cy);ctx.stroke();}
+  layers.forEach(L=>{for(let i=0;i<L.n;i++)dot(L.x,ny(L,i),8,'#fff',C.teal,2);
+    T(L.zh,L.x,168,{size:12,w:700,a:'center'});T(L.en,L.x,181,{size:10,c:C.mut,a:'center'});});
+  rr(lossX-17,cy-17,34,34,7);ctx.fillStyle=C.amb;ctx.fill();T('L',lossX,cy+6,{size:17,w:900,c:C.ink,a:'center'});
+  T('損失',lossX,168,{size:12,w:700,a:'center'});T('Loss',lossX,181,{size:10,c:C.mut,a:'center'});
+  // backward path
+  ctx.strokeStyle=C.amb;ctx.lineWidth=3;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(lossX,cy+17);ctx.lineTo(lossX,326);ctx.lineTo(1140,326);ctx.stroke();
+  layers.forEach(L=>{const bot=cy+(L.n-1)/2*32+8+4;arrow(L.x,326,L.x,bot,C.amb,2.4,7);});
+  T('前向算出損失，反向逐層算出梯度',1330,348,{size:12.5,w:700,a:'center'});
+  T('Forward pass gives the loss; backward pass gives every gradient',1330,363,{size:10.5,c:C.mut,a:'center'});
+  // formula box
+  rr(1116,376,428,86,8);ctx.fillStyle=C.ambL;ctx.fill();
+  T('鏈式法則 Chain rule',1128,392,{size:10.5,w:700,c:C.ambD});
+  T('∂L/∂w = ∂L/∂y · ∂y/∂h · ∂h/∂w',1330,414,{size:17,w:700,a:'center'});
+  T('沒有 backprop，深度學習根本訓不起來',1330,434,{size:12.5,w:700,a:'center'});
+  T("Without backprop, deep learning can't be trained",1330,450,{size:10.5,c:C.mut,a:'center'});
+
+  /* ---------- Panel 4: first vs second order ---------- */
+  panel(40,484,760,220,'一階 vs 二階：為什麼實務選梯度下降','First-order vs second-order');
+  const cols=[{x:180,w:300,col:C.teal},{x:486,w:300,col:C.cor}];
+  cols[0].zh='一階梯度下降（含隨機版）';cols[0].en='First-order gradient descent (incl. stochastic)';
+  cols[1].zh='二階方法（如 Newton 法）';cols[1].en="Second-order (e.g. Newton's method)";
+  cols.forEach((c,i)=>{rr(c.x,524,c.w,38,7);ctx.fillStyle=c.col;ctx.fill();
+    T(c.zh,c.x+10,540,{size:13.5,w:700,c:'#fff'});T(c.en,c.x+10,555,{size:10,c:'#EAF3F5'});});
+  rr(390,531,80,20,10);ctx.fillStyle=C.amb;ctx.fill();T('實務主力',430,545,{size:11,w:700,c:C.ink,a:'center'});
+  const rows=[
+    ['每步要算','Needed per step','梯度','The gradient','梯度＋Hessian 矩陣，還要反轉','Gradient + Hessian, which must be inverted'],
+    ['算力成本','Compute cost','可擴展到百萬參數的模型','Scales to millions of parameters','深度學習規模下算力扛不住','Infeasible at deep-learning scale'],
+    ['局部收斂','Local convergence','較慢，但每步便宜','Slower, but every step is cheap','理論上更快','Faster in theory'],
+    ['找到的最低點','Minima found','常較平坦，泛化較好','Often flatter, generalizes better','可能鑽進尖銳處，泛化較差','May sink into sharp ones, generalizes worse']];
+  rows.forEach((r,i)=>{const ry=567+i*34;
+    if(i%2===0){rr(56,ry,730,33,5);ctx.fillStyle='#F1F5F7';ctx.fill();}
+    T(r[0],64,ry+14,{size:12.5,w:700});T(r[1],64,ry+27,{size:10,c:C.mut});
+    T(r[2],cols[0].x+10,ry+14,{size:12.5,w:500});T(r[3],cols[0].x+10,ry+27,{size:10,c:C.mut});
+    T(r[4],cols[1].x+10,ry+14,{size:12.5,w:500});T(r[5],cols[1].x+10,ry+27,{size:10,c:C.mut});});
+
+  /* ---------- Panel 5: nutshell ---------- */
+  panel(820,484,740,220,'口語小結','In a nutshell');
+  const chain=[
+    ['訓練神經網路 = 最小化損失','Training a neural net = minimizing loss'],
+    ['最小化損失 = 優化問題','Minimizing loss = an optimization problem'],
+    ['Backprop 讓多層網路能算出梯度','Backprop makes gradients computable through many layers'],
+    ['一階方法在實務上贏了二階方法','First-order methods beat second-order ones in practice']];
+  chain.forEach((c,i)=>{const bx=838+i*181,by=524,last=i===3;
+    rr(bx,by,159,122,9);ctx.fillStyle=last?C.teal:(i===2?C.ambL:C.tealL);ctx.fill();
+    const y1=P(c[0],bx+10,by+26,139,18,13.5,700,last?'#fff':C.ink);
+    P(c[1],bx+10,y1+6,139,13,10.5,400,last?'#D6EAEE':C.mut);
+    if(i<3)arrow(bx+159+3,by+61,bx+159+19,by+61,C.mut,2,7);});
+  rr(838,656,704,42,8);ctx.fillStyle='#F1F5F7';ctx.fill();ctx.strokeStyle=C.line;ctx.lineWidth=1;ctx.stroke();
+  T('難在哪：模型有好幾層、幾百萬個參數，地形坑坑洞洞，到處是局部最低點',852,674,{size:12,w:700});
+  T('Why it is hard: millions of parameters, a bumpy non-convex terrain full of local minima',852,690,{size:10.5,c:C.mut});
+
+  /* ---------- Panel 6: roadmap ---------- */
+  panel(40,716,1520,168,'本章路線圖：先地基，再進階','Roadmap: foundations first, then advanced');
+  T('實心 = 主線　空心 = 進階',1542,745,{size:11,c:C.mut,a:'right'});
+  T('Filled = core path, hollow = advanced',1542,759,{size:10,c:C.mut,a:'right'});
+  const st=[
+    ['§2','梯度下降基礎','Gradient descent basics','線搜索、最陡下降','Line search, steepest descent','core'],
+    ['§3','反向傳播','Backpropagation','核心：梯度下降＋鏈式法則','Core: gradient descent + chain rule','hero'],
+    ['§4','隨機與 mini-batch 梯度下降','Stochastic & mini-batch GD','資料太大時近似梯度、加速訓練','Approximate gradients on big data','core'],
+    ['§5','自適應學習率','Adaptive learning rates','AdaGrad、RMSProp、Adam','Less hand-tuning of learning rates','core'],
+    ['§6','SAM 進階技巧','Sharpness-Aware Minimization','進階：找更平坦的最小值','Advanced: seek flatter minima','adv'],
+    ['§7','收斂理論','Convergence theory','過參數化網路的優化行為','Optimization in over-parameterized nets','adv']];
+  const cyR=785,sxs=st.map((_,i)=>183+i*246);
+  ctx.lineCap='round';ctx.strokeStyle=C.teal;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(sxs[0],cyR);ctx.lineTo(sxs[3],cyR);ctx.stroke();
+  ctx.setLineDash([2,7]);ctx.strokeStyle=C.mut;ctx.beginPath();ctx.moveTo(sxs[3],cyR);ctx.lineTo(sxs[5],cyR);ctx.stroke();ctx.setLineDash([]);
+  st.forEach((s,i)=>{const x=sxs[i],k=s[5];
+    if(k==='hero'){dot(x,cyR,20,C.amb,C.ink,2);T(s[0],x,cyR+5,{size:14,w:900,a:'center'});
+      rr(x+26,cyR-10,84,20,10);ctx.fillStyle=C.ambL;ctx.fill();ctx.strokeStyle=C.amb;ctx.lineWidth=1.2;ctx.stroke();T('必讀 Must-read',x+68,cyR+4,{size:10,w:700,c:C.ambD,a:'center'});}
+    else if(k==='core'){dot(x,cyR,15,C.teal);T(s[0],x,cyR+4.5,{size:12,w:700,c:'#fff',a:'center'});}
+    else{dot(x,cyR,15,'#fff',C.teal,2);T(s[0],x,cyR+4.5,{size:12,w:700,c:C.teal,a:'center'});}
+    T(s[1],x,cyR+38,{size:13.5,w:700,a:'center'});
+    T(s[2],x,cyR+54,{size:10.5,c:C.mut,a:'center'});
+    T(s[3],x,cyR+70,{size:12,a:'center'});
+    T(s[4],x,cyR+84,{size:10,c:C.mut,a:'center'});});
+}
+
+/* ------- font loading, then draw ------- */
+const sample=(document.getElementById('src').textContent||'').replace(/\s+/g,'');
+const uniq=Array.from(new Set(sample.split(''))).join('');
+const msg=document.getElementById('msg');
+function setMsg(t){msg.textContent=t;}
+async function init(){
+  draw();
+  try{
+    const ws=[400,500,700,900];
+    await Promise.race([Promise.all(ws.map(w=>document.fonts.load(w+' 20px "Noto Sans TC"',uniq))),new Promise(r=>setTimeout(r,6000))]);
+  }catch(e){}
+  draw();
+}
+init();
+
+/* ------- export ------- */
+function toBlob(){return new Promise(res=>cv.toBlob(res,'image/jpeg',0.95));}
+document.getElementById('dl').addEventListener('click',async()=>{
+  try{
+    draw();
+    const blob=await toBlob();
+    const d=window.claude?await window.claude.use('downloads'):null;
+    if(!d){setMsg('此環境無法直接下載，請按「轉成圖片」後長按或右鍵儲存。Direct download unavailable — use “convert to image” and save it.');return;}
+    await d.save({filename:'optimization-infographic-3200x1800.jpg',data:blob});
+    setMsg('已送出儲存請求。Save request sent.');
+  }catch(e){
+    if(e&&e.code==='declined')setMsg('已取消儲存。Save cancelled.');
+    else setMsg('下載失敗，請改用「轉成圖片」。Download failed — try “convert to image”.');
+  }
+});
+document.getElementById('asimg').addEventListener('click',async()=>{
+  try{
+    draw();
+    const blob=await toBlob();
+    const url=URL.createObjectURL(blob);
+    const st=document.getElementById('stage');
+    st.innerHTML='';
+    const im=new Image();im.src=url;im.alt='優化資訊圖表 JPG（3200×1800）';st.appendChild(im);
+    setMsg('現在是 JPG 圖片，請長按（手機）或按右鍵（電腦）儲存。Now a JPG image — long-press or right-click to save.');
+  }catch(e){setMsg('轉換失敗。Conversion failed.');}
+});
+})();
+</script>
+</body>
+</html>
