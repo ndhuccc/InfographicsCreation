@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>隨機梯度下降 SGD — 全資料梯度太貴？</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  html,body{margin:0;height:100%;background:#020617;}
+  body{display:flex;align-items:center;justify-content:center;overflow:hidden;}
+  canvas{width:min(100vw,calc(100vh*16/9));aspect-ratio:16/9;display:block;}
+</style>
+</head>
+<body>
+<canvas id="c" width="1920" height="1080"></canvas>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const SANS='"Noto Sans TC","Microsoft JhengHei","PingFang TC","Segoe UI",sans-serif';
+const MATH='"Cambria Math","STIX Two Math","Times New Roman","Microsoft JhengHei","Noto Sans TC",serif';
+const C={panel:'#16213a',panel2:'#0f1a30',line:'#2c3b5c',txt:'#e8eefc',dim:'#9fb0d0',
+  cyan:'#38bdf8',green:'#4ade80',orange:'#fb923c',purple:'#a78bfa',pink:'#f472b6',gray:'#94a3b8',red:'#f87171'};
+
+/* ---------- text helpers ---------- */
+function T(s,x,y,o={}){
+  let size=o.size||24;
+  ctx.font=`${o.weight||'400'} ${size}px ${SANS}`;
+  let w=ctx.measureText(s).width;
+  if(o.maxW&&w>o.maxW){size*=o.maxW/w;ctx.font=`${o.weight||'400'} ${size}px ${SANS}`;w=o.maxW;}
+  ctx.fillStyle=o.color||C.txt;ctx.textBaseline='alphabetic';ctx.textAlign='left';
+  let sx=x; if(o.align==='center')sx=x-w/2; else if(o.align==='right')sx=x-w;
+  ctx.fillText(s,sx,y);return w;
+}
+function parse(s){
+  const out=[];let buf='';
+  for(let i=0;i<s.length;){
+    const c=s[i];
+    if((c==='_'||c==='^')&&s[i+1]==='{'){
+      if(buf){out.push({t:buf});buf='';}
+      let sub='',sup='';
+      while((s[i]==='_'||s[i]==='^')&&s[i+1]==='{'){
+        const k=s.indexOf('}',i);const g=s.slice(i+2,k);
+        if(s[i]==='_')sub=g;else sup=g;i=k+1;
+      }
+      out.push({sub,sup});
+    }else{buf+=c;i++;}
+  }
+  if(buf)out.push({t:buf});return out;
+}
+function runsW(s,size,wt){
+  let w=0;
+  for(const r of parse(s)){
+    if(r.t!==undefined){ctx.font=`${wt} ${size}px ${MATH}`;w+=ctx.measureText(r.t).width;}
+    else{ctx.font=`${wt} ${size*0.66}px ${MATH}`;
+      w+=Math.max(ctx.measureText(r.sub).width,ctx.measureText(r.sup).width)+1;}
+  }
+  return w;
+}
+function drawRuns(s,x,y,size,color,wt){
+  ctx.fillStyle=color;ctx.textAlign='left';ctx.textBaseline='alphabetic';
+  for(const r of parse(s)){
+    if(r.t!==undefined){ctx.font=`${wt} ${size}px ${MATH}`;ctx.fillText(r.t,x,y);x+=ctx.measureText(r.t).width;}
+    else{const fs=size*0.66;ctx.font=`${wt} ${fs}px ${MATH}`;
+      const ws=ctx.measureText(r.sub).width,wp=ctx.measureText(r.sup).width;
+      if(r.sub)ctx.fillText(r.sub,x,y+size*0.26);
+      if(r.sup)ctx.fillText(r.sup,x,y-size*0.4);
+      x+=Math.max(ws,wp)+1;}
+  }
+  return x;
+}
+function itemW(it,size,wt){
+  if(typeof it==='string')return runsW(it,size,wt);
+  const fs=size*0.85;return Math.max(runsW(it.f[0],fs,wt),runsW(it.f[1],fs,wt))+12;
+}
+function M(items,x,y,size,color,align,maxW,wt){
+  wt=wt||'400';color=color||C.txt;
+  if(!Array.isArray(items))items=[items];
+  let tot=items.reduce((a,it)=>a+itemW(it,size,wt),0);
+  if(maxW&&tot>maxW){size*=maxW/tot;tot=maxW;}
+  let cx=x;if(align==='center')cx=x-tot/2;else if(align==='right')cx=x-tot;
+  for(const it of items){
+    if(typeof it==='string'){cx=drawRuns(it,cx,y,size,color,wt);}
+    else{
+      const fs=size*0.85,fw=itemW(it,size,wt),axis=y-size*0.3;
+      const wn=runsW(it.f[0],fs,wt),wd=runsW(it.f[1],fs,wt);
+      drawRuns(it.f[0],cx+(fw-wn)/2,axis-6,fs,color,wt);
+      drawRuns(it.f[1],cx+(fw-wd)/2,axis+8+fs*0.72,fs,color,wt);
+      ctx.strokeStyle=color;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(cx+2,axis);ctx.lineTo(cx+fw-2,axis);ctx.stroke();
+      cx+=fw;
+    }
+  }
+  return tot;
+}
+/* ---------- shapes ---------- */
+function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+function panel(x,y,w,h,n,zh,en,col){
+  rr(x,y,w,h,18);ctx.fillStyle=C.panel;ctx.fill();
+  ctx.strokeStyle=col;ctx.globalAlpha=.55;ctx.lineWidth=2;ctx.stroke();ctx.globalAlpha=1;
+  ctx.fillStyle=col;ctx.beginPath();ctx.arc(x+36,y+36,20,0,Math.PI*2);ctx.fill();
+  T(String(n),x+36,y+45,{size:26,weight:'700',color:'#0b1220',align:'center'});
+  T(zh,x+68,y+34,{size:28,weight:'700',color:C.txt,maxW:w-88});
+  T(en,x+68,y+62,{size:22,color:C.dim,maxW:w-88});
+}
+function circle(x,y,r,fill,stroke,lw){ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fillStyle=fill;ctx.fill();if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw||2;ctx.stroke();}}
+function label(s,x,y,size,col,bg){
+  const w=runsW(s,size,'400');
+  rr(x-w/2-6,y-size*0.85,w+12,size*1.25,6);ctx.fillStyle=bg||C.panel;ctx.fill();
+  M(s,x,y,size,col,'center');
+}
+
+/* ---------- SGD simulation (deterministic) ---------- */
+let seed=7;function rnd(){seed=(seed*1664525+1013904223)%4294967296;return seed/4294967296;}
+function gauss(){return Math.sqrt(-2*Math.log(rnd()+1e-9))*Math.cos(2*Math.PI*rnd());}
+const CX=920,CY=326,AX=60,AY=26,STEPS=46;
+const gd=[[760,392]],sg=[[760,392]];
+(function(){
+  const eta=520;let a=[760,392],b=[760,392];
+  for(let k=0;k<STEPS;k++){
+    let dx=a[0]-CX,dy=a[1]-CY;a=[a[0]-eta*dx/(AX*AX)*0.55,a[1]-eta*dy/(AY*AY)*0.55];gd.push(a);
+    dx=b[0]-CX;dy=b[1]-CY;
+    b=[b[0]-eta*(dx/(AX*AX))*0.55+gauss()*13,b[1]-eta*(dy/(AY*AY))*0.55+gauss()*17];
+    b[0]=Math.max(660,Math.min(1180,b[0]));b[1]=Math.max(244,Math.min(408,b[1]));sg.push(b);
+  }
+})();
+function path(pts,n,col,lw){
+  ctx.strokeStyle=col;ctx.lineWidth=lw;ctx.lineJoin='round';ctx.beginPath();
+  for(let i=0;i<=n&&i<pts.length;i++){i?ctx.lineTo(pts[i][0],pts[i][1]):ctx.moveTo(pts[i][0],pts[i][1]);}
+  ctx.stroke();
+  for(let i=0;i<=n&&i<pts.length;i++){circle(pts[i][0],pts[i][1],i===n?6:3,col);}
+}
+
+/* ---------- main draw ---------- */
+function draw(ts){
+  ctx.clearRect(0,0,1920,1080);
+  const g=ctx.createLinearGradient(0,0,1920,1080);g.addColorStop(0,'#0b1220');g.addColorStop(1,'#111d38');
+  ctx.fillStyle=g;ctx.fillRect(0,0,1920,1080);
+
+  /* header */
+  T('全資料梯度太貴？隨機梯度下降（SGD）',50,80,{size:54,weight:'800',color:'#ffffff'});
+  T('Full-Data Gradients Too Expensive? Stochastic Gradient Descent (SGD)',52,122,{size:28,color:C.cyan,maxW:1240});
+  rr(1330,34,540,88,16);ctx.fillStyle=C.panel2;ctx.fill();ctx.strokeStyle=C.orange;ctx.lineWidth=2;ctx.stroke();
+  T('每步只隨機抽一筆 i',1600,72,{size:30,weight:'700',color:C.orange,align:'center',maxW:500});
+  T('One random sample per step approximates the full gradient',1600,104,{size:22,color:C.dim,align:'center',maxW:510});
+
+  const py=150,ph=440;
+  /* ===== Panel 1: problem ===== */
+  let px=50,pw=560;
+  panel(px,py,pw,ph,1,'問題設定：式 (20)–(21)','Problem Setup: Eqs. (20)–(21)',C.cyan);
+  M('資料 {x_{i}}、標籤 {l_{i}}，i = 1…n',px+24,262,24,C.dim,'left',pw-48);
+  M('(20)',px+20,332,26,C.cyan);
+  M(['min_{w}  ',{f:['1','n']},' Σ_{i=1}^{n} f_{i}(w)'],px+85,332,32,C.txt,'left',pw-110);
+  T('總 loss = 各樣本 loss 的平均｜mean of per-sample losses',px+85,372,{size:22,color:C.dim,maxW:pw-105});
+  M('(21)',px+20,438,26,C.cyan);
+  M(['∇f(w) = ',{f:['1','n']},' Σ_{i=1}^{n} ∇f_{i}(w)'],px+85,438,32,C.txt,'left',pw-110);
+  T('全梯度 = 各樣本梯度的平均｜full gradient = mean of gradients',px+85,478,{size:22,color:C.dim,maxW:pw-105});
+  rr(px+20,498,pw-40,80,12);ctx.fillStyle=C.panel2;ctx.fill();ctx.strokeStyle=C.red;ctx.lineWidth=1.8;ctx.stroke();
+  M('Full-batch 每輪要算完整求和：O(n)',px+pw/2,531,25,C.red,'center',pw-60,'700');
+  T('n 達百萬、十億就吃不消｜O(n) per step: too slow at scale',px+pw/2,563,{size:22,color:C.txt,align:'center',maxW:pw-60});
+
+  /* ===== Panel 2: SGD update + contours ===== */
+  px=630;pw=580;
+  panel(px,py,pw,ph,2,'SGD 更新：式 (22)','SGD Update: Eq. (22)',C.orange);
+  ctx.save();rr(px+20,232,pw-40,196,10);ctx.fillStyle=C.panel2;ctx.fill();ctx.clip();
+  for(let k=1;k<=4;k++){ctx.beginPath();ctx.ellipse(CX,CY,AX*k*0.95,AY*k*0.95,0,0,Math.PI*2);
+    ctx.strokeStyle=C.line;ctx.lineWidth=1.5;ctx.stroke();}
+  const cyc=((ts||0)%9000)/9000,n=Math.min(STEPS,Math.floor(cyc/0.8*STEPS));
+  path(gd,Math.min(n,STEPS),C.cyan,3);
+  path(sg,Math.min(n,STEPS),C.orange,2.2);
+  circle(CX,CY,7,'#ffffff');
+  ctx.restore();
+  T('全梯度 full-batch',px+34,258,{size:22,color:C.cyan,weight:'700'});
+  T('SGD 單筆 single sample',px+pw-34,258,{size:22,color:C.orange,weight:'700',align:'right'});
+  T('最優點 optimum ●',px+pw-34,420,{size:22,color:C.txt,align:'right'});
+  M('(22)',px+20,472,26,C.orange);
+  M('w^{(k+1)} := w^{(k)} − η^{(k)} ∇f_{i}(w^{(k)})',px+80,472,30,C.txt,'left',pw-100);
+  T('每步只隨機抽一筆 i｜sample one index i per step',px+80,502,{size:22,color:C.dim,maxW:pw-100});
+  M('而非  w^{(k+1)} := w^{(k)} − η∇f(w^{(k)})',px+80,543,25,C.gray,'left',pw-100);
+  T('雜訊估計，但期望方向仍指向全梯度｜noisy, right on average',px+24,577,{size:22,color:C.dim,maxW:pw-48});
+
+  /* ===== Panel 3: learning rate ===== */
+  px=1230;pw=640;
+  panel(px,py,pw,ph,3,'自適應學習率 η^{(k)}'.replace('^{(k)}','(k)'),'Adaptive Learning Rate η(k)',C.green);
+  const X0=px+50,X1=px+pw-24,Y0=238,Y1=372;
+  ctx.strokeStyle=C.gray;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(X0,Y0-6);ctx.lineTo(X0,Y1);ctx.lineTo(X1,Y1);ctx.stroke();
+  M('η^{(k)}',X0+8,Y0+10,22,C.dim);T('k →',X1,Y1-8,{size:22,color:C.dim,align:'right'});
+  T('示意 illustrative',X1,Y0+10,{size:22,color:C.dim,align:'right'});
+  const fx=k=>X0+(k-1)/19*(X1-X0-30),fy=v=>Y1-v*(Y1-Y0-24);
+  const curves=[[C.cyan,k=>1/k,false],[C.green,k=>1/Math.sqrt(k),false],[C.orange,k=>0.32,true]];
+  const tk=1+((ts||0)%6000)/6000*19;
+  for(const [col,f,dash] of curves){
+    ctx.strokeStyle=col;ctx.lineWidth=3.5;ctx.setLineDash(dash?[10,8]:[]);ctx.beginPath();
+    for(let i=0;i<=190;i++){const k=1+i/10;i?ctx.lineTo(fx(k),fy(f(k))):ctx.moveTo(fx(k),fy(f(k)));}
+    ctx.stroke();ctx.setLineDash([]);circle(fx(tk),fy(f(tk)),6,col);
+  }
+  const rows=[
+    [C.cyan,'η^{(k)} = 1/k','早期大步探索，後期細調','big steps early, fine steps late'],
+    [C.green,'η^{(k)} = 1/√k','衰減比 1/k 慢，實務常用','decays slower; common in practice'],
+    [C.orange,'η^{(k)} = η','固定：簡單，但可能停在最優點附近','may stall in an O(η) neighborhood (§4.2)']];
+  rows.forEach((r,i)=>{
+    const ty=398+i*62;
+    rr(px+16,ty,pw-32,56,10);ctx.fillStyle=C.panel2;ctx.fill();
+    ctx.fillStyle=r[0];ctx.fillRect(px+16,ty+8,5,40);
+    M(r[1],px+34,ty+37,28,r[0],'left',170,'700');
+    T(r[2],px+220,ty+24,{size:22,color:C.txt,maxW:pw-236});
+    T(r[3],px+220,ty+49,{size:22,color:C.dim,maxW:pw-236});
+  });
+
+  /* ===== Panel 4: comparison table ===== */
+  px=50;pw=950;const ry0=610,ph2=350;
+  panel(px,ry0,pw,ph2,4,'Full-batch vs SGD 對照','Full-Batch vs SGD at a Glance',C.purple);
+  const c0=px+18,c1=px+236,c2=px+590;
+  rr(c1-8,684,340,34,8);ctx.fillStyle=C.cyan;ctx.globalAlpha=.25;ctx.fill();ctx.globalAlpha=1;
+  rr(c2-8,684,pw-(c2-px)-10,34,8);ctx.fillStyle=C.orange;ctx.globalAlpha=.25;ctx.fill();ctx.globalAlpha=1;
+  T('Full-batch 全批次',c1+162,709,{size:24,weight:'700',color:C.cyan,align:'center'});
+  T('SGD 單筆隨機抽樣',c2+170,709,{size:24,weight:'700',color:C.orange,align:'center'});
+  const tb=[
+   ['每步資料','Data per step','全部 n 筆','all n samples','隨機抽 1 筆 i','one random sample i'],
+   ['更新式','Update rule','w^{(k)} − η∇f(w^{(k)})','full gradient, eq. (21)','w^{(k)} − η^{(k)}∇f_{i}(w^{(k)})','single-sample gradient, eq. (22)'],
+   ['每步成本','Cost per step','O(n)，n 大就吃不消','too slow at scale','便宜、可擴展','cheap and scalable'],
+   ['梯度品質','Gradient quality','精確的全體平均','exact average','有雜訊，期望仍指向全梯度','noisy; right direction on average']];
+  tb.forEach((r,i)=>{
+    const y=724+i*58;
+    rr(c0,y,pw-36,54,10);ctx.fillStyle=C.panel2;ctx.fill();
+    T(r[0],c0+14,y+23,{size:22,weight:'700',color:C.purple,maxW:190});
+    T(r[1],c0+14,y+48,{size:22,color:C.dim,maxW:190});
+    if(i===1){M(r[2],c1,y+24,24,C.txt,'left',330);M(r[4],c2,y+24,24,C.txt,'left',pw-(c2-px)-30);}
+    else{T(r[2],c1,y+23,{size:22,color:C.txt,maxW:330});T(r[4],c2,y+23,{size:22,color:C.txt,maxW:pw-(c2-px)-30});}
+    T(r[3],c1,y+48,{size:22,color:C.dim,maxW:330});
+    T(r[5],c2,y+48,{size:22,color:C.dim,maxW:pw-(c2-px)-30});
+  });
+
+  /* ===== Panel 5: mini-batch ===== */
+  px=1020;pw=850;
+  panel(px,ry0,pw,ph2,5,'與 mini-batch 的關係','Relation to Mini-Batch SGD',C.pink);
+  const bx0=px+50,bx1=px+pw-50,by=770,bm=(bx0+bx1)/2;
+  const bg=ctx.createLinearGradient(bx0,0,bx1,0);bg.addColorStop(0,C.orange);bg.addColorStop(1,C.cyan);
+  rr(bx0,by-9,bx1-bx0,18,9);ctx.fillStyle=bg;ctx.fill();
+  circle(bx0,by,15,C.panel2,C.orange,4);circle(bm,by,15,C.panel2,C.pink,4);circle(bx1,by,15,C.panel2,C.cyan,4);
+  T('B = 1  單筆 SGD（本頁）',bx0-20,716,{size:24,weight:'700',color:C.orange,maxW:290});
+  T('single-sample (this page)',bx0-20,742,{size:22,color:C.dim,maxW:290});
+  T('1 < B < n  mini-batch',bm,716,{size:24,weight:'700',color:C.pink,align:'center',maxW:250});
+  T('§4.1 下一節 next section',bm,742,{size:22,color:C.dim,align:'center',maxW:250});
+  T('B = n  全批次',bx1+20,716,{size:24,weight:'700',color:C.cyan,align:'right',maxW:250});
+  T('full-batch',bx1+20,742,{size:22,color:C.dim,align:'right',maxW:250});
+  T('← 更便宜、雜訊大｜cheaper, noisier',bx0-20,812,{size:22,color:C.orange,maxW:340});
+  T('更穩、成本高｜steadier, costlier →',bx1+20,812,{size:22,color:C.cyan,align:'right',maxW:340});
+  rr(px+20,830,pw-40,120,12);ctx.fillStyle=C.panel2;ctx.fill();ctx.strokeStyle=C.pink;ctx.lineWidth=1.8;ctx.stroke();
+  T('實務上說的「SGD」多半是 mini-batch SGD：',px+40,860,{size:24,weight:'700',color:C.txt,maxW:pw-80});
+  T('用一小批平均梯度，在速度與穩定之間折衷。',px+40,890,{size:24,weight:'700',color:C.txt,maxW:pw-80});
+  T('In practice, “SGD” usually means mini-batch SGD: an averaged small batch trades speed for stability.',px+40,926,{size:22,color:C.dim,maxW:pw-80});
+
+  /* ===== footer ===== */
+  rr(50,978,1820,82,16);ctx.fillStyle=C.panel2;ctx.fill();ctx.strokeStyle=C.orange;ctx.globalAlpha=.6;ctx.lineWidth=2;ctx.stroke();ctx.globalAlpha=1;
+  M('SGD：每步抽一筆 i，用 ∇f_{i} 近似全梯度 ∇f — 便宜、可擴展，是深度學習預設優化法的鼻祖（隨機逼近 1951；ML 應用約 1998）',80,1016,27,C.txt,'left',1760,'600');
+  T('SGD: one random sample per step stands in for the full gradient — cheap and scalable; ancestor of deep learning’s default optimizer (stochastic approximation 1951; ML use ~1998).',80,1046,{size:22,color:C.dim,maxW:1760});
+}
+function loop(ts){draw(ts);requestAnimationFrame(loop);}
+(document.fonts&&document.fonts.ready?document.fonts.ready:Promise.resolve()).then(()=>requestAnimationFrame(loop));
+</script>
+</body>
+</html>
