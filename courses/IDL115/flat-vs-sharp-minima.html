@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>平坦 vs 尖銳極小值 — 不是所有局部極小值都一樣好</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  html,body{margin:0;height:100%;background:#020617;}
+  body{display:flex;align-items:center;justify-content:center;overflow:hidden;}
+  canvas{width:min(100vw,calc(100vh*16/9));aspect-ratio:16/9;display:block;}
+</style>
+</head>
+<body>
+<canvas id="c" width="1920" height="1080"></canvas>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const SANS='"Noto Sans TC","Microsoft JhengHei","PingFang TC","Segoe UI",sans-serif';
+const MATH='"Cambria Math","STIX Two Math","Times New Roman","Microsoft JhengHei","Noto Sans TC",serif';
+const C={panel:'#16213a',panel2:'#0f1a30',line:'#2c3b5c',txt:'#e8eefc',dim:'#9fb0d0',
+  cyan:'#38bdf8',green:'#4ade80',orange:'#fb923c',purple:'#a78bfa',pink:'#f472b6',gray:'#94a3b8',red:'#f87171',amber:'#fbbf24'};
+
+function T(s,x,y,o={}){
+  let size=o.size||24;
+  ctx.font=`${o.weight||'400'} ${size}px ${SANS}`;
+  let w=ctx.measureText(s).width;
+  if(o.maxW&&w>o.maxW){size*=o.maxW/w;ctx.font=`${o.weight||'400'} ${size}px ${SANS}`;w=o.maxW;}
+  ctx.fillStyle=o.color||C.txt;ctx.textBaseline='alphabetic';ctx.textAlign='left';
+  let sx=x; if(o.align==='center')sx=x-w/2; else if(o.align==='right')sx=x-w;
+  ctx.fillText(s,sx,y);return w;
+}
+function M(s,x,y,size,color,align,maxW,wt){
+  wt=wt||'400';
+  ctx.font=`${wt} ${size}px ${MATH}`;let w=ctx.measureText(s).width;
+  if(maxW&&w>maxW){size*=maxW/w;ctx.font=`${wt} ${size}px ${MATH}`;w=maxW;}
+  ctx.fillStyle=color||C.txt;ctx.textAlign='left';ctx.textBaseline='alphabetic';
+  let sx=x;if(align==='center')sx=x-w/2;else if(align==='right')sx=x-w;
+  ctx.fillText(s,sx,y);return w;
+}
+function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+function panel(x,y,w,h,n,zh,en,col){
+  rr(x,y,w,h,18);ctx.fillStyle=C.panel;ctx.fill();
+  ctx.strokeStyle=col;ctx.globalAlpha=.55;ctx.lineWidth=2;ctx.stroke();ctx.globalAlpha=1;
+  ctx.fillStyle=col;ctx.beginPath();ctx.arc(x+36,y+36,20,0,Math.PI*2);ctx.fill();
+  T(String(n),x+36,y+45,{size:26,weight:'700',color:'#0b1220',align:'center'});
+  T(zh,x+68,y+34,{size:28,weight:'700',color:C.txt,maxW:w-88});
+  T(en,x+68,y+62,{size:22,color:C.dim,maxW:w-88});
+}
+function circle(x,y,r,fill,stroke,lw){ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fillStyle=fill;ctx.fill();if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw||2;ctx.stroke();}}
+function tri(x,y,col){ctx.fillStyle=col;ctx.beginPath();ctx.moveTo(x-9,y);ctx.lineTo(x+9,y);ctx.lineTo(x,y+9);ctx.fill();}
+
+/* valley subplot for Fig. 6 */
+function valley(x0,x1,ytop,ybot,wd,col,ts,name){
+  const cx=(x0+x1)/2,base=ybot-30;
+  ctx.save();rr(x0,ytop,x1-x0,ybot-ytop,10);ctx.fillStyle=C.panel2;ctx.fill();ctx.clip();
+  const yy=dx=>base-Math.pow(dx/wd,2)*100;
+  ctx.strokeStyle=col;ctx.lineWidth=4;ctx.beginPath();
+  for(let dx=-(x1-x0)/2;dx<=(x1-x0)/2;dx+=2){const y=yy(dx);dx===-(x1-x0)/2?ctx.moveTo(cx+dx,y):ctx.lineTo(cx+dx,y);}
+  ctx.stroke();
+  ctx.strokeStyle=C.line;ctx.setLineDash([6,6]);ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(x0+8,base);ctx.lineTo(x1-8,base);ctx.stroke();ctx.setLineDash([]);
+  const s=45*Math.sin(ts/900),L=Math.pow(s/wd,2);
+  circle(cx,base,7,'#ffffff');
+  ctx.strokeStyle=C.amber;ctx.lineWidth=3;ctx.setLineDash([5,5]);ctx.beginPath();ctx.moveTo(cx+s,base);ctx.lineTo(cx+s,yy(s));ctx.stroke();ctx.setLineDash([]);
+  circle(cx+s,yy(s),9,col,'#ffffff',2.5);
+  ctx.restore();
+  T('w*',cx,base+22,{size:22,color:C.txt,align:'center'});
+  return L;
+}
+function icon(x,y,w,h,k,col){
+  ctx.save();rr(x,y,w,h,8);ctx.fillStyle=C.panel2;ctx.fill();ctx.clip();
+  ctx.strokeStyle=col;ctx.lineWidth=3.5;ctx.beginPath();
+  for(let dx=-w/2;dx<=w/2;dx+=2){const yy=y+h-10-Math.min(h,Math.pow(dx/k,2)*h*0.9);dx===-w/2?ctx.moveTo(x+w/2+dx,yy):ctx.lineTo(x+w/2+dx,yy);}
+  ctx.stroke();circle(x+w/2,y+h-10,5,'#fff');ctx.restore();
+}
+
+/* SAM demo landscape */
+const PX0=70,PW=670,YB=900,YS=190;
+function vfun(x){const a=(x-240)/20,b=(x-520)/80;return 0.75-0.55*Math.exp(-a*a)-0.42*Math.exp(-b*b);}
+function vrho(x,r){let m=0;for(let d=-r;d<=r;d+=1)m=Math.max(m,vfun(x+d));return m;}
+const RHO=45;
+
+function draw(ts){
+  ts=ts||0;
+  ctx.clearRect(0,0,1920,1080);
+  const g=ctx.createLinearGradient(0,0,1920,1080);g.addColorStop(0,'#0b1220');g.addColorStop(1,'#111d38');
+  ctx.fillStyle=g;ctx.fillRect(0,0,1920,1080);
+
+  T('不是所有局部極小值都一樣好',50,80,{size:54,weight:'800',color:'#ffffff'});
+  T('Not All Local Minima Are Equal: Sharp vs Flat Minima',52,122,{size:28,color:C.cyan,maxW:1240});
+  rr(1330,34,540,88,16);ctx.fillStyle=C.panel2;ctx.fill();ctx.strokeStyle=C.orange;ctx.lineWidth=2;ctx.stroke();
+  T('更平坦的極小值，往往泛化更好',1600,72,{size:30,weight:'700',color:C.orange,align:'center',maxW:505});
+  T('Flatter minima tend to generalize better [20]',1600,104,{size:22,color:C.dim,align:'center',maxW:510});
+
+  const py=150,ph=440;
+  /* ===== Panel 1: Fig 6 ===== */
+  let px=50,pw=830;
+  panel(px,py,pw,ph,1,'Fig. 6：尖銳 vs 平坦極小值','Fig. 6: Sharp vs Flat Minima (illustrative)',C.cyan);
+  const Ls=valley(px+16,px+16+390,232,440,38,C.red,ts);
+  const Lf=valley(px+424,px+424+390,232,440,140,C.green,ts);
+  const cols=[[px+16,C.red,'Sharp minimum 尖銳極小值','解在「尖峰」上：稍微偏離代價就很大','a sharp peak: small shifts cost a lot',Ls],
+              [px+424,C.green,'Flat minimum 平坦極小值','解在「寬谷」中：對參數擾動不敏感','a wide valley: insensitive to shifts',Lf]];
+  for(const c of cols){
+    T(c[2],c[0]+195,472,{size:26,weight:'700',color:c[1],align:'center',maxW:380});
+    T(c[3],c[0]+195,502,{size:22,color:C.txt,align:'center',maxW:380});
+    T(c[4],c[0]+195,529,{size:22,color:C.dim,align:'center',maxW:380});
+    T('擾動 s → 損失增量 ΔL = '+c[5].toFixed(2),c[0]+195,566,{size:22,weight:'700',color:C.amber,align:'center',maxW:380});
+  }
+
+  /* ===== Panel 2: why it matters ===== */
+  px=900;pw=470;
+  panel(px,py,pw,ph,2,'為什麼在意：平坦與泛化','Why It Matters: Flatness and Generalization',C.green);
+  function card(y,h,col,l1,l2,l3){
+    rr(px+16,y,pw-32,h,12);ctx.fillStyle=C.panel2;ctx.fill();
+    ctx.fillStyle=col;ctx.fillRect(px+16,y+10,5,h-20);
+    T(l1,px+34,y+30,{size:22,weight:'700',color:col,maxW:pw-58});
+    T(l2,px+34,y+58,{size:22,color:C.txt,maxW:pw-58});
+    T(l3,px+34,y+86,{size:22,color:C.dim,maxW:pw-58});
+  }
+  card(232,102,C.cyan,'「平坦」的意思','鄰域內損失幾乎不變，而非單點驟降','loss stays nearly constant nearby');
+  card(344,102,C.green,'與泛化的可能關聯 [20]','平坦解對小擾動更穩健（如分佈偏移）','robust to small shifts, e.g. at test time');
+  card(456,124,C.amber,'但仍在辯論 [43]','平坦度不是泛化的唯一因素','隱式正則化、資料結構等也可能重要');
+  T('other mechanisms may matter too',px+34,566,{size:22,color:C.dim,maxW:pw-58});
+
+  /* ===== Panel 3: first-order vs second-order ===== */
+  px=1390;pw=480;
+  panel(px,py,pw,ph,3,'與一階方法的呼應（§1）','Link to First- vs Second-Order Methods',C.orange);
+  function ocard(y,col,k,t1,t2,t3,t4){
+    rr(px+16,y,pw-32,128,12);ctx.fillStyle=C.panel2;ctx.fill();
+    icon(px+30,y+22,96,84,k,col);
+    T(t1,px+142,y+30,{size:24,weight:'700',color:col,maxW:306});
+    T(t2,px+142,y+58,{size:22,color:C.txt,maxW:306});
+    T(t3,px+142,y+86,{size:22,color:C.dim,maxW:306});
+    T(t4,px+142,y+114,{size:22,weight:'700',color:col,maxW:306});
+  }
+  ocard(232,C.green,40,'一階方法（如 SGD）','傾向找到更平坦的極小值','tends to find flatter minima','→ 泛化往往較好｜often better');
+  ocard(368,C.red,13,'二階方法','可能收斂到更尖銳的極小值','may converge to sharper minima','→ 常伴隨較差泛化｜often worse');
+  T('優化算法選擇 → 泛化表現的直覺線索',px+pw/2,536,{size:22,weight:'700',color:C.txt,align:'center',maxW:pw-40});
+  T('optimizer choice → generalization: an intuition',px+pw/2,564,{size:22,color:C.dim,align:'center',maxW:pw-40});
+
+  /* ===== Panel 4: SAM motivation demo ===== */
+  const ry0=610,ph2=350;
+  px=50;pw=1200;
+  panel(px,ry0,pw,ph2,4,'SAM 的動機：主動尋找平坦解','SAM Motivation: Actively Seek Flat Minima',C.pink);
+  ctx.save();rr(PX0-4,690,PW+8,216,10);ctx.fillStyle=C.panel2;ctx.fill();ctx.clip();
+  const Y=v=>YB-v*YS;
+  ctx.strokeStyle=C.cyan;ctx.lineWidth=3.5;ctx.beginPath();
+  for(let x=0;x<=PW;x+=2){const yv=Y(vfun(x));x?ctx.lineTo(PX0+x,yv):ctx.moveTo(PX0+x,yv);}ctx.stroke();
+  ctx.strokeStyle=C.orange;ctx.lineWidth=3;ctx.setLineDash([9,7]);ctx.beginPath();
+  for(let x=0;x<=PW;x+=2){const yv=Y(vrho(x,RHO));x?ctx.lineTo(PX0+x,yv):ctx.moveTo(PX0+x,yv);}ctx.stroke();ctx.setLineDash([]);
+  const wc=60+((ts%8000)/8000)*(PW-120);
+  ctx.fillStyle=C.pink;ctx.globalAlpha=.16;ctx.fillRect(PX0+wc-RHO,692,2*RHO,208);ctx.globalAlpha=1;
+  ctx.strokeStyle=C.pink;ctx.lineWidth=2;ctx.strokeRect(PX0+wc-RHO,692,2*RHO,208);
+  let mx=wc,mv=0;for(let d=-RHO;d<=RHO;d++){const v=vfun(wc+d);if(v>mv){mv=v;mx=wc+d;}}
+  ctx.strokeStyle=C.amber;ctx.lineWidth=2;ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(PX0+wc-RHO,Y(mv));ctx.lineTo(PX0+wc+RHO,Y(mv));ctx.stroke();ctx.setLineDash([]);
+  circle(PX0+wc,Y(vfun(wc)),6,C.cyan,'#fff',2);circle(PX0+mx,Y(mv),7,C.amber,'#fff',2);
+  ctx.strokeStyle=C.cyan;ctx.globalAlpha=.6;ctx.setLineDash([3,5]);ctx.beginPath();ctx.moveTo(PX0+240,724);ctx.lineTo(PX0+240,Y(vfun(240)));ctx.stroke();
+  ctx.strokeStyle=C.green;ctx.beginPath();ctx.moveTo(PX0+520,724);ctx.lineTo(PX0+520,Y(vrho(520,RHO)));ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1;
+  circle(PX0+240,Y(vfun(240)),7,C.cyan,'#fff',2);circle(PX0+520,Y(vrho(520,RHO)),7,C.green,'#fff',2);
+  ctx.restore();
+  T('標準目標選這裡',PX0+240,716,{size:22,weight:'700',color:C.cyan,align:'center'});
+  T('SAM 選這裡',PX0+520,716,{size:22,weight:'700',color:C.green,align:'center'});
+  ctx.strokeStyle=C.cyan;ctx.lineWidth=3.5;ctx.beginPath();ctx.moveTo(PX0,938);ctx.lineTo(PX0+40,938);ctx.stroke();
+  T('損失 L(w)',PX0+50,945,{size:22,color:C.cyan});
+  ctx.strokeStyle=C.orange;ctx.lineWidth=3;ctx.setLineDash([9,7]);ctx.beginPath();ctx.moveTo(PX0+190,938);ctx.lineTo(PX0+230,938);ctx.stroke();ctx.setLineDash([]);
+  T('鄰域最大損失｜max nearby',PX0+240,945,{size:22,color:C.orange,maxW:230});
+  T('示意 illustrative',PX0+PW,945,{size:22,color:C.dim,align:'right',maxW:190});
+  const rx=px+740,rw=pw-756;
+  function rcard(y,col,zh,en){
+    rr(rx,y,rw,82,12);ctx.fillStyle=C.panel2;ctx.fill();ctx.fillStyle=col;ctx.fillRect(rx,y+10,5,62);
+    T(zh,rx+20,y+34,{size:23,weight:'700',color:col,maxW:rw-36});
+    T(en,rx+20,y+64,{size:22,color:C.dim,maxW:rw-36});
+  }
+  rcard(690,C.cyan,'標準：只最小化當前點的損失','standard: minimize the loss at the current point only');
+  rcard(781,C.pink,'SAM：另外懲罰鄰域內的最大損失','SAM: also penalize the worst loss nearby');
+  rcard(872,C.green,'結果：整片鄰域都低的平坦區域','result: low across the whole neighborhood');
+
+  /* ===== Panel 5: chain ===== */
+  px=1270;pw=600;
+  panel(px,ry0,pw,ph2,5,'從觀察到 SAM','From Observation to SAM',C.purple);
+  const st=[
+    [C.cyan,'觀察：平坦極小值往往泛化更好 [20]','Observation: flat minima often generalize better'],
+    [C.pink,'動機：主動尋找平坦解','Motivation: actively seek flat solutions'],
+    [C.orange,'SAM 想法：懲罰鄰域內的最大損失','Idea: penalize the worst nearby loss'],
+    [C.purple,'細節：min-max 公式與演算法見 kp13（§6.1）','Details: min-max form → kp13 (§6.1 Vanilla SAM)']];
+  st.forEach((s,i)=>{
+    const y=688+i*66;
+    rr(px+16,y,pw-32,58,12);ctx.fillStyle=C.panel2;ctx.fill();ctx.strokeStyle=s[0];ctx.lineWidth=1.8;ctx.stroke();
+    circle(px+44,y+29,15,s[0]);T(String(i+1),px+44,y+37,{size:22,weight:'700',color:'#0b1220',align:'center'});
+    T(s[1],px+70,y+25,{size:22,weight:'700',color:C.txt,maxW:pw-100});
+    T(s[2],px+70,y+50,{size:22,color:C.dim,maxW:pw-100});
+    if(i<3)tri(px+pw/2,y+58,s[0]);
+  });
+
+  /* footer */
+  rr(50,978,1820,82,16);ctx.fillStyle=C.panel2;ctx.fill();ctx.strokeStyle=C.orange;ctx.globalAlpha=.6;ctx.lineWidth=2;ctx.stroke();ctx.globalAlpha=1;
+  M('尖銳解稍偏離就代價很大，平坦解鄰域內損失幾乎不變；平坦可能泛化更好（仍有辯論），SAM 因此主動尋找平坦解（細節見 kp13）',80,1016,27,C.txt,'left',1760,'600');
+  T('Sharp minima cost a lot when shifted, flat ones barely change; flatter may generalize better (still debated), so SAM actively seeks flat solutions (details: kp13).',80,1046,{size:22,color:C.dim,maxW:1760});
+}
+function loop(ts){draw(ts);requestAnimationFrame(loop);}
+(document.fonts&&document.fonts.ready?document.fonts.ready:Promise.resolve()).then(()=>requestAnimationFrame(loop));
+</script>
+</body>
+</html>
