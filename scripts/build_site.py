@@ -65,8 +65,8 @@ def main() -> int:
                 d = OUT / a.relative_to(ROOT)
                 d.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(a, d)
-        if items:
-            sections.append(f"<h2>{html.escape(course.name)}</h2><ul>{''.join(items)}</ul>")
+        listing = f"<ul>{''.join(items)}</ul>" if items else "<p>尚無內容。</p>"
+        sections.append(f"<h2>{html.escape(course.name)}</h2>{listing}")
     body = "<h1>課程 HTML5 / Canvas 展示</h1>" + ("".join(sections) or "<p>尚無內容。</p>")
     (OUT / "index.html").write_text(PAGE.format(title="課程展示索引", body=body), "utf-8")
     print(f"built {len(sections)} course(s) into {OUT}")
