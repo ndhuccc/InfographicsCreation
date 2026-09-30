@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SAM 銳度感知最小化｜Sharpness-Aware Minimization</title>
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #e9eff1; font-family: "Microsoft JhengHei", "Noto Sans CJK TC", "PingFang TC", system-ui, sans-serif; color:#132d3b; }
+    main { min-height: 100vh; display:grid; place-items:center; padding:20px; }
+    .stage { position:relative; width:min(100%, 1600px); aspect-ratio:16/9; background:#fff; box-shadow:0 20px 60px #15364724; overflow:hidden; }
+    canvas { display:block; width:100%; height:100%; }
+    .controls { position:absolute; left:17.5%; bottom:2.8%; width:18%; display:flex; align-items:center; gap:1vw; }
+    #rho { width:60%; accent-color:#d18435; cursor:pointer; }
+    button { font:600 clamp(9px,1vw,15px) "Microsoft JhengHei", system-ui, sans-serif; color:#174b55; border:1px solid #bbd3d4; background:#f5faf9; border-radius:7px; padding:.48em .8em; white-space:nowrap; cursor:pointer; }
+    button:hover { background:#e8f4f2; }
+    .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+    @media (max-width:700px) { main { padding:8px; } .controls { bottom:2%; gap:3px; } button { padding:3px 4px; font-size:6px; border-radius:3px; } }
+    @media print { body { background:white; } main { padding:0; min-height:0; } .stage { width:100%; box-shadow:none; } .controls { display:none; } @page { size:landscape; margin:0; } }
+  </style>
+</head>
+<body>
+<main>
+  <section class="stage" aria-label="SAM 銳度感知最小化雙語資訊圖；可調整鄰域半徑 rho，比較尖銳和平坦的損失盆地">
+    <canvas id="chart" width="1600" height="900" role="img" aria-label="比較尖銳與平坦極小值，同時呈現 SAM min-max 目標、擾動近似及兩次梯度計算流程"></canvas>
+    <div class="controls"><label class="sr-only" for="rho">鄰域半徑 rho</label><input id="rho" type="range" min="0.2" max="0.9" step="0.01" value="0.60"><button id="export" type="button" title="下載 PNG · Download PNG">PNG ↓</button></div>
+  </section>
+</main>
+<script>
+(() => {
+  'use strict';
+  const canvas=document.getElementById('chart'), ctx=canvas.getContext('2d'), slider=document.getElementById('rho');
+  const C={ink:'#17313d',muted:'#627783',line:'#dce6e8',paper:'#ffffff',soft:'#f6f9f9',teal:'#178e85',tealPale:'#eaf7f3',coral:'#d56658',coralPale:'#fff0eb',amber:'#c67a27',amberPale:'#fff5e6',navy:'#294f69'};
+  const cn='"Microsoft JhengHei","Noto Sans CJK TC","PingFang TC",system-ui,sans-serif';
+  const math='"Cambria Math","STIX Two Math","Times New Roman",serif';
+  function text(s,x,y,size=20,color=C.ink,weight=400,align='left',face=cn) {ctx.fillStyle=color;ctx.font=`${weight} ${size}px ${face}`;ctx.textAlign=align;ctx.textBaseline='alphabetic';ctx.fillText(s,x,y);}
+  function round(x,y,w,h,r,fill,stroke=null,lw=1){ctx.beginPath();ctx.roundRect(x,y,w,h,r);if(fill){ctx.fillStyle=fill;ctx.fill();}if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw;ctx.stroke();}}
+  function line(x1,y1,x2,y2,color=C.line,lw=1,dash=[]){ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.strokeStyle=color;ctx.lineWidth=lw;ctx.setLineDash(dash);ctx.stroke();ctx.setLineDash([]);}
+  function arrow(x1,y1,x2,y2,color,lw=2.5){line(x1,y1,x2,y2,color,lw);const a=Math.atan2(y2-y1,x2-x1),s=8;ctx.beginPath();ctx.moveTo(x2,y2);ctx.lineTo(x2-s*Math.cos(a-.55),y2-s*Math.sin(a-.55));ctx.lineTo(x2-s*Math.cos(a+.55),y2-s*Math.sin(a+.55));ctx.closePath();ctx.fillStyle=color;ctx.fill();}
+  function badge(s,x,y,w,fg,bg){round(x,y,w,30,15,bg);text(s,x+w/2,y+21,15,fg,600,'center');}
+  function panel(x,y,w,h){round(x,y,w,h,15,C.paper,C.line,1.5);}
+  function section(n,zh,en,x,y){badge(n,x,y-22,34,C.navy,'#e9f1f5');text(zh,x+48,y,22,C.ink,700);text(en,x+48,y+25,14,C.muted,500);}
+  function bowl(cx,cy,half,curv,rho,color,title,en,descrip) {
+    const sx=half/1.12, scale=25;
+    round(cx-rho*sx,cy-166,2*rho*sx,171,7,color===C.coral?C.coralPale:C.tealPale);
+    line(cx-half-20,cy,cx+half+20,cy,'#b6c7cb',1.5);
+    line(cx,cy+8,cx,cy-161,'#cbd8db',1.2,[4,5]);
+    ctx.beginPath();for(let i=0;i<=150;i++){const u=-1.12+2.24*i/150,px=cx+u*sx,py=cy-curv*u*u*scale;if(i===0)ctx.moveTo(px,py);else ctx.lineTo(px,py);}ctx.strokeStyle=color;ctx.lineWidth=5;ctx.lineCap='round';ctx.stroke();
+    const py=cy-curv*rho*rho*scale,ex=cx+rho*sx;
+    ctx.beginPath();ctx.arc(cx,cy,5,0,Math.PI*2);ctx.fillStyle=C.ink;ctx.fill();
+    ctx.beginPath();ctx.arc(ex,py,5,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();
+    arrow(ex+16,cy-3,ex+16,py+3,color,2.5);
+    line(cx-rho*sx,cy+14,cx+rho*sx,cy+14,color,2.5);
+    text('−ρ',cx-rho*sx,cy+36,14,color,600,'center',math);text('+ρ',cx+rho*sx,cy+36,14,color,600,'center',math);
+    text(title,cx,232,22,color,700,'center');text(en,cx,254,14,C.muted,500,'center');
+    text(descrip,cx,486,15,color,600,'center');
+  }
+  function draw(){
+    const rho=+slider.value;ctx.fillStyle=C.paper;ctx.fillRect(0,0,1600,900);
+    round(0,0,1600,12,0,C.navy);
+    text('SAM',60,77,43,C.navy,800);text('銳度感知最小化',186,77,37,C.ink,800);text('Sharpness-Aware Minimization',62,111,21,C.muted,500);
+    badge('核心｜CORE IDEA',1240,53,296,C.navy,'#e8f2f5');
+    text('讓整個鄰域維持低損失',1540,113,22,C.navy,700,'right');
+    text('Keep the neighborhood low-loss',1540,139,16,C.muted,500,'right');
+    line(60,157,1540,157,C.line,1.5);
+
+    panel(60,177,720,320);section('01','相同半徑，兩種損失盆地','Same radius · different worst-case rise',82,213);
+    bowl(255,427,137,3.3,rho,C.coral,'尖銳極小值','Sharp minimum','最大損失增幅較大 · Larger rise');
+    bowl(588,427,137,.62,rho,C.teal,'平坦極小值','Flat minimum','最大損失增幅較小 · Smaller rise');
+    line(420,272,420,463,C.line,1.2);
+    badge('同一尺度 / same axes',570,278,180,C.navy,'#edf3f5');
+
+    panel(800,177,740,320);section('02','SAM 要最小化什麼？','Worst loss in a weight-space ball',822,213);
+    round(823,263,692,69,10,'#edf6f4');
+    text('min   max       ℒ(w + ε)',853,305,31,C.ink,600,'left',math);
+    text('w   ‖ε‖ₚ ≤ ρ',911,325,17,C.teal,600,'left',math);
+    text('(49)',1480,306,16,C.muted,500,'right',math);
+    text('先找最壞擾動，再調整權重 / Perturb up, then optimize down',827,361,18,C.navy,600);
+    line(825,379,1512,379,C.line,1.3);
+    text('ℒSAM(w) = ℒ(w) + Sρ(w)',827,413,25,C.ink,600,'left',math);
+    text('Sρ(w) = max [ℒ(w+ε) − ℒ(w)]    (50)',827,445,22,C.ink,500,'left',math);
+    text('‖ε‖ₚ≤ρ',944,465,14,C.teal,500,'left',math);
+    text('可加 λ‖w‖₂² 正則項 / Optional weight penalty  (47)',827,484,15,C.muted,500);
+
+    panel(60,515,720,300);section('03','內層最大化：用一階近似','First-order perturbation · p = 2',82,550);
+    round(82,598,676,53,8,C.soft);
+    text('ℒ(w+ε) ≈ ℒ(w) + εᵀg,     g = ∇ℒ(w)',101,633,24,C.ink,500,'left',math);
+    text('ε̂ = ρ g / ‖g‖₂      (52)',101,701,32,C.amber,600,'left',math);
+    text('g ≠ 0；沿損失上升方向走 ρ',112,733,17,C.ink,600);
+    text('If g = 0, use ε̂ = 0 for this step.',112,757,15,C.muted,500);
+    line(82,767,757,767,C.line,1);
+    text('一般 p：ε̂ᵢ = ρ sign(gᵢ)|gᵢ|^(q−1) / ‖g‖q^(q−1)',82,788,16,C.navy,500,'left',math);
+    text('1/p + 1/q = 1；此式取 1 < p < ∞，端點另處理  (51)',82,806,14,C.muted,500);
+
+    panel(800,515,740,300);section('04','一次 SAM 更新','Two gradient evaluations · one weight update',822,550);
+    const steps=[
+      ['1','在 w 計算梯度','g = ∇ℒ(w)'],
+      ['2','往上擾動','w̃ = w + ρg/‖g‖₂'],
+      ['3','在擾動點再算梯度','gₐ = ∇ℒ(w̃)'],
+      ['4','回到原 w，再往下更新','w₊ = w − ηgₐ']
+    ];
+    steps.forEach((d,i)=>{const y=605+i*49;round(824,y-23,36,35,9,i===1?C.amberPale:(i===3?C.tealPale:'#edf3f5'));text(d[0],842,y+2,20,i===1?C.amber:(i===3?C.teal:C.navy),800,'center');text(d[1],878,y+1,18,C.ink,600);text(d[2],1497,y+1,21,i===1?C.amber:(i===3?C.teal:C.navy),600,'right',math);if(i<3)line(842,y+13,842,y+25,C.line,2);});
+    text('先還原 w；ε̂ 是一階近似，更新時停止對 ε̂ 求導。',824,787,15,C.muted,500);
+    text('若用式 (47) 的正則項，下降梯度再加 2λw / Add 2λw for (47).',824,806,14,C.muted,500);
+
+    round(60,829,1480,58,10,'#f4f7f8');
+    text('鄰域半徑 ρ = '+rho.toFixed(2),82,855,19,C.amber,700);
+    text('Neighborhood radius',82,879,13,C.muted,500);
+    line(596,838,596,878,C.line,1);
+    text('提醒：平坦度與泛化的關聯不是保證；銳度依賴參數化。',618,855,17,C.ink,600);
+    text('Caveat: flatness is not a guarantee; parameterization changes measured sharpness.',618,878,15,C.muted,500);
+  }
+  slider.addEventListener('input',draw);
+  document.getElementById('export').addEventListener('click',()=>{draw();const a=document.createElement('a');a.download='sam-sharpness-aware-minimization-bilingual.png';a.href=canvas.toDataURL('image/png');a.click();});
+  draw();
+})();
+</script>
+</body>
+</html>
