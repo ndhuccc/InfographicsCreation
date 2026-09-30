@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head><meta charset="utf-8"><title>範例:Canvas 長條圖</title></head>
+<body>
+<canvas id="c" width="320" height="180"></canvas>
+<script>
+const g = document.getElementById('c').getContext('2d');
+[40, 90, 60, 130].forEach((h, i) => {
+  g.fillStyle = '#4c8bf5';
+  g.fillRect(20 + i * 70, 170 - h, 50, h);
+});
+</script>
+</body></html>
