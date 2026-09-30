@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>蒙眼下山：梯度下降 / Blind Descent: Gradient Descent</title>
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #e9eee9; font-family: "Noto Sans TC", "Microsoft JhengHei", "PingFang TC", sans-serif; }
+    .stage { position: relative; width: min(100vw, 1600px); aspect-ratio: 16 / 9; container-type: inline-size; overflow: hidden; background: #f8f9f5; box-shadow: 0 22px 70px #22304126; }
+    canvas { width: 100%; height: 100%; display: block; }
+    .controls { position: absolute; left: 3.75%; right: 3.75%; bottom: 1.4%; height: 6.2%; padding: 0 2.1%; display: flex; align-items: center; gap: 2.1%; border-radius: 1.2cqw; background: #e5f2ec; border: 1px solid #cbded4; color: #163333; }
+    .rate { white-space: nowrap; font-size: clamp(11px, 1.3cqw, 21px); font-weight: 700; }
+    .rate strong { font-family: Georgia, serif; color: #0a7771; font-size: 1.3em; margin-left: .3em; }
+    input[type=range] { flex: 1; min-width: 60px; accent-color: #0a8178; }
+    .presets { display: flex; gap: .5cqw; }
+    button { appearance: none; border: 1px solid #b9cfc5; border-radius: 999px; background: #fffefa; color: #244240; font: 700 clamp(10px, 1cqw, 16px) "Noto Sans TC", "Microsoft JhengHei", sans-serif; padding: .55em .85em; white-space: nowrap; cursor: pointer; }
+    button[aria-pressed=true] { background: #0a8178; border-color: #0a8178; color: white; }
+    button:focus-visible, input:focus-visible { outline: 3px solid #db9226; outline-offset: 3px; }
+    .save { border-color: #0a8178; color: #0a6c65; }
+    .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+    @media (max-width: 850px) {
+      body { display: block; background: #e9eee9; }
+      .viewport { overflow-x: auto; width: 100vw; }
+      .stage { width: 960px; max-width: none; }
+      .controls { gap: 1.4%; }
+    }
+    @media print { body { background: white; } .stage { box-shadow: none; width: 100%; } .save { display: none; } }
+  </style>
+</head>
+<body>
+<div class="viewport">
+  <main class="stage">
+    <canvas id="infographic" width="1600" height="900" role="img" aria-label="梯度下降四個公式與二次函數的互動路徑。Four gradient descent equations and an interactive quadratic descent path.">瀏覽器須支援 HTML5 Canvas。Your browser needs HTML5 Canvas.</canvas>
+    <div class="controls" aria-label="學習率操作區 / Learning rate controls">
+      <label class="rate" for="eta">學習率 / Learning rate η <strong id="eta-value">0.10</strong></label>
+      <input id="eta" type="range" min="0.05" max="1.15" step="0.05" value="0.10" aria-describedby="eta-hint">
+      <span id="eta-hint" class="sr-only">山谷路徑與手算表同步更新。The path and calculation table update together.</span>
+      <div class="presets" aria-label="學習率範例 / Learning rate examples">
+        <button type="button" data-eta="0.10" aria-pressed="true">0.1 慢 / Slow</button>
+        <button type="button" data-eta="0.50" aria-pressed="false">0.5 一步 / One step</button>
+        <button type="button" data-eta="1.00" aria-pressed="false">1.0 震盪 / Cycle</button>
+      </div>
+      <button type="button" id="save" class="save">下載 / Export PNG</button>
+    </div>
+    <p id="summary" class="sr-only" aria-live="polite"></p>
+  </main>
+</div>
+<script>
+(() => {
+  const canvas = document.getElementById('infographic');
+  const ctx = canvas.getContext('2d');
+  const slider = document.getElementById('eta');
+  const valueLabel = document.getElementById('eta-value');
+  const summary = document.getElementById('summary');
+  const buttons = [...document.querySelectorAll('[data-eta]')];
+  const C = { bg:'#f8f9f5', ink:'#192b36', muted:'#5e6d74', line:'#dbe4df', white:'#ffffff', teal:'#0a8178', tealSoft:'#e5f2ec', orange:'#e09a30', coral:'#d4544f', coralSoft:'#faeae6', navy:'#162e3d', pale:'#eef3f0' };
+  const uiFont = '"Noto Sans TC", "Microsoft JhengHei", "PingFang TC", sans-serif';
+  const mathFont = 'Georgia, "Times New Roman", serif';
+
+  function rounded(x,y,w,h,r,fill,stroke,lineWidth=1) {
+    ctx.beginPath(); ctx.roundRect(x,y,w,h,r);
+    if (fill) { ctx.fillStyle=fill; ctx.fill(); }
+    if (stroke) { ctx.strokeStyle=stroke; ctx.lineWidth=lineWidth; ctx.stroke(); }
+  }
+  function text(str,x,y,size=20,color=C.ink,weight=400,align='left',font=uiFont) {
+    ctx.fillStyle=color; ctx.font=`${weight} ${size}px ${font}`;
+    ctx.textAlign=align; ctx.textBaseline='middle'; ctx.fillText(str,x,y);
+  }
+  function line(x1,y1,x2,y2,color=C.line,width=1,dash=[]) {
+    ctx.save(); ctx.strokeStyle=color; ctx.lineWidth=width; ctx.setLineDash(dash);
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke(); ctx.restore();
+  }
+  function arrow(x1,y1,x2,y2,color=C.teal,width=3,head=12) {
+    line(x1,y1,x2,y2,color,width);
+    const a=Math.atan2(y2-y1,x2-x1); ctx.fillStyle=color;
+    ctx.beginPath(); ctx.moveTo(x2,y2); ctx.lineTo(x2-head*Math.cos(a-.5),y2-head*Math.sin(a-.5));
+    ctx.lineTo(x2-head*Math.cos(a+.5),y2-head*Math.sin(a+.5)); ctx.closePath(); ctx.fill();
+  }
+  function dot(x,y,r,fill=C.teal,stroke=C.white) {
+    ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fillStyle=fill;ctx.fill();
+    ctx.strokeStyle=stroke;ctx.lineWidth=3;ctx.stroke();
+  }
+  function format(n) {
+    if (Math.abs(n)<1e-9) return '0';
+    return Number(n.toFixed(5)).toString();
+  }
+  function mathCard(x,number,title,formula,detailZh,detailEn,accent,formulaSize=31) {
+    rounded(x,161,355,142,16,C.white,C.line);
+    rounded(x+17,179,43,30,8,accent);
+    text(number,x+38,194,17,C.white,700,'center');
+    text(title,x+72,195,18,C.muted,700);
+    if (number==='01') {
+      text('min',x+20,237,37,C.ink,400,'left',mathFont);
+      text('w',x+43,259,17,C.ink,400,'left',mathFont);
+      text('f(w)',x+105,239,37,C.ink,400,'left',mathFont);
+    } else {
+      text(formula,x+20,239,formulaSize,C.ink,400,'left',mathFont);
+    }
+    text(detailZh,x+20,272,16,C.muted,400);
+    text(detailEn,x+20,290,14,C.muted,400);
+  }
+
+  function drawHeader() {
+    ctx.fillStyle=C.bg;ctx.fillRect(0,0,1600,900);
+    rounded(60,44,82,27,9,C.navy);
+    text('KP–1',101,58,16,C.white,700,'center');
+    text('梯度下降 · 蒙眼下山',60,105,47,C.ink,700);
+    text('GRADIENT DESCENT · BLIND DESCENT',755,79,24,C.teal,700);
+    text('感覺腳下坡度，往反方向走一小步。',755,117,22,C.muted,400);
+    line(60,143,1540,143,C.line,2);
+    mathCard(60,'01','任務 / Goal','min  f(w)','對可微函數找低點','Minimize a differentiable function',C.navy,37);
+    mathCard(435,'02','位移 / Update','w⁽ᵏ⁺¹⁾ = w⁽ᵏ⁾ + Δw','新位置＝舊位置＋位移','New position = old position + step',C.navy,29);
+    mathCard(810,'03','安全步長 / Safe step','Δw = −(1/L)∇f(w⁽ᵏ⁾)','L 限制坡度變化；取步長 1/L','L bounds gradient change; step = 1/L',C.orange,29);
+    mathCard(1185,'04','實務更新 / In practice','w⁽ᵏ⁺¹⁾ = w⁽ᵏ⁾ − η∇f(w⁽ᵏ⁾)','負梯度指向下坡','Negative gradient points downhill',C.teal,28);
+    for (const x of [420,795,1170]) arrow(x+2,232,x+11,232,C.muted,2,6);
+  }
+
+  const p={left:125,right:945,top:408,bottom:715};
+  let plotLimit=5;
+  const mapX=w=>p.left+(w+plotLimit)/(2*plotLimit)*(p.right-p.left);
+  const mapY=f=>p.bottom-f/(plotLimit*plotLimit)*(p.bottom-p.top);
+  function drawChart(eta,ws) {
+    plotLimit=Math.max(5,Math.ceil(Math.max(...ws.map(Math.abs))*1.08));
+    rounded(60,320,920,452,18,C.white,C.line);
+    text('二次谷底 / Quadratic valley',88,351,25,C.ink,700);
+    text('每一步往哪裡走？ / Which way do we step?',88,382,17,C.muted);
+    rounded(772,337,173,41,12,C.tealSoft);
+    text('f(w) = w²',858,358,24,C.teal,700,'center',mathFont);
+    const maxF=plotLimit*plotLimit;
+    for (const f of [0,maxF/3,2*maxF/3,maxF]) {
+      const y=mapY(f); line(p.left,y,p.right,y,C.line,1,f===0?[]:[4,7]);
+      text(String(Number(f.toFixed(1))),p.left-18,y,16,C.muted,400,'right',mathFont);
+    }
+    const half=Math.round(plotLimit/2);
+    for (const w of [-plotLimit,-half,0,half,plotLimit]) {
+      const x=mapX(w); line(x,p.bottom-4,x,p.bottom+5,C.muted,1.2);
+      text(String(w),x,p.bottom+20,17,C.muted,400,'center',mathFont);
+    }
+    arrow(p.left,p.bottom,p.right+6,p.bottom,C.muted,1.8,9);
+    arrow(mapX(0),p.bottom,p.left+(p.right-p.left)/2,p.top-6,C.muted,1.8,9);
+    text('w',p.right+8,p.bottom+23,20,C.ink,700,'left',mathFont);
+    ctx.save(); ctx.translate(79,559); ctx.rotate(-Math.PI/2);
+    text('f(w)',0,0,19,C.ink,700,'center',mathFont); ctx.restore();
+
+    // Draw the bowl and its minimum before drawing parameter updates.
+    ctx.beginPath();
+    for (let w=-plotLimit;w<=plotLimit+.015;w+=plotLimit/140) {
+      const x=mapX(w),y=mapY(w*w);
+      if (w===-plotLimit) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    ctx.strokeStyle=C.navy;ctx.lineWidth=4;ctx.stroke();
+    dot(mapX(0),mapY(0),7,C.orange);
+    text('谷底 / minimum · w* = 0',mapX(0)+17,mapY(0)-19,19,C.orange,700);
+
+    const isCycle=Math.abs(eta-1)<1e-9;
+    for (let k=0;k<3;k++) {
+      const x1=mapX(ws[k]),y1=mapY(ws[k]*ws[k]);
+      const x2=mapX(ws[k+1]),y2=mapY(ws[k+1]*ws[k+1]);
+      if (Math.hypot(x2-x1,y2-y1)<4) continue;
+      if (isCycle) {
+        const cy=Math.min(y1,y2)-43-k*24;
+        ctx.beginPath();ctx.moveTo(x1,y1-7);ctx.quadraticCurveTo((x1+x2)/2,cy,x2,y2-8);
+        ctx.strokeStyle=k%2?C.coral:C.teal;ctx.lineWidth=3;ctx.stroke();
+        const t=.94,dx=2*(1-t)*((x1+x2)/2-x1)+2*t*(x2-(x1+x2)/2),
+          dy=2*(1-t)*(cy-(y1-7))+2*t*((y2-8)-cy),a=Math.atan2(dy,dx);
+        ctx.fillStyle=k%2?C.coral:C.teal;
+        ctx.beginPath();ctx.moveTo(x2,y2-8);ctx.lineTo(x2-12*Math.cos(a-.5),y2-8-12*Math.sin(a-.5));ctx.lineTo(x2-12*Math.cos(a+.5),y2-8-12*Math.sin(a+.5));ctx.fill();
+      } else {
+        const dir=Math.atan2(y2-y1,x2-x1);
+        const ux=Math.cos(dir),uy=Math.sin(dir);
+        arrow(x1+ux*13,y1+uy*13,x2-ux*12,y2-uy*12,C.teal,3,10);
+      }
+    }
+    const grouped=[];
+    ws.forEach((w,k)=>{
+      let g=grouped.find(g=>Math.abs(g.w-w)<1e-7);
+      if(g) g.ks.push(k); else grouped.push({w,ks:[k]});
+    });
+    for (const g of grouped) {
+      const x=mapX(g.w),y=mapY(g.w*g.w);
+      dot(x,y,9,g.ks[0]===0?C.coral:C.teal);
+      const label=`k = ${g.ks.join(', ')}`;
+      let lx=x,ly=y-27;
+      if (g.w>3.7) lx=x-5;
+      if (g.w<-3.7) lx=x+8;
+      if (g.ks.length>1) ly=Math.abs(g.w)<.001?y-54:y+27;
+      text(label,lx,ly,18,g.ks[0]===0?C.coral:C.teal,700,'center',mathFont);
+    }
+    if (!isCycle) {
+      // The initial derivative is always +8. The arrows distinguish the gradient from the chosen displacement.
+      const x=mapX(4),y=mapY(16);
+      arrow(x+10,y-5,x+65,y-54,C.coral,3,10);
+      text('坡度 +8（上坡）',x-210,y-77,18,C.coral,700);
+      text('Gradient +8 (uphill)',x-210,y-55,16,C.coral,400);
+    } else {
+      rounded(272,581,525,69,12,C.coralSoft);
+      text('η = 1：4 ↔ −4，高度維持 16',534,601,22,C.coral,700,'center');
+      text('Cycles between 4 and −4; f(w) stays at 16',534,628,17,C.coral,400,'center');
+    }
+    text('箭頭＝更新方向；圓點＝每步位置 / Arrows = updates; dots = iterates',88,760,17,C.muted);
+  }
+
+  function drawTable(eta,ws) {
+    rounded(1000,320,540,452,18,C.white,C.line);
+    text('手算三步 / Three updates',1027,360,25,C.ink,700);
+    text(`f(w) = w²   ·   w⁽⁰⁾ = 4   ·   η = ${eta.toFixed(2)}   ·   ∇f = 2w`,1027,393,19,C.muted,400,'left',mathFont);
+    const x=[1033,1100,1207,1318,1432,1514];
+    const labels=['k','w⁽ᵏ⁾','∇f','η∇f','w⁽ᵏ⁺¹⁾','f(w⁽ᵏ⁾)'];
+    rounded(1026,419,488,43,8,C.pale);
+    labels.forEach((v,i)=>text(v,x[i],441,17,C.muted,700,i?'right':'left',mathFont));
+    for (let k=0;k<3;k++) {
+      const y=493+59*k;
+      if(k>0) line(1026,y-30,1514,y-30,C.line,1);
+      const w=ws[k];
+      const row=[k,format(w),format(2*w),format(eta*2*w),format(ws[k+1]),format(w*w)];
+      row.forEach((v,i)=>text(String(v),x[i],y,19,i===4?C.teal:C.ink,i===4?700:400,i?'right':'left',mathFont));
+    }
+    line(1026,643,1514,643,C.line,1);
+    const finalW=ws[3], finalF=finalW*finalW;
+    text('三步後 / After 3 steps',1027,675,18,C.muted,700);
+    text(`w⁽³⁾ = ${format(finalW)}`,1027,715,25,C.teal,700,'left',mathFont);
+    text(`f = ${format(finalF)}`,1514,715,25,C.teal,700,'right',mathFont);
+    let status;
+    if (eta<.5-1e-8) status='同側靠近 / Approaches from one side';
+    else if (Math.abs(eta-.5)<1e-8) status='一步到谷底 / One step to minimum';
+    else if (eta<1-1e-8) status='跨越但下降 / Oscillates with descent';
+    else if (Math.abs(eta-1)<1e-8) status='兩點往返 / Two-point cycle';
+    else status='越走越遠 / Diverges';
+    text(status,1027,749,17,eta>=1?C.coral:C.muted,700);
+    summary.textContent=`學習率 ${eta.toFixed(2)}。三步後 w 等於 ${format(finalW)}，函數值等於 ${format(finalF)}。${status}。Learning rate ${eta.toFixed(2)}; after three steps, w is ${format(finalW)} and f is ${format(finalF)}.`;
+  }
+
+  function drawFooter(eta) {
+    text('適用範圍：此例 0 < η < 1 時下降，η = 1 震盪，η > 1 發散；1/L 是 L-smooth 目標的保守步長；非凸下降不保證局部或全域最小。',62,793,17,C.ink);
+    text('Scope: Here, 0 < η < 1 descends, η = 1 cycles, η > 1 diverges. For L-smooth functions, 1/L is safe; nonconvex descent does not guarantee a local or global minimum.',62,815,16,C.muted);
+    // This strip is covered by the native controls on screen but remains in exported PNGs.
+    rounded(60,831,1480,56,14,C.tealSoft);
+    text(`學習率 / Learning rate η = ${eta.toFixed(2)}`,92,859,20,C.teal,700);
+    line(420,859,1330,859,'#b7d3c6',8);
+    dot(420+eta/1.15*910,859,11,C.teal,C.white);
+    text('0',420,879,13,C.muted,400,'center',mathFont);
+    text('0.5',420+.5/1.15*910,879,13,C.muted,400,'center',mathFont);
+    text('1.0',420+1/1.15*910,879,13,C.muted,400,'center',mathFont);
+    text('1.15',1330,879,13,C.muted,400,'center',mathFont);
+  }
+  function draw() {
+    const eta=Number(slider.value);
+    const ws=[4]; for(let k=0;k<3;k++) ws.push(ws[k]-eta*2*ws[k]);
+    ctx.clearRect(0,0,1600,900);
+    drawHeader();drawChart(eta,ws);drawTable(eta,ws);drawFooter(eta);
+    valueLabel.textContent=eta.toFixed(2);
+    buttons.forEach(b=>b.setAttribute('aria-pressed',Math.abs(Number(b.dataset.eta)-eta)<1e-8?'true':'false'));
+  }
+  slider.addEventListener('input',draw);
+  buttons.forEach(b=>b.addEventListener('click',()=>{slider.value=b.dataset.eta;draw();}));
+  document.getElementById('save').addEventListener('click',()=>{
+    const a=document.createElement('a');a.download=`gradient-descent-eta-${Number(slider.value).toFixed(2)}.png`;
+    a.href=canvas.toDataURL('image/png');a.click();
+  });
+  if(document.fonts?.ready) document.fonts.ready.then(draw);
+  draw();
+})();
+</script>
+</body>
+</html>
