@@ -1,0 +1,262 @@
+﻿<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>反向傳播 Backpropagation — 多層網路怎麼算梯度？</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  html,body{margin:0;height:100%;background:#020617;}
+  body{display:flex;align-items:center;justify-content:center;overflow:hidden;}
+  canvas{width:min(100vw,calc(100vh*16/9));aspect-ratio:16/9;display:block;}
+</style>
+</head>
+<body>
+<canvas id="c" width="1920" height="1080"></canvas>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const SANS='"Noto Sans TC","Microsoft JhengHei","PingFang TC","Segoe UI",sans-serif';
+const MATH='"Cambria Math","STIX Two Math","Times New Roman","Microsoft JhengHei","Noto Sans TC",serif';
+const C={bg:'#0b1220',panel:'#16213a',panel2:'#0f1a30',line:'#2c3b5c',txt:'#e8eefc',dim:'#9fb0d0',
+  cyan:'#38bdf8',green:'#4ade80',orange:'#fb923c',purple:'#a78bfa',pink:'#f472b6',gray:'#94a3b8'};
+
+/* ---------- text helpers ---------- */
+function T(s,x,y,o={}){
+  let size=o.size||24;
+  ctx.font=`${o.weight||'400'} ${size}px ${SANS}`;
+  let w=ctx.measureText(s).width;
+  if(o.maxW&&w>o.maxW){size*=o.maxW/w;ctx.font=`${o.weight||'400'} ${size}px ${SANS}`;w=o.maxW;}
+  ctx.fillStyle=o.color||C.txt;ctx.textBaseline='alphabetic';ctx.textAlign='left';
+  let sx=x; if(o.align==='center')sx=x-w/2; else if(o.align==='right')sx=x-w;
+  ctx.fillText(s,sx,y);return w;
+}
+function parse(s){
+  const out=[];let buf='';
+  for(let i=0;i<s.length;){
+    const c=s[i];
+    if((c==='_'||c==='^')&&s[i+1]==='{'){
+      if(buf){out.push({t:buf});buf='';}
+      let sub='',sup='';
+      while((s[i]==='_'||s[i]==='^')&&s[i+1]==='{'){
+        const k=s.indexOf('}',i);const g=s.slice(i+2,k);
+        if(s[i]==='_')sub=g;else sup=g;i=k+1;
+      }
+      out.push({sub,sup});
+    }else{buf+=c;i++;}
+  }
+  if(buf)out.push({t:buf});return out;
+}
+function runsW(s,size,wt){
+  let w=0;
+  for(const r of parse(s)){
+    if(r.t!==undefined){ctx.font=`${wt} ${size}px ${MATH}`;w+=ctx.measureText(r.t).width;}
+    else{ctx.font=`${wt} ${size*0.66}px ${MATH}`;
+      w+=Math.max(ctx.measureText(r.sub).width,ctx.measureText(r.sup).width)+1;}
+  }
+  return w;
+}
+function drawRuns(s,x,y,size,color,wt){
+  ctx.fillStyle=color;ctx.textAlign='left';ctx.textBaseline='alphabetic';
+  for(const r of parse(s)){
+    if(r.t!==undefined){ctx.font=`${wt} ${size}px ${MATH}`;ctx.fillText(r.t,x,y);x+=ctx.measureText(r.t).width;}
+    else{const fs=size*0.66;ctx.font=`${wt} ${fs}px ${MATH}`;
+      const ws=ctx.measureText(r.sub).width,wp=ctx.measureText(r.sup).width;
+      if(r.sub)ctx.fillText(r.sub,x,y+size*0.26);
+      if(r.sup)ctx.fillText(r.sup,x,y-size*0.4);
+      x+=Math.max(ws,wp)+1;}
+  }
+  return x;
+}
+function itemW(it,size,wt){
+  if(typeof it==='string')return runsW(it,size,wt);
+  const fs=size*0.85;return Math.max(runsW(it.f[0],fs,wt),runsW(it.f[1],fs,wt))+12;
+}
+/* M: math / mixed text. items: string or array of string | {f:[num,den]} */
+function M(items,x,y,size,color,align,maxW,wt){
+  wt=wt||'400';color=color||C.txt;
+  if(!Array.isArray(items))items=[items];
+  let tot=items.reduce((a,it)=>a+itemW(it,size,wt),0);
+  if(maxW&&tot>maxW){size*=maxW/tot;tot=maxW;}
+  let cx=x;if(align==='center')cx=x-tot/2;else if(align==='right')cx=x-tot;
+  for(const it of items){
+    if(typeof it==='string'){cx=drawRuns(it,cx,y,size,color,wt);}
+    else{
+      const fs=size*0.85,fw=itemW(it,size,wt),axis=y-size*0.3;
+      const wn=runsW(it.f[0],fs,wt),wd=runsW(it.f[1],fs,wt);
+      drawRuns(it.f[0],cx+(fw-wn)/2,axis-6,fs,color,wt);
+      drawRuns(it.f[1],cx+(fw-wd)/2,axis+8+fs*0.72,fs,color,wt);
+      ctx.strokeStyle=color;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(cx+2,axis);ctx.lineTo(cx+fw-2,axis);ctx.stroke();
+      cx+=fw;
+    }
+  }
+  return tot;
+}
+/* ---------- shapes ---------- */
+function rr(x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+function panel(x,y,w,h,n,zh,en,col){
+  rr(x,y,w,h,18);ctx.fillStyle=C.panel;ctx.fill();
+  ctx.strokeStyle=col;ctx.globalAlpha=.55;ctx.lineWidth=2;ctx.stroke();ctx.globalAlpha=1;
+  ctx.fillStyle=col;ctx.beginPath();ctx.arc(x+36,y+36,20,0,Math.PI*2);ctx.fill();
+  T(String(n),x+36,y+45,{size:26,weight:'700',color:'#0b1220',align:'center'});
+  T(zh,x+68,y+34,{size:28,weight:'700',color:C.txt,maxW:w-88});
+  T(en,x+68,y+62,{size:22,color:C.dim,maxW:w-88});
+}
+function circle(x,y,r,fill,stroke,lw){ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fillStyle=fill;ctx.fill();if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw||2;ctx.stroke();}}
+function arrow(x1,y1,x2,y2,col,lw,head){
+  head=head||12;const a=Math.atan2(y2-y1,x2-x1);
+  ctx.strokeStyle=col;ctx.fillStyle=col;ctx.lineWidth=lw||2.5;
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2-Math.cos(a)*head*0.7,y2-Math.sin(a)*head*0.7);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(x2,y2);ctx.lineTo(x2-head*Math.cos(a-0.4),y2-head*Math.sin(a-0.4));ctx.lineTo(x2-head*Math.cos(a+0.4),y2-head*Math.sin(a+0.4));ctx.closePath();ctx.fill();
+}
+
+/* ---------- network geometry (panel 3) ---------- */
+const L1=[[1290,255],[1290,305],[1290,355]],L2=[[1470,255],[1470,305],[1470,355]],L3=[[1650,280],[1650,330]];
+function edges(A,B,col,alpha,lw){
+  ctx.strokeStyle=col;ctx.globalAlpha=alpha;ctx.lineWidth=lw;
+  for(const a of A)for(const b of B){ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.stroke();}
+  ctx.globalAlpha=1;
+}
+function dots(A,B,t,col){
+  ctx.fillStyle=col;
+  for(const a of A)for(const b of B){
+    const x=a[0]+(b[0]-a[0])*t,y=a[1]+(b[1]-a[1])*t;
+    ctx.globalAlpha=.25;ctx.beginPath();ctx.arc(x,y,10,0,7);ctx.fill();
+    ctx.globalAlpha=1;ctx.beginPath();ctx.arc(x,y,5,0,7);ctx.fill();
+  }
+}
+function label(s,x,y,size,col){
+  const w=runsW(s,size,'400');
+  rr(x-w/2-6,y-size*0.85,w+12,size*1.25,6);ctx.fillStyle=C.panel;ctx.fill();
+  M(s,x,y,size,col,'center');
+}
+
+/* ---------- main draw ---------- */
+function draw(ts){
+  ctx.clearRect(0,0,1920,1080);
+  const g=ctx.createLinearGradient(0,0,1920,1080);g.addColorStop(0,'#0b1220');g.addColorStop(1,'#111d38');
+  ctx.fillStyle=g;ctx.fillRect(0,0,1920,1080);
+
+  /* header */
+  T('多層網路怎麼算梯度？反向傳播',50,80,{size:54,weight:'800',color:'#ffffff'});
+  T('How Do Multilayer Networks Compute Gradients? — Backpropagation (Rumelhart et al.)',52,122,{size:28,color:C.cyan,maxW:1240});
+  rr(1330,34,540,88,16);ctx.fillStyle=C.panel2;ctx.fill();ctx.strokeStyle=C.orange;ctx.lineWidth=2;ctx.stroke();
+  T('梯度下降 + 遞迴求導',1600,72,{size:30,weight:'700',color:C.orange,align:'center',maxW:500});
+  T('Gradient descent + recursive differentiation',1600,104,{size:22,color:C.dim,align:'center',maxW:500});
+
+  /* ===== Panel 1: forward ===== */
+  let px=50,py=150,pw=560,ph=440;
+  panel(px,py,pw,ph,1,'單一神經元：前向計算','Single Neuron: Forward Pass',C.cyan);
+  const zs=[[110,270,'z_{1}'],[110,315,'z_{ℓ}'],[110,360,'z_{m}']],ai=[300,315],sg=[380,315],zi=[520,315];
+  for(const z of zs){
+    const hi=z[2]==='z_{ℓ}';
+    arrow(z[0]+24,z[1],ai[0]-38,ai[1]+(z[1]-315)*0.25,hi?C.cyan:'#3b6a86',hi?3:2,10);
+    circle(z[0],z[1],22,C.panel2,hi?C.cyan:C.line,2);
+    M(z[2],z[0],z[1]+8,22,C.txt,'center');
+  }
+  label('w_{iℓ}',203,297,24,C.cyan);
+  circle(ai[0],ai[1],36,C.panel2,C.cyan,3);M('Σ',ai[0],ai[1]+11,32,C.cyan,'center');
+  M('a_{i}',ai[0],ai[1]+64,26,C.txt,'center');
+  arrow(ai[0]+38,ai[1],sg[0]-32,ai[1],C.cyan,3,10);
+  rr(sg[0]-32,ai[1]-28,64,56,10);ctx.fillStyle=C.panel2;ctx.fill();ctx.strokeStyle=C.cyan;ctx.lineWidth=2;ctx.stroke();
+  M('σ_{i}',sg[0],ai[1]+9,26,C.cyan,'center');
+  arrow(sg[0]+34,ai[1],zi[0]-32,ai[1],C.cyan,3,10);
+  circle(zi[0],zi[1],30,C.panel2,C.cyan,3);M('z_{i}',zi[0],zi[1]+9,26,C.txt,'center');
+  T('前一層 previous layer',70,410,{size:22,color:C.dim});
+  T('神經元 i  Neuron i',430,410,{size:22,color:C.dim,align:'center'});
+  M('(9)',70,462,26,C.cyan);M('a_{i} = Σ_{ℓ=1}^{m} w_{iℓ} z_{ℓ}',135,462,30,C.txt);
+  T('激活前加權和｜weighted input sum',135,506,{size:22,color:C.dim,maxW:460});
+  M('(10)',70,543,26,C.cyan);M('z_{i} := σ_{i}(a_{i})',135,543,30,C.txt);
+  T('激活後輸出｜σ_i is the activation function',135,577,{size:22,color:C.dim,maxW:460});
+
+  /* ===== Panel 2: chain rule ===== */
+  px=630;pw=560;
+  panel(px,py,pw,ph,2,'鏈式法則與 δ','Chain Rule and δ',C.green);
+  M('(11)',px+20,300,26,C.green);
+  M([{f:['∂e','∂w_{iℓ}']},' = ',{f:['∂e','∂a_{i}']},' × ',{f:['∂a_{i}','∂w_{iℓ}']}],px+75,300,28,C.txt,'left',px+pw-20-(px+75));
+  M('= δ_{i} × z_{ℓ}',px+75,388,38,C.green,'left',400,'700');
+  M('(12)',px+20,462,26,C.green);
+  M(['δ_{i} := ',{f:['∂e','∂a_{i}']}],px+75,462,30,C.txt);
+  T('誤差對激活前輸入的敏感度',px+245,458,{size:22,color:C.dim,maxW:300});
+  T('sensitivity of error to a_i',px+245,484,{size:22,color:C.dim,maxW:300});
+  rr(px+20,498,pw-40,80,12);ctx.fillStyle=C.panel2;ctx.fill();ctx.strokeStyle=C.green;ctx.lineWidth=1.5;ctx.stroke();
+  M('因 ∂a_{i}/∂w_{iℓ} = z_{ℓ}，故梯度 = δ_{i} × z_{ℓ}',px+pw/2,530,24,C.txt,'center',pw-60);
+  T('gradient = local δ × incoming activation',px+pw/2,565,{size:22,color:C.green,align:'center',maxW:pw-60});
+
+  /* ===== Panel 3: hidden delta ===== */
+  px=1210;pw=660;
+  panel(px,py,pw,ph,3,'隱藏層的 δ：往後傳','Hidden-Layer δ: Propagate Backward',C.orange);
+  const cyc=(ts||0)%7000/7000,fwd=cyc<0.5,q=(fwd?cyc:cyc-0.5)*2;
+  edges(L1,L2,C.cyan,.28,1.5);edges(L2,L3,C.cyan,.28,1.5);
+  ctx.strokeStyle=C.cyan;ctx.lineWidth=3.5;ctx.beginPath();ctx.moveTo(L1[1][0],L1[1][1]);ctx.lineTo(L2[1][0],L2[1][1]);ctx.stroke();
+  ctx.strokeStyle=C.orange;ctx.beginPath();ctx.moveTo(L2[1][0],L2[1][1]);ctx.lineTo(L3[0][0],L3[0][1]);ctx.stroke();
+  if(fwd){const t1=Math.min(1,q*2),t2=Math.max(0,q*2-1);
+    if(q<0.5)dots(L1,L2,t1,C.cyan);else dots(L2,L3,t2,C.cyan);}
+  else{const t1=Math.min(1,q*2),t2=Math.max(0,q*2-1);
+    if(q<0.5)dots(L3,L2,t1,C.orange);else dots(L2,L1,t2,C.orange);}
+  for(const n of L1)circle(n[0],n[1],19,C.panel2,C.cyan,2);
+  for(const n of L2)circle(n[0],n[1],19,C.panel2,C.line,2);
+  circle(L2[1][0],L2[1][1],19,C.panel2,C.orange,3.5);
+  for(const n of L3)circle(n[0],n[1],19,C.panel2,C.orange,2);
+  M('ℓ',L1[1][0],L1[1][1]+8,22,C.txt,'center');
+  M('i',L2[1][0],L2[1][1]+8,22,C.txt,'center');
+  M('j',L3[0][0],L3[0][1]+8,22,C.txt,'center');
+  label('w_{iℓ}',1380,283,22,C.cyan);
+  label('w_{ji}',1560,287,22,C.orange);
+  T('輸入層 Input',1290,398,{size:22,color:C.dim,align:'center'});
+  T('隱藏層 Hidden',1470,398,{size:22,color:C.dim,align:'center'});
+  T('輸出層 Output',1650,398,{size:22,color:C.dim,align:'center'});
+  arrow(1240,432,1290,432,C.cyan,3,10);T('前向 forward (a, z)',1300,439,{size:22,color:C.cyan});
+  arrow(1600,432,1550,432,C.orange,3,10);T('反向 backward (δ)',1610,439,{size:22,color:C.orange,maxW:250});
+  M('(14)',px+20,482,24,C.orange);M('∂a_{j}/∂a_{i} = w_{ji} σ′(a_{i})',px+80,482,26,C.txt);
+  M('(15)',px+20,527,24,C.orange);M('δ_{i} = Σ_{j} δ_{j} · w_{ji} σ′(a_{i})',px+80,527,28,C.txt,'left',pw-100);
+  M('(16)',px+20,573,24,C.orange);M('∂e/∂w_{iℓ} = z_{ℓ} σ′(a_{i}) Σ_{j} δ_{j} w_{ji}',px+80,573,26,C.orange,'left',pw-100);
+
+  /* ===== Panel 4: update table ===== */
+  px=50;py=610;pw=950;ph=350;
+  panel(px,py,pw,ph,4,'權重更新：輸出層 vs 隱藏層','Weight Update: Output vs Hidden Layer',C.purple);
+  const rows=[
+    {zh:'通用',en:'General (17)',col:C.gray,
+     f:'w_{iℓ}^{(k+1)} := w_{iℓ}^{(k)} − η^{(k)} ∂e/∂w_{iℓ},  ∀i, ℓ',
+     n:'通用更新規則｜gradient-descent step for every weight'},
+    {zh:'輸出層',en:'Output (18)',col:C.cyan,
+     f:'w_{iℓ}^{(k+1)} := w_{iℓ}^{(k)} − η^{(k)} z_{ℓ} ∂e/∂a_{i}',
+     n:'δ_i 可直接算｜δ_i is computed directly'},
+    {zh:'隱藏層',en:'Hidden (19)',col:C.orange,
+     f:'w_{iℓ}^{(k+1)} := w_{iℓ}^{(k)} − η^{(k)} z_{ℓ} σ′(a_{i}) Σ_{j} δ_{j} w_{ji}',
+     n:'多乘 σ′(a_i)，下游 δ_j 加權傳回｜extra σ′ + weighted δ_j'}];
+  rows.forEach((r,i)=>{
+    const ry=686+i*86;
+    rr(px+16,ry,pw-32,78,12);ctx.fillStyle=C.panel2;ctx.fill();
+    rr(px+26,ry+9,170,60,30);ctx.fillStyle=r.col;ctx.globalAlpha=.22;ctx.fill();ctx.globalAlpha=1;ctx.strokeStyle=r.col;ctx.lineWidth=2;ctx.stroke();
+    T(r.zh,px+111,ry+37,{size:26,weight:'700',color:r.col,align:'center'});
+    T(r.en,px+111,ry+61,{size:22,color:C.txt,align:'center'});
+    M(r.f,px+216,ry+36,26,C.txt,'left',pw-250);
+    T(r.n,px+216,ry+66,{size:22,color:C.dim,maxW:pw-250});
+  });
+
+  /* ===== Panel 5: algorithm ===== */
+  px=1020;pw=850;
+  panel(px,py,pw,ph,5,'Algorithm 2 流程','Algorithm 2: Training Workflow',C.pink);
+  function step(n,x,y,w,zh,en,col){
+    rr(x,y,w,72,12);ctx.fillStyle=C.panel2;ctx.fill();ctx.strokeStyle=col;ctx.lineWidth=2;ctx.stroke();
+    circle(x+30,y+36,17,col);T(String(n),x+30,y+45,{size:22,weight:'700',color:'#0b1220',align:'center'});
+    M(zh,x+58,y+31,25,C.txt,'left',w-72);
+    M(en,x+58,y+59,22,C.dim,'left',w-72);
+  }
+  step(1,px+20,690,400,'初始化權重 w^{(0)}','Initialize weights w^{(0)}',C.pink);
+  step(2,px+440,690,390,'每輪 k：設定學習率 η^{(k)}','Each round k: set learning rate η^{(k)}',C.pink);
+  ctx.fillStyle=C.pink;ctx.beginPath();ctx.moveTo(px+421,716);ctx.lineTo(px+439,726);ctx.lineTo(px+421,736);ctx.fill();
+  step(3,px+20,776,810,'由最後一層 r 往回，對每個 i、ℓ：末層用 (18)，其餘用 (19)','From layer r back to 1: eq. (18) at the last layer, otherwise eq. (19)',C.orange);
+  step(4,px+20,862,810,'檢查收斂；未收斂則調整 η^{(k)} 後重複 ↺','Check convergence; if not converged, adjust η^{(k)} and repeat',C.green);
+  for(const yy of [764,850]){ctx.fillStyle=C.pink;ctx.beginPath();ctx.moveTo(px+415,yy);ctx.lineTo(px+435,yy);ctx.lineTo(px+425,yy+11);ctx.fill();}
+
+  /* ===== footer ===== */
+  rr(50,978,1820,82,16);ctx.fillStyle=C.panel2;ctx.fill();ctx.strokeStyle=C.orange;ctx.globalAlpha=.6;ctx.lineWidth=2;ctx.stroke();ctx.globalAlpha=1;
+  M('口語版：先 forward 算 a, z 與 loss → 輸出層算 δ → 一層層往回傳 δ → 用 δ_{i} z_{ℓ}（隱藏層加 σ′ 修正）更新每個 w_{iℓ}',80,1016,27,C.txt,'left',1760,'600');
+  M('In short: forward pass (a, z, loss) → output-layer δ → propagate δ backward → update every w_{iℓ} with δ_{i} z_{ℓ} (with σ′ correction in hidden layers)',80,1046,22,C.dim,'left',1760);
+}
+function loop(ts){draw(ts);requestAnimationFrame(loop);}
+(document.fonts&&document.fonts.ready?document.fonts.ready:Promise.resolve()).then(()=>requestAnimationFrame(loop));
+</script>
+</body>
+</html>
+
