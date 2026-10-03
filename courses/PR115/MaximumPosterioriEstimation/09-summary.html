@@ -54,7 +54,7 @@ window.addEventListener('pointerup',()=>drag=null);
 </script>
 <script>
 
-function render(){reset();title('總結：MAP 的一句話版本','Summary: one-sentence takeaway',9);rr(130,250,1340,500,28,P.panel);txt('MAP = 在資料 likelihood 上再乘上一個 prior，然後挑 posterior 最高點。',800,340,30,P.lime,'center',850);addFormula({tex:String.raw`\hat{\theta}_{MAP}=\arg\max_\theta\,p(X\mid\theta)p(\theta)`,x:400,y:430,width:800,align:'center',size:40,color:P.amber});addFormula({tex:String.raw`N\uparrow\;or\;prior\ flatter\Rightarrow \hat{\theta}_{MAP}\approx \hat{\theta}_{ML}`,x:330,y:560,width:940,align:'center',size:32,color:P.cyan});wrap('把 prior 想成可解釋的 regularizer：資料少時更有幫助；資料多時自然退居次要。',260,650,1080,34,23,P.muted,600,'center');}start(render);
+function render(){reset();title('總結：MAP 的一句話版本','Summary: one-sentence takeaway',9);rr(130,250,1340,500,28,P.panel);txt('MAP = 在資料 likelihood 上再乘上一個 prior，然後挑 posterior 最高點。',800,340,30,P.lime,'center',850);addFormula({tex:String.raw`\hat{\theta}_{MAP}=\arg\max_\theta\,p(X\mid\theta)p(\theta)`,x:400,y:430,width:800,align:'center',size:40,color:P.amber});addFormula({tex:String.raw`N\uparrow\;or\;prior\ flatter\Rightarrow \hat{\theta}_{MAP}\approx \hat{\theta}_{ML}`,x:330,y:560,width:940,align:'center',size:32,color:P.cyan});wrap('把 prior 想成可解釋的 regularizer：資料少時更有幫助；資料多時自然退居次要。',800,650,1080,34,23,P.muted,600,'center');}start(render);
 
 </script>
 </body>
