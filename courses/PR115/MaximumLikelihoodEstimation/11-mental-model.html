@@ -54,7 +54,7 @@ window.addEventListener('pointerup',()=>drag=null);
 </script>
 <script>
 
-function render(){reset();title('心智模型：資料固定，參數滑動','Mental model: fixed data, moving parameter',11);rr(120,230,1360,520,28,P.panel);txt('固定的是資料 X',430,305,32,P.cyan,'center',850);txt('滑動的是參數 θ',1170,305,32,P.amber,'center',850);for(let i=0;i<6;i++){const x=210+i*70;ctx.fillStyle=P.ink;ctx.beginPath();ctx.arc(x,450+Math.sin(i)*20,9,0,Math.PI*2);ctx.fill()}txt('x₁…x_N',430,530,28,P.muted,'center',700);line(730,470,900,470,P.grid,6,[10,10]);arrow(930,470,1260,470,P.amber,6);txt('θ 變動 → likelihood 改變',1090,418,24,P.amber,'center',800);addFormula({tex:String.raw`\hat{\theta}_{ML}=\arg\max_\theta\;p(X;\theta)`,x:880,y:520,width:420,align:'center',size:34,color:P.ink});wrap('把資料當作現場證據不動，然後滑動參數 θ，看看哪個 θ 能讓這組證據最像真的。',250,640,1100,36,24,P.muted,600,'center');}start(render);
+function render(){reset();title('心智模型：資料固定，參數滑動','Mental model: fixed data, moving parameter',11);rr(120,230,1360,520,28,P.panel);txt('固定的是資料 X',430,305,32,P.cyan,'center',850);txt('滑動的是參數 θ',1170,305,32,P.amber,'center',850);for(let i=0;i<6;i++){const x=210+i*70;ctx.fillStyle=P.ink;ctx.beginPath();ctx.arc(x,450+Math.sin(i)*20,9,0,Math.PI*2);ctx.fill()}txt('x₁…x_N',430,530,28,P.muted,'center',700);line(730,470,900,470,P.grid,6,[10,10]);arrow(930,470,1260,470,P.amber,6);txt('θ 變動 → likelihood 改變',1090,418,24,P.amber,'center',800);addFormula({tex:String.raw`\hat{\theta}_{ML}=\arg\max_\theta\;p(X;\theta)`,x:880,y:520,width:420,align:'center',size:34,color:P.ink});wrap('把資料當作現場證據不動，然後滑動參數 θ，看看哪個 θ 能讓這組證據最像真的。',800,640,1100,36,24,P.muted,600,'center');}start(render);
 
 </script>
 </body>
