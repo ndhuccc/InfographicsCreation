@@ -1,0 +1,31 @@
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>09 Asymptotic Properties</title><style>
+:root{--bg:#071521;--panel:#0d2434;--panel2:#102c40;--ink:#f7fbff;--muted:#a8bed0;--cyan:#4fd1c5;--amber:#f6c85f;--coral:#ff7b72;--lime:#8fd694;--violet:#b794f4}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#02080d;font-family:Inter,"Noto Sans TC","Microsoft JhengHei",Arial,sans-serif}.wrap{width:100vw;height:100vh;display:grid;place-items:center;background:radial-gradient(circle at 20% 0%,#10344d 0,#02080d 58%,#000 100%)}.stage{position:relative;width:min(100vw,177.7778vh);height:min(56.25vw,100vh);aspect-ratio:16/9;background:#071521;overflow:hidden}.stage canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none}.hint{position:absolute;right:2.2%;top:2.2%;font-size:clamp(10px,.78vw,15px);color:#9ab4c7;background:#071521dd;border:1px solid #ffffff1c;border-radius:999px;padding:.45em .72em;z-index:3;pointer-events:none}
+</style></head><body><div class="wrap"><div class="stage"><canvas id="c" width="1600" height="900"></canvas><div class="hint">互動：點擊 / 拖曳 · Click / Drag</div></div></div><script>
+const c=document.getElementById('c'),ctx=c.getContext('2d');const W=1600,H=900;
+const P={bg:'#071521',panel:'#0d2434',panel2:'#102c40',ink:'#f7fbff',muted:'#a8bed0',cyan:'#4fd1c5',amber:'#f6c85f',coral:'#ff7b72',lime:'#8fd694',violet:'#b794f4',grid:'#17384d'};
+let zones=[],drag=null;
+function reset(){zones=[];ctx.clearRect(0,0,W,H);ctx.fillStyle=P.bg;ctx.fillRect(0,0,W,H);ctx.save();ctx.strokeStyle='#0b2434';ctx.lineWidth=1;for(let x=0;x<W;x+=80){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()}for(let y=0;y<H;y+=80){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}ctx.restore()}
+function rr(x,y,w,h,r=20,fill=P.panel,stroke=null,lw=2){ctx.beginPath();ctx.roundRect(x,y,w,h,r);if(fill){ctx.fillStyle=fill;ctx.fill()}if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw;ctx.stroke()}}
+function line(x1,y1,x2,y2,color='#fff',lw=3,dash=[]){ctx.save();ctx.strokeStyle=color;ctx.lineWidth=lw;ctx.setLineDash(dash);ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();ctx.restore()}
+function arrow(x1,y1,x2,y2,color=P.cyan,lw=5){line(x1,y1,x2,y2,color,lw);const a=Math.atan2(y2-y1,x2-x1),s=14;ctx.fillStyle=color;ctx.beginPath();ctx.moveTo(x2,y2);ctx.lineTo(x2-s*Math.cos(a-.5),y2-s*Math.sin(a-.5));ctx.lineTo(x2-s*Math.cos(a+.5),y2-s*Math.sin(a+.5));ctx.closePath();ctx.fill()}
+function font(size,weight=700){ctx.font=`${weight} ${size}px Inter,Noto Sans TC,Microsoft JhengHei,Arial,sans-serif`}
+function txt(t,x,y,size=30,color=P.ink,align='left',weight=700){ctx.fillStyle=color;font(size,weight);ctx.textAlign=align;ctx.textBaseline='middle';ctx.fillText(String(t),x,y)}
+function fitText(t,x,y,maxw,size=30,min=15,color=P.ink,align='left',weight=700){let s=size;font(s,weight);while(s>min&&ctx.measureText(t).width>maxw){s--;font(s,weight)}txt(t,x,y,s,color,align,weight);return s}
+function wrap(t,x,y,maxw,lh=34,size=24,color=P.muted,weight=550,maxLines=99){t=String(t).replace(/\\n/g,'\n');ctx.fillStyle=color;font(size,weight);ctx.textAlign='left';ctx.textBaseline='top';let yy=y,ln='',lines=0;function flush(){if(lines<maxLines){ctx.fillText(ln,x,yy);yy+=lh;lines++}ln=''}for(const ch of t){if(ch==='\n'){flush();continue}const q=ln+ch;if(ctx.measureText(q).width>maxw&&ln){flush();ln=ch}else ln=q}if(ln&&lines<maxLines)flush();return {bottom:yy,lines}}
+function title(zh,en,no){fitText(`${String(no).padStart(2,'0')}  ${zh}`,70,68,1160,42,30,P.ink,'left',900);fitText(en,72,113,1100,23,18,P.cyan,'left',650);line(70,148,1530,148,P.grid,2)}
+function chip(t,x,y,w,color){rr(x,y,w,40,20,color+'20',color,2);fitText(t,x+w/2,y+20,w-24,18,13,color,'center',800)}
+function btn(label,x,y,w,h,onClick,active=false,color=P.cyan){rr(x,y,w,h,15,active?color+'28':'#ffffff0c',active?color:'#ffffff24',2);fitText(label,x+w/2,y+h/2,w-26,19,13,active?color:P.ink,'center',800);zones.push({type:'button',x,y,w,h,onClick})}
+function slider(x,y,w,min,max,value,onChange,label,fmt=v=>String(v)){line(x,y,x+w,y,'#ffffff35',8);const t=(value-min)/(max-min),kx=x+t*w;ctx.fillStyle=P.amber;ctx.beginPath();ctx.arc(kx,y,15,0,Math.PI*2);ctx.fill();fitText(label,x,y-31,w*.72,20,14,P.muted,'left',650);fitText(fmt(value),x+w,y-31,w*.25,22,14,P.amber,'right',850);zones.push({type:'slider',x:x-20,y:y-28,w:w+40,h:56,min,max,onChange})}
+function gaussian(cx,base,amp,sig,color,lw=5){ctx.beginPath();for(let x=cx-220;x<=cx+220;x+=3){const y=base-amp*Math.exp(-.5*((x-cx)/sig)**2);x===cx-220?ctx.moveTo(x,y):ctx.lineTo(x,y)}ctx.strokeStyle=color;ctx.lineWidth=lw;ctx.stroke()}
+function dot(x,y,r,color){ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill()}
+function pos(e){const r=c.getBoundingClientRect();return{x:(e.clientX-r.left)*W/r.width,y:(e.clientY-r.top)*H/r.height}}
+c.addEventListener('pointerdown',e=>{const p=pos(e);for(let i=zones.length-1;i>=0;i--){const z=zones[i];if(p.x>=z.x&&p.x<=z.x+z.w&&p.y>=z.y&&p.y<=z.y+z.h){if(z.type==='button'){z.onClick();return}if(z.type==='slider'){drag=z;const t=Math.max(0,Math.min(1,(p.x-(z.x+20))/(z.w-40)));z.onChange(z.min+t*(z.max-z.min));return}}}});
+c.addEventListener('pointermove',e=>{if(!drag)return;const p=pos(e),t=Math.max(0,Math.min(1,(p.x-(drag.x+20))/(drag.w-40)));drag.onChange(drag.min+t*(drag.max-drag.min))});addEventListener('pointerup',()=>drag=null);
+
+
+let n=20;function render(){reset();title('MLE 的大樣本性質','Large-sample properties of MLE',9);slider(360,205,880,5,200,n,v=>{n=Math.round(v);render()},'Conceptual sample size N',v=>String(Math.round(v)));
+const cards=[['Consistency / 一致性','估計值逐漸集中在真參數附近。',P.cyan],['Asymptotic Normality / 漸近常態','適當條件下，標準化後趨近 Gaussian。',P.violet],['Efficiency / 漸近效率','適當條件下可達到 Fisher information 所決定的極限。',P.lime],['Bias shrinks / 偏誤可縮小','許多常見 MLE 的有限樣本 bias 會隨 N 增大而衰減。',P.amber]];
+cards.forEach((a,i)=>{const x=i%2?840:100,y=i<2?320:535;rr(x,y,660,165,24,a[2]+'12',a[2],2);fitText(a[0],x+35,y+44,590,27,19,a[2],'left',850);wrap(a[1],x+35,y+84,585,31,21,P.muted,600,3)});rr(230,750,1140,80,22,'#211a1a',P.coral,2);fitText('重要：需滿足模型可識別性、可微性等 regularity conditions；不是所有情況都自動成立。',800,790,1060,23,17,P.coral,'center',750)}
+
+render();</script></body></html>

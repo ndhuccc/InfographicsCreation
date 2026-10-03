@@ -1,0 +1,41 @@
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>01 ML vs MAP</title><style>
+:root{--bg:#071521;--panel:#0f2637;--panel2:#102c40;--ink:#f7fbff;--muted:#a9bfd0;--cyan:#4fd1c5;--amber:#f6c85f;--coral:#ff7b72;--lime:#8fd694;--violet:#b794f4}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;background:#02080d;color:var(--ink);font-family:Inter,"Noto Sans TC","Microsoft JhengHei",sans-serif}
+.wrap{width:100vw;height:100vh;display:grid;place-items:center;background:radial-gradient(circle at 20% 0%,#10344d 0,#02080d 58%,#000 100%)}
+.stage{position:relative;width:min(100vw,177.7778vh);height:min(56.25vw,100vh);aspect-ratio:16/9;background:var(--bg);overflow:hidden}
+canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+.hint{position:absolute;right:2.1%;top:1.9%;font-size:.8vw;color:#9ab4c7;background:#071521cc;border:1px solid #ffffff18;border-radius:999px;padding:.5em .75em;z-index:5}
+@media(max-width:900px){.hint{font-size:1.4vw}}
+</style></head><body><div class="wrap"><div class="stage"><canvas id="c" width="1600" height="900"></canvas><div class="hint">互動：點擊 / 拖曳 • Click / Drag</div></div></div><script>
+const c=document.getElementById('c'),ctx=c.getContext('2d');const W=1600,H=900;
+const P={bg:'#071521',panel:'#0f2637',panel2:'#102c40',ink:'#f7fbff',muted:'#a9bfd0',cyan:'#4fd1c5',amber:'#f6c85f',coral:'#ff7b72',lime:'#8fd694',violet:'#b794f4',grid:'#17384d'};
+let zones=[],drag=null;
+function reset(){zones=[];ctx.clearRect(0,0,W,H);ctx.fillStyle=P.bg;ctx.fillRect(0,0,W,H);for(let x=0;x<W;x+=80)line(x,0,x,H,'#0b2434',1);for(let y=0;y<H;y+=80)line(0,y,W,y,'#0b2434',1)}
+function line(x1,y1,x2,y2,color='#fff',lw=3,dash=[]){ctx.save();ctx.strokeStyle=color;ctx.lineWidth=lw;ctx.setLineDash(dash);ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();ctx.restore()}
+function rr(x,y,w,h,r=20,fill=P.panel,stroke=null,lw=2){ctx.beginPath();ctx.roundRect(x,y,w,h,r);if(fill){ctx.fillStyle=fill;ctx.fill()}if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw;ctx.stroke()}}
+function txt(t,x,y,size=30,color=P.ink,align='left',weight=700){ctx.fillStyle=color;ctx.font=`${weight} ${size}px Inter,Noto Sans TC,Microsoft JhengHei,sans-serif`;ctx.textAlign=align;ctx.textBaseline='middle';ctx.fillText(t,x,y)}
+function wrap(t,x,y,maxw,lh=34,size=24,color=P.muted,weight=550){
+  ctx.fillStyle=color;ctx.font=`${weight} ${size}px Inter,Noto Sans TC,Microsoft JhengHei,sans-serif`;ctx.textAlign='left';ctx.textBaseline='top';
+  t=String(t).replace(/\\n/g,'\n');let ln='',yy=y;
+  for(const ch of t){if(ch==='\n'){if(ln)ctx.fillText(ln,x,yy);ln='';yy+=lh;continue}
+    const q=ln+ch;if(ctx.measureText(q).width>maxw&&ln){ctx.fillText(ln,x,yy);ln=ch;yy+=lh}else ln=q}
+  if(ln)ctx.fillText(ln,x,yy);return yy+lh}
+function title(zh,en,no){txt(`${String(no).padStart(2,'0')}  ${zh}`,70,68,40,P.ink,'left',900);txt(en,72,111,22,P.cyan,'left',650);line(70,146,1530,146,P.grid,2)}
+function chip(t,x,y,w,color){rr(x,y,w,40,20,color+'20',color,2);txt(t,x+w/2,y+20,18,color,'center',800)}
+function btn(label,x,y,w,h,onClick,active=false,color=P.cyan){rr(x,y,w,h,15,active?color+'28':'#ffffff0c',active?color:'#ffffff22',2);txt(label,x+w/2,y+h/2,19,active?color:P.ink,'center',800);zones.push({type:'button',x,y,w,h,onClick})}
+function slider(x,y,w,min,max,value,onChange,label,fmt=v=>v.toFixed(2)){line(x,y,x+w,y,'#ffffff35',8);const t=(value-min)/(max-min),kx=x+t*w;ctx.fillStyle=P.amber;ctx.beginPath();ctx.arc(kx,y,15,0,Math.PI*2);ctx.fill();txt(label,x,y-31,20,P.muted,'left',650);txt(fmt(value),x+w,y-31,22,P.amber,'right',850);zones.push({type:'slider',x:x-20,y:y-28,w:w+40,h:56,min,max,onChange})}
+function arrow(x1,y1,x2,y2,color=P.cyan,lw=5){line(x1,y1,x2,y2,color,lw);const a=Math.atan2(y2-y1,x2-x1),s=14;ctx.fillStyle=color;ctx.beginPath();ctx.moveTo(x2,y2);ctx.lineTo(x2-s*Math.cos(a-.5),y2-s*Math.sin(a-.5));ctx.lineTo(x2-s*Math.cos(a+.5),y2-s*Math.sin(a+.5));ctx.closePath();ctx.fill()}
+function gauss(cx,base,amp,sig,color,lw=5){ctx.beginPath();for(let x=cx-240;x<=cx+240;x+=3){const y=base-amp*Math.exp(-.5*((x-cx)/sig)**2);x===cx-240?ctx.moveTo(x,y):ctx.lineTo(x,y)}ctx.strokeStyle=color;ctx.lineWidth=lw;ctx.stroke()}
+function pos(e){const r=c.getBoundingClientRect();return{x:(e.clientX-r.left)*W/r.width,y:(e.clientY-r.top)*H/r.height}}
+c.addEventListener('pointerdown',e=>{const p=pos(e);for(const z of zones){if(p.x>=z.x&&p.x<=z.x+z.w&&p.y>=z.y&&p.y<=z.y+z.h){if(z.type==='button'){z.onClick();return}if(z.type==='slider'){drag=z;const t=Math.max(0,Math.min(1,(p.x-(z.x+20))/(z.w-40)));z.onChange(z.min+t*(z.max-z.min));return}}}});
+c.addEventListener('pointermove',e=>{if(!drag)return;const p=pos(e),t=Math.max(0,Math.min(1,(p.x-(drag.x+20))/(drag.w-40)));drag.onChange(drag.min+t*(drag.max-drag.min))});
+addEventListener('pointerup',()=>drag=null);
+
+let mode=0;
+function render(){reset();title('ML 與 MAP：差一個先驗','ML vs MAP: the prior is the difference',1);
+btn('ML',420,200,250,58,()=>{mode=0;render()},mode===0,P.cyan);btn('MAP',930,200,250,58,()=>{mode=1;render()},mode===1,P.amber);
+if(mode===0){rr(170,325,1260,320,30,P.panel);txt('ML：把 θ 當成「固定但未知」',800,390,38,P.cyan,'center',900);txt('θ̂_ML = arg maxθ  p(X | θ)',800,480,44,P.ink,'center',900);wrap('只讓眼前資料 X 的 likelihood 最大。沒有額外的 prior knowledge。',405,555,790,40,27,P.muted,600)}
+else{rr(170,325,1260,320,30,P.panel2);txt('MAP：把 θ 也視為有分布的隨機變數',800,390,36,P.amber,'center',900);txt('θ̂_MAP = arg maxθ  p(θ) p(X | θ)',800,480,42,P.ink,'center',900);wrap('除了資料 evidence，還把 prior p(θ) 當成一份事前經驗一起納入。',380,555,840,40,27,P.muted,600)}
+chip(mode===0?'Data only / 只看資料':'Prior × Likelihood / 先驗 × 資料',560,730,480,mode===0?P.cyan:P.amber)}
+
+render();</script></body></html>
