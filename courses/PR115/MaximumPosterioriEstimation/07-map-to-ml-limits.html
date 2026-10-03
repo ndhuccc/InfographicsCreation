@@ -1,43 +1,61 @@
-<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>07 MAP to ML Limits</title><style>
-:root{--bg:#071521;--panel:#0f2637;--panel2:#102c40;--ink:#f7fbff;--muted:#a9bfd0;--cyan:#4fd1c5;--amber:#f6c85f;--coral:#ff7b72;--lime:#8fd694;--violet:#b794f4}
-*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;background:#02080d;color:var(--ink);font-family:Inter,"Noto Sans TC","Microsoft JhengHei",sans-serif}
-.wrap{width:100vw;height:100vh;display:grid;place-items:center;background:radial-gradient(circle at 20% 0%,#10344d 0,#02080d 58%,#000 100%)}
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MAP 07 Limits</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<style>
+:root{--bg:#071521;--panel:#102638;--panel2:#133149;--ink:#f7fbff;--muted:#aac1d2;--cyan:#4fd1c5;--amber:#f6c85f;--coral:#ff7b72;--lime:#8fd694;--violet:#b794f4;--blue:#63b3ed;--grid:#17384d;}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;background:#02080d;color:var(--ink);font-family:Inter,"Noto Sans TC","Microsoft JhengHei",sans-serif}
+.wrap{width:100vw;height:100vh;display:grid;place-items:center;background:radial-gradient(circle at 18% 0%,#10344d 0,#02080d 58%,#000 100%)}
 .stage{position:relative;width:min(100vw,177.7778vh);height:min(56.25vw,100vh);aspect-ratio:16/9;background:var(--bg);overflow:hidden}
 canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
-.hint{position:absolute;right:2.1%;top:1.9%;font-size:.8vw;color:#9ab4c7;background:#071521cc;border:1px solid #ffffff18;border-radius:999px;padding:.5em .75em;z-index:5}
-@media(max-width:900px){.hint{font-size:1.4vw}}
-</style></head><body><div class="wrap"><div class="stage"><canvas id="c" width="1600" height="900"></canvas><div class="hint">互動：點擊 / 拖曳 • Click / Drag</div></div></div><script>
-const c=document.getElementById('c'),ctx=c.getContext('2d');const W=1600,H=900;
-const P={bg:'#071521',panel:'#0f2637',panel2:'#102c40',ink:'#f7fbff',muted:'#a9bfd0',cyan:'#4fd1c5',amber:'#f6c85f',coral:'#ff7b72',lime:'#8fd694',violet:'#b794f4',grid:'#17384d'};
-let zones=[],drag=null;
-function reset(){zones=[];ctx.clearRect(0,0,W,H);ctx.fillStyle=P.bg;ctx.fillRect(0,0,W,H);for(let x=0;x<W;x+=80)line(x,0,x,H,'#0b2434',1);for(let y=0;y<H;y+=80)line(0,y,W,y,'#0b2434',1)}
+#math-layer{position:absolute;left:0;top:0;width:1600px;height:900px;transform-origin:top left;pointer-events:none;z-index:3}
+.formula{position:absolute;line-height:1;display:flex;align-items:flex-start;justify-content:flex-start;color:var(--ink)}
+.formula.center{justify-content:center;text-align:center}.formula.right{justify-content:flex-end;text-align:right}
+.formula .katex-display{margin:0;width:100%}.formula .katex{line-height:1.02}
+.hint{position:absolute;right:2.1%;top:1.9%;font-size:.78vw;color:#9ab4c7;background:#071521cc;border:1px solid #ffffff18;border-radius:999px;padding:.45em .75em;z-index:5}
+.note{position:absolute;left:2.1%;bottom:2.2%;font-size:.72vw;color:#89a3b8;background:#071521b8;border:1px solid #ffffff12;border-radius:12px;padding:.42em .65em;z-index:5;max-width:34%}
+@media(max-width:900px){.hint,.note{font-size:1.28vw}}
+</style>
+</head>
+<body>
+<div class="wrap"><div class="stage" id="stage"><canvas id="c" width="1600" height="900"></canvas><div id="math-layer"></div><div class="hint">互動：點擊 / 拖曳 • Click / Drag</div><div class="note">Canvas + KaTeX hybrid infographic • audited logical-coordinate edition</div></div></div>
+<script>
+const stage=document.getElementById('stage');
+const c=document.getElementById('c'),ctx=c.getContext('2d');
+const mathLayer=document.getElementById('math-layer');
+const W=1600,H=900;
+const P={bg:'#071521',panel:'#102638',panel2:'#133149',ink:'#f7fbff',muted:'#aac1d2',cyan:'#4fd1c5',amber:'#f6c85f',coral:'#ff7b72',lime:'#8fd694',violet:'#b794f4',blue:'#63b3ed',grid:'#17384d'};
+let zones=[],drag=null,formulaNodes=[];
+function syncMathLayer(){const r=stage.getBoundingClientRect();mathLayer.style.transform=`scale(${r.width/1600},${r.height/900})`;}
+new ResizeObserver(syncMathLayer).observe(stage); window.addEventListener('resize',syncMathLayer);
+function reset(){zones=[];formulaNodes.forEach(n=>n.remove());formulaNodes=[];ctx.clearRect(0,0,W,H);ctx.fillStyle=P.bg;ctx.fillRect(0,0,W,H);for(let x=0;x<W;x+=80)line(x,0,x,H,'#0b2434',1);for(let y=0;y<H;y+=80)line(0,y,W,y,'#0b2434',1)}
 function line(x1,y1,x2,y2,color='#fff',lw=3,dash=[]){ctx.save();ctx.strokeStyle=color;ctx.lineWidth=lw;ctx.setLineDash(dash);ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();ctx.restore()}
 function rr(x,y,w,h,r=20,fill=P.panel,stroke=null,lw=2){ctx.beginPath();ctx.roundRect(x,y,w,h,r);if(fill){ctx.fillStyle=fill;ctx.fill()}if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw;ctx.stroke()}}
 function txt(t,x,y,size=30,color=P.ink,align='left',weight=700){ctx.fillStyle=color;ctx.font=`${weight} ${size}px Inter,Noto Sans TC,Microsoft JhengHei,sans-serif`;ctx.textAlign=align;ctx.textBaseline='middle';ctx.fillText(t,x,y)}
-function wrap(t,x,y,maxw,lh=34,size=24,color=P.muted,weight=550){
-  ctx.fillStyle=color;ctx.font=`${weight} ${size}px Inter,Noto Sans TC,Microsoft JhengHei,sans-serif`;ctx.textAlign='left';ctx.textBaseline='top';
-  t=String(t).replace(/\\n/g,'\n');let ln='',yy=y;
-  for(const ch of t){if(ch==='\n'){if(ln)ctx.fillText(ln,x,yy);ln='';yy+=lh;continue}
-    const q=ln+ch;if(ctx.measureText(q).width>maxw&&ln){ctx.fillText(ln,x,yy);ln=ch;yy+=lh}else ln=q}
-  if(ln)ctx.fillText(ln,x,yy);return yy+lh}
+function wrap(t,x,y,maxw,lh=34,size=24,color=P.muted,weight=550,align='left'){ctx.fillStyle=color;ctx.font=`${weight} ${size}px Inter,Noto Sans TC,Microsoft JhengHei,sans-serif`;ctx.textAlign=align;ctx.textBaseline='top';t=String(t).replace(/\\n/g,'\n');let ln='',yy=y;for(const ch of t){if(ch==='\n'){if(ln)ctx.fillText(ln,x,yy);ln='';yy+=lh;continue}const q=ln+ch;if(ctx.measureText(q).width>maxw&&ln){ctx.fillText(ln,x,yy);ln=ch;yy+=lh}else ln=q}if(ln)ctx.fillText(ln,x,yy);return yy+lh}
 function title(zh,en,no){txt(`${String(no).padStart(2,'0')}  ${zh}`,70,68,40,P.ink,'left',900);txt(en,72,111,22,P.cyan,'left',650);line(70,146,1530,146,P.grid,2)}
 function chip(t,x,y,w,color){rr(x,y,w,40,20,color+'20',color,2);txt(t,x+w/2,y+20,18,color,'center',800)}
 function btn(label,x,y,w,h,onClick,active=false,color=P.cyan){rr(x,y,w,h,15,active?color+'28':'#ffffff0c',active?color:'#ffffff22',2);txt(label,x+w/2,y+h/2,19,active?color:P.ink,'center',800);zones.push({type:'button',x,y,w,h,onClick})}
-function slider(x,y,w,min,max,value,onChange,label,fmt=v=>v.toFixed(2)){line(x,y,x+w,y,'#ffffff35',8);const t=(value-min)/(max-min),kx=x+t*w;ctx.fillStyle=P.amber;ctx.beginPath();ctx.arc(kx,y,15,0,Math.PI*2);ctx.fill();txt(label,x,y-31,20,P.muted,'left',650);txt(fmt(value),x+w,y-31,22,P.amber,'right',850);zones.push({type:'slider',x:x-20,y:y-28,w:w+40,h:56,min,max,onChange})}
+function slider(x,y,w,min,max,value,onChange,label,fmt=v=>v.toFixed(2),accent=P.amber){line(x,y,x+w,y,'#ffffff35',8);const t=(value-min)/(max-min),kx=x+t*w;ctx.fillStyle=accent;ctx.beginPath();ctx.arc(kx,y,15,0,Math.PI*2);ctx.fill();txt(label,x,y-31,20,P.muted,'left',650);txt(fmt(value),x+w,y-31,22,accent,'right',850);zones.push({type:'slider',x:x-20,y:y-28,w:w+40,h:56,min,max,onChange})}
 function arrow(x1,y1,x2,y2,color=P.cyan,lw=5){line(x1,y1,x2,y2,color,lw);const a=Math.atan2(y2-y1,x2-x1),s=14;ctx.fillStyle=color;ctx.beginPath();ctx.moveTo(x2,y2);ctx.lineTo(x2-s*Math.cos(a-.5),y2-s*Math.sin(a-.5));ctx.lineTo(x2-s*Math.cos(a+.5),y2-s*Math.sin(a+.5));ctx.closePath();ctx.fill()}
-function gauss(cx,base,amp,sig,color,lw=5){ctx.beginPath();for(let x=cx-240;x<=cx+240;x+=3){const y=base-amp*Math.exp(-.5*((x-cx)/sig)**2);x===cx-240?ctx.moveTo(x,y):ctx.lineTo(x,y)}ctx.strokeStyle=color;ctx.lineWidth=lw;ctx.stroke()}
+function gauss(cx,base,amp,sig,color,lw=5,dash=[]){ctx.save();ctx.setLineDash(dash);ctx.beginPath();for(let x=cx-260;x<=cx+260;x+=3){const y=base-amp*Math.exp(-.5*((x-cx)/sig)**2);x===cx-260?ctx.moveTo(x,y):ctx.lineTo(x,y)}ctx.strokeStyle=color;ctx.lineWidth=lw;ctx.stroke();ctx.restore()}
+function bar(x,y,w,h,pct,color){rr(x,y,w,h,18,'#ffffff0b');rr(x,y,w*pct,h,18,color);rr(x,y,w,h,18,null,'#ffffff22',2)}
+function addFormula({tex,x,y,width=220,align='left',size=30,color=P.ink,display=true,offsetX=0,offsetY=0}){const el=document.createElement('div');el.className='formula'+(align==='center'?' center':align==='right'?' right':'');el.style.left=x+'px';el.style.top=y+'px';el.style.width=width+'px';el.style.fontSize=size+'px';el.style.color=color;el.style.transform=`translate(${offsetX}px,${offsetY}px)`;mathLayer.appendChild(el);formulaNodes.push(el);if(window.katex){katex.render(tex,el,{displayMode:display,throwOnError:false})}else{el.textContent=tex}return el}
 function pos(e){const r=c.getBoundingClientRect();return{x:(e.clientX-r.left)*W/r.width,y:(e.clientY-r.top)*H/r.height}}
-c.addEventListener('pointerdown',e=>{const p=pos(e);for(const z of zones){if(p.x>=z.x&&p.x<=z.x+z.w&&p.y>=z.y&&p.y<=z.y+z.h){if(z.type==='button'){z.onClick();return}if(z.type==='slider'){drag=z;const t=Math.max(0,Math.min(1,(p.x-(z.x+20))/(z.w-40)));z.onChange(z.min+t*(z.max-z.min));return}}}});
+function start(renderFn){function kickoff(){syncMathLayer();renderFn()} if(document.readyState==='complete') setTimeout(kickoff,80); else window.addEventListener('load',()=>setTimeout(kickoff,80));}
+c.addEventListener('pointerdown',e=>{const p=pos(e);for(const z of zones){if(p.x>=z.x&&p.x<=z.x+z.w&&p.y>=z.y&&p.y<=z.y+z.h){if(z.type==='button'){z.onClick();return} if(z.type==='slider'){drag=z;const t=Math.max(0,Math.min(1,(p.x-(z.x+20))/(z.w-40)));z.onChange(z.min+t*(z.max-z.min));return}}}});
 c.addEventListener('pointermove',e=>{if(!drag)return;const p=pos(e),t=Math.max(0,Math.min(1,(p.x-(drag.x+20))/(drag.w-40)));drag.onChange(drag.min+t*(drag.max-drag.min))});
-addEventListener('pointerup',()=>drag=null);
+window.addEventListener('pointerup',()=>drag=null);
+</script>
+<script>
 
-let which=0;
-function render(){reset();title('兩條路都會讓 MAP → ML','Two routes make MAP approach ML',7);
-btn('① 先驗變很寬 σ²_μ → ∞',300,210,430,58,()=>{which=0;render()},which===0,P.violet);
-btn('② 資料變很多 N → ∞',870,210,430,58,()=>{which=1;render()},which===1,P.cyan);
-rr(180,335,1240,300,30,P.panel);
-if(which===0){txt('Prior becomes flat / 幾乎沒有先驗偏好',800,405,34,P.violet,'center',900);txt('p(μ) ≈ constant',800,480,42,P.ink,'center',900);arrow(650,550,950,550,P.amber,5);txt('MAP objective ≈ Likelihood',800,600,27,P.amber,'center',850)}
-else{txt('Data evidence dominates / 資料證據壓過先驗',800,405,34,P.cyan,'center',900);txt('N → ∞',800,480,46,P.ink,'center',900);arrow(650,550,950,550,P.amber,5);txt('μ̂_MAP → μ̂_ML = x̄',800,600,28,P.amber,'center',850)}
-chip('MAP ≈ ML',610,735,380,P.lime)}
+let mode=0;function render(){reset();title('什麼時候 MAP 會接近 ML？','When does MAP approach ML?',7);btn('N 很大',420,195,240,56,()=>{mode=0;render()},mode===0,P.cyan);btn('prior 很寬',760,195,280,56,()=>{mode=1;render()},mode===1,P.amber);btn('兩者都成立',1110,195,240,56,()=>{mode=2;render()},mode===2,P.lime);rr(180,300,1240,380,28,P.panel);if(mode===0){addFormula({tex:String.raw`N\to\infty\Rightarrow \hat{\theta}_{MAP}\approx \hat{\theta}_{ML}`,x:360,y:380,width:880,align:'center',size:38,color:P.cyan});wrap('大量資料讓 likelihood 變得很尖，先驗的影響相對變小。',330,530,940,40,27,P.muted,600,'center');} else if(mode===1){addFormula({tex:String.raw`\sigma_0^2\to\infty\Rightarrow p(\theta)\approx const.`,x:360,y:380,width:880,align:'center',size:36,color:P.amber});wrap('若 prior 幾乎是平的，MAP 就退化成只看 likelihood 的 ML。',330,530,940,40,27,P.muted,600,'center');} else {addFormula({tex:String.raw`\hat{\theta}_{MAP}\to \hat{\theta}_{ML}`,x:500,y:400,width:600,align:'center',size:46,color:P.lime});wrap('這也是為什麼在大樣本下，ML 與 MAP 通常會給出幾乎相同的答案。',330,530,940,40,27,P.muted,600,'center');}}start(render);
 
-render();</script></body></html>
+</script>
+</body>
+</html>
