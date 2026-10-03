@@ -880,6 +880,400 @@ Push main 後：
 
 ---
 
+# 18.5 Hybrid Canvas + KaTeX 常見踩坑與修正 SOP
+
+這一節記錄實際在 Bayesian Inference infographic 重製時遇到的問題。後續 agent 若使用 Canvas + KaTeX hybrid rendering，必須優先檢查這些項目。
+
+## 問題 A：瀏覽器縮放後，KaTeX 公式會相對 Canvas 漂移
+
+### 症狀
+
+- 初始畫面看起來正常。
+- 改變瀏覽器視窗大小後：
+  - Canvas 圖形位置仍然正確。
+  - KaTeX 公式卻往左、右、上、下漂移。
+- iframe 尺寸改變時也可能出現同樣問題。
+
+### 根因
+
+常見錯誤架構是：
+
+```text
+Canvas：使用 1600×900 logical coordinates，再由 CSS 自動縮放
+KaTeX DOM：left/top 卻直接使用 browser CSS pixel
+```
+
+兩者不是同一個座標系。
+
+例如 Canvas 的：
+
+```javascript
+ctx.fillText(..., 800, 400);
+```
+
+是 1600×900 logical coordinate；
+
+但 KaTeX：
+
+```css
+left: 800px;
+top: 400px;
+```
+
+是瀏覽器實際 CSS pixel。
+
+當 viewport 不等於 1600×900 時，兩者就會分離。
+
+### 正確做法：統一 Logical Coordinate System
+
+Canvas 與 KaTeX 必須共享：
+
+```text
+1600 × 900 logical coordinate system
+```
+
+推薦架構：
+
+```html
+<div class="stage" id="stage">
+  <canvas id="canvas" width="1600" height="900"></canvas>
+  <div id="math-layer"></div>
+</div>
+```
+
+其中 math layer 固定 logical size：
+
+```css
+#math-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1600px;
+  height: 900px;
+  transform-origin: top left;
+  pointer-events: none;
+}
+```
+
+再根據 stage 實際顯示尺寸同步縮放：
+
+```javascript
+function syncMathLayer() {
+  const r = stage.getBoundingClientRect();
+  const sx = r.width / 1600;
+  const sy = r.height / 900;
+
+  mathLayer.style.transform =
+    `scale(${sx}, ${sy})`;
+}
+
+new ResizeObserver(syncMathLayer).observe(stage);
+window.addEventListener("resize", syncMathLayer);
+```
+
+這樣所有公式仍用 logical coordinate：
+
+```javascript
+addFormula({
+  x: 800,
+  y: 400,
+  ...
+});
+```
+
+但會和 Canvas 一起等比例縮放。
+
+### 禁止做法
+
+不要讓：
+
+```text
+Canvas logical coordinate
++
+KaTeX browser pixel coordinate
+```
+
+混用。
+
+若公式在改變瀏覽器大小時會漂移，第一個要檢查的不是 x/y 微調，而是：
+
+> Canvas 與 DOM overlay 是否真的使用同一個 logical coordinate system。
+
+---
+
+## 問題 B：`wrap(..., 'center')` 文字仍然跑出卡片
+
+### 症狀
+
+- 卡片中的公式位置正確。
+- 卡片底部說明文字卻往左或往右跑。
+- 第一張卡片尤其容易跑到 Canvas 外面。
+- 視窗大小改變後仍然錯，表示不是 responsive scaling 問題。
+
+### 根因
+
+Canvas 的：
+
+```javascript
+ctx.textAlign = "center";
+```
+
+代表傳入的 x 是「文字中心點」。
+
+錯誤寫法：
+
+```javascript
+wrap(
+  description,
+  cardX + padding,
+  y,
+  width,
+  ...,
+  "center"
+);
+```
+
+例如：
+
+```javascript
+wrap(a[1], x + 26, 475, 268, 30, 20, P.muted, 600, "center");
+```
+
+這裡雖然用了 center，但 x 仍是左側 padding，所以整段文字會以錯誤中心向兩側展開。
+
+### 正確做法
+
+如果 card width = 320：
+
+```javascript
+const cardCenterX = x + 160;
+
+wrap(
+  description,
+  cardCenterX,
+  475,
+  268,
+  30,
+  20,
+  P.muted,
+  600,
+  "center"
+);
+```
+
+一般規則：
+
+```text
+textAlign = left   → x = left edge / padding position
+textAlign = center → x = actual visual center
+textAlign = right  → x = right edge
+```
+
+### Formula Audit 之外還要檢查文字 anchor
+
+公式位置正確，不代表卡片內所有文字都正確。
+
+每個 card / panel 應檢查：
+
+- title x
+- formula x
+- caption x
+- wrapped paragraph x
+
+是否都遵循相同 anchor convention。
+
+---
+
+## 問題 C：只微調 KaTeX x/y 無法解決 responsive 漂移
+
+### 症狀
+
+Agent 看到公式偏移後，反覆：
+
+```text
+x - 10px
+y + 5px
+font-size - 2px
+```
+
+在某個 viewport 看起來好了，但換一個瀏覽器尺寸又壞掉。
+
+### 根因
+
+這是 structural bug，不是 local positioning bug。
+
+### 修正順序
+
+遇到公式漂移時必須依序：
+
+1. 檢查 Canvas 與 math layer logical coordinate system。
+2. 檢查 math layer 是否跟 stage 同比例縮放。
+3. 檢查 transform-origin 是否為 top left。
+4. 檢查 formula left/top 是否使用 logical coordinate。
+5. 最後才做 1–5 px 的 visual baseline 微調。
+
+不要反過來。
+
+---
+
+## 問題 D：KaTeX 公式在幾何上置中，但視覺上仍略高或略低
+
+### 原因
+
+KaTeX glyph 的 bounding box 與人眼感受到的 visual center 不完全相同。
+
+例如：
+
+- integral 很高
+- fraction 有上下延伸
+- hat / bar 會改變 visual top
+- matrix bracket 會增加外框高度
+
+### 建議做法
+
+公式 helper 可支援：
+
+```javascript
+offsetX
+offsetY
+```
+
+例如：
+
+```javascript
+addFormula({
+  tex,
+  x: 300,
+  y: 400,
+  width: 1000,
+  align: "center",
+  size: 32,
+  offsetY: -2
+});
+```
+
+但這只能做最後的 optical adjustment。
+
+> offsetX / offsetY 不得拿來補救 coordinate-system 錯誤。
+
+---
+
+## 問題 E：生成後的 conversation artifact 可能是唯讀
+
+### 症狀
+
+已產生並上傳給使用者的 HTML，之後試圖原地修改：
+
+```python
+Path("/mnt/data/.../03-page.html").write_text(...)
+```
+
+可能得到：
+
+```text
+PermissionError: [Errno 13] Permission denied
+```
+
+### 原因
+
+某些已 surfaced / uploaded 的 conversation artifacts 會被掛載成唯讀。
+
+### 正確修正流程
+
+不要一直 retry 原路徑。
+
+應：
+
+1. 建立新的可寫工作目錄。
+2. 把原檔複製到新目錄。
+3. 在新目錄修改。
+4. 產生新版本檔名或 ZIP。
+5. 再提供新的 artifact。
+
+例如：
+
+```text
+kp11_bayesian_inference_infographics_katex_fixed/
+        ↓ copy
+kp11_bayesian_inference_infographics_katex_fixed_v2/
+        ↓ edit
+03-posterior-formula.html
+```
+
+或直接從 source generator 重新輸出到新目錄。
+
+### Agent 回覆規則
+
+遇到 PermissionError 時必須說明：
+
+> 是 artifact 路徑唯讀，不是內容修正失敗。
+
+不可誤判成 Python / HTML / GitHub 問題。
+
+---
+
+## 問題 F：版面稽核必須區分「結構性偏移」與「局部偏移」
+
+當看到元素跑位時，依下列判斷：
+
+### 結構性偏移
+
+特徵：
+
+- viewport 一變位置就變
+- 多個 KaTeX 公式一起漂
+- Canvas 正確、DOM overlay 不正確
+
+優先修：
+
+```text
+coordinate system
+scale
+ResizeObserver
+transform-origin
+```
+
+### 局部偏移
+
+特徵：
+
+- 只有某一個 label / caption 錯
+- 不管 viewport 怎麼變，都固定往某方向偏
+- 同一 card 內其他元素正常
+
+優先修：
+
+```text
+x/y anchor
+textAlign
+wrap width
+padding
+formula offset
+```
+
+Agent 不可把兩者混為一談。
+
+---
+
+## Hybrid Rendering Debug Checklist
+
+若使用者回報「公式或文字跑位」，依序執行：
+
+- [ ] 是否只有 KaTeX 漂移？
+- [ ] 是否 viewport resize 才發生？
+- [ ] math-layer 是否 1600×900 logical size？
+- [ ] math-layer 是否跟 stage 同比例 scale？
+- [ ] transform-origin 是否為 top left？
+- [ ] formula left/top 是否為 logical coordinate？
+- [ ] `textAlign="center"` 的 x 是否真的是 container center？
+- [ ] wrap() 的 max width 是否小於 card width？
+- [ ] formula 是否只是 optical baseline 偏差？
+- [ ] 是否只需 offsetY ±1~5px？
+- [ ] 是否誤把 structural problem 當成 x/y micro-adjustment？
+- [ ] 原 artifact 是否唯讀？若是，改在新工作目錄輸出。
+
+---
+
 # 19. 不要做的事情
 
 - 不要把整張 infographic 轉成圖片；Canvas 必須是原生繪製。
