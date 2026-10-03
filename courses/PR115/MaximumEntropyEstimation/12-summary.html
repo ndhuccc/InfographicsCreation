@@ -1,0 +1,166 @@
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>KP12 12 Summary</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<style>
+:root{--bg:#071521;--panel:#0f2637;--ink:#f7fbff;--muted:#a9bfd0}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;background:#02080d;color:var(--ink);font-family:Inter,"Noto Sans TC","Microsoft JhengHei",sans-serif}
+.wrap{width:100vw;height:100vh;display:grid;place-items:center;background:radial-gradient(circle at 18% 0%,#10344d 0,#02080d 58%,#000 100%)}
+.stage{position:relative;width:min(100vw,177.7778vh);height:min(56.25vw,100vh);aspect-ratio:16/9;background:var(--bg);overflow:hidden}
+canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+#math-layer{position:absolute;left:0;top:0;width:1600px;height:900px;transform-origin:0 0;pointer-events:none}
+.formula{position:absolute;transform:translateY(-50%);line-height:1.2}
+.formula .katex-display{margin:0;text-align:inherit}
+.formula .katex-display>.katex{display:inline-block;text-align:inherit;white-space:nowrap}
+.hint{position:absolute;right:2.1%;top:1.9%;font-size:.8vw;color:#9ab4c7;background:#071521cc;border:1px solid #ffffff18;border-radius:999px;padding:.5em .75em;z-index:5}
+@media(max-width:900px){.hint{font-size:1.4vw}}
+</style></head><body><div class="wrap"><div class="stage" id="stage"><canvas id="c" width="1600" height="900"></canvas><div id="math-layer"></div><div class="hint">互動：點擊 / 拖曳 • Click / Drag</div></div></div>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script>
+/* ===== Shared helpers (Canvas 1600x900 logical space + KaTeX math layer) ===== */
+const CW=1600,CH=900;
+const c=document.getElementById('c'),ctx=c.getContext('2d');
+const stage=document.getElementById('stage'),mathLayer=document.getElementById('math-layer');
+const P={bg:'#071521',panel:'#0f2637',panel2:'#102c40',ink:'#f7fbff',muted:'#a9bfd0',cyan:'#4fd1c5',amber:'#f6c85f',coral:'#ff7b72',lime:'#8fd694',violet:'#b794f4',blue:'#63b3ed',grid:'#17384d'};
+const FONT='Inter,"Noto Sans TC","Microsoft JhengHei","PingFang TC","Noto Sans CJK TC","WenQuanYi Zen Hei",sans-serif';
+let zones=[],drag=null;
+window.__boxes=[];            // text boxes recorded for the layout audit
+const REC=()=>window.__audit===true;
+
+/* ---------- basic drawing ---------- */
+function reset(){zones=[];window.__boxes=[];ctx.clearRect(0,0,CW,CH);ctx.fillStyle=P.bg;ctx.fillRect(0,0,CW,CH);
+  for(let x=0;x<CW;x+=80)line(x,0,x,CH,'#0b2434',1);for(let y=0;y<CH;y+=80)line(0,y,CW,y,'#0b2434',1)}
+function line(x1,y1,x2,y2,color='#fff',lw=3,dash=[]){ctx.save();ctx.strokeStyle=color;ctx.lineWidth=lw;ctx.setLineDash(dash);ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();ctx.restore()}
+function rr(x,y,w,h,r=20,fill=P.panel,stroke=null,lw=2){ctx.beginPath();ctx.roundRect(x,y,w,h,r);if(fill){ctx.fillStyle=fill;ctx.fill()}if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw;ctx.stroke()}}
+function dot(x,y,r,color){ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill()}
+function setFont(size,weight){ctx.font=`${weight} ${size}px ${FONT}`}
+function rec(x0,y0,x1,y1,label){if(REC())window.__boxes.push({x0,y0,x1,y1,label})}
+/* single-line text; x is the anchor according to align (left edge / centre / right edge) */
+function txt(t,x,y,size=30,color=P.ink,align='left',weight=700){
+  t=String(t);ctx.fillStyle=color;setFont(size,weight);ctx.textAlign=align;ctx.textBaseline='middle';ctx.fillText(t,x,y);
+  if(REC()){const w=ctx.measureText(t).width,l=align==='left'?x:align==='center'?x-w/2:x-w;rec(l,y-size*.55,l+w,y+size*.55,t.slice(0,24))}}
+/* wrapped paragraph; returns the y below the last line. Normalises literal "\n". Breaks CJK per char, Latin per word. */
+function wrap(t,x,y,maxw,lh=34,size=24,color=P.muted,weight=550,align='left'){
+  t=String(t).replace(/\\n/g,'\n');setFont(size,weight);ctx.fillStyle=color;ctx.textBaseline='top';ctx.textAlign=align;
+  const out=[];
+  for(const para of t.split('\n')){
+    const raw=para.match(/[一-鿿]|[^\s一-鿿　-〿＀-￯]+\s*|\s+|[　-〿＀-￯]/g)||[''];
+    const toks=[];for(let i=0;i<raw.length;i++){if(/^[「『（《【“‘]$/.test(raw[i])&&i+1<raw.length){toks.push(raw[i]+raw[i+1]);i++}else toks.push(raw[i])}
+    let ln='';
+    for(const tk of toks){
+      const q=ln+tk;
+      const isPunct=/^[　-〿＀-￯]$/.test(tk);
+      if(ctx.measureText(q.trimEnd()).width>maxw&&ln&&!isPunct){out.push(ln.trimEnd());ln=tk.trimStart()}else ln=q}
+    out.push(ln.trimEnd());
+  }
+  let yy=y;
+  for(const l of out){ctx.fillText(l,x,yy);
+    if(REC()){const w=ctx.measureText(l).width,lx=align==='left'?x:align==='center'?x-w/2:x-w;rec(lx,yy,lx+w,yy+size*1.15,l.slice(0,24))}
+    yy+=lh}
+  return yy}
+function footer(n){txt(`PR115 · Ch02 · KP-12  最大熵估計 Maximum Entropy Estimation`,70,878,15,'#6f8da3','left',600);txt(`${n} / 12`,1530,878,15,'#6f8da3','right',700)}
+function title(zh,en,no){txt(`${String(no).padStart(2,'0')}  ${zh}`,70,68,40,P.ink,'left',900);txt(en,72,111,22,P.cyan,'left',650);line(70,146,1530,146,P.grid,2);footer(no)}
+function chip(t,x,y,w,color){rr(x,y,w,40,20,color+'20',color,2);txt(t,x+w/2,y+20,18,color,'center',800)}
+function btn(label,x,y,w,h,onClick,active=false,color=P.cyan,size=19){rr(x,y,w,h,15,active?color+'28':'#ffffff0c',active?color:'#ffffff22',2);txt(label,x+w/2,y+h/2,size,active?color:P.ink,'center',800);zones.push({type:'button',x,y,w,h,onClick})}
+function area(x,y,w,h,onClick){zones.push({type:'button',x,y,w,h,onClick})}
+function slider(x,y,w,min,max,value,onChange,label,fmt=v=>v.toFixed(2)){
+  line(x,y,x+w,y,'#ffffff35',8);const t=(value-min)/(max-min),kx=x+t*w;line(x,y,kx,y,P.amber+'88',8);dot(kx,y,15,P.amber);
+  txt(label,x,y-31,20,P.muted,'left',650);txt(fmt(value),x+w,y-31,22,P.amber,'right',850);
+  zones.push({type:'slider',x:x-20,y:y-28,w:w+40,h:56,min,max,onChange})}
+function arrow(x1,y1,x2,y2,color=P.cyan,lw=5){line(x1,y1,x2,y2,color,lw);const a=Math.atan2(y2-y1,x2-x1),s=14;ctx.fillStyle=color;ctx.beginPath();ctx.moveTo(x2,y2);ctx.lineTo(x2-s*Math.cos(a-.5),y2-s*Math.sin(a-.5));ctx.lineTo(x2-s*Math.cos(a+.5),y2-s*Math.sin(a+.5));ctx.closePath();ctx.fill()}
+function card(x,y,w,h,color,active=true){rr(x,y,w,h,22,active?P.panel2:P.panel,active?color:'#ffffff14',3)}
+
+/* ---------- pointer interaction (logical coordinates) ---------- */
+function pos(e){const r=c.getBoundingClientRect();return{x:(e.clientX-r.left)*CW/r.width,y:(e.clientY-r.top)*CH/r.height}}
+function sliderVal(z,p){const t=Math.max(0,Math.min(1,(p.x-(z.x+20))/(z.w-40)));return z.min+t*(z.max-z.min)}
+c.addEventListener('pointerdown',e=>{const p=pos(e);
+  for(let i=zones.length-1;i>=0;i--){const z=zones[i];
+    if(p.x>=z.x&&p.x<=z.x+z.w&&p.y>=z.y&&p.y<=z.y+z.h){
+      if(z.type==='button'){z.onClick(p);return}
+      if(z.type==='slider'||z.type==='drag'){drag=z;z.onChange(sliderVal(z,p),p);return}}}});
+c.addEventListener('pointermove',e=>{if(!drag)return;const p=pos(e);drag.onChange(sliderVal(drag,p),p)});
+addEventListener('pointerup',()=>drag=null);
+addEventListener('pointercancel',()=>drag=null);
+
+/* ---------- KaTeX math layer (shares the 1600x900 logical coordinate system) ---------- */
+const FM={};
+function placeFormula(f){const s=f.el.style;s.width=f.w+'px';s.fontSize=f.size+'px';s.color=f.color;s.textAlign=f.align;
+  let left=f.x+f.ox;if(f.align==='center')left-=f.w/2;else if(f.align==='right')left-=f.w;
+  s.left=left+'px';s.top=(f.y+f.oy)+'px'}
+function setTex(id,tex){const f=FM[id];if(f.cur===tex)return;f.cur=tex;
+  if(window.katex)katex.render(tex,f.el,{displayMode:true,throwOnError:false,strict:'ignore'});else f.el.textContent=tex}
+/* x,y: anchor (y = vertical centre of the formula box); align: left|center|right; size: logical px */
+function addFormula(o){const el=document.createElement('div');el.className='formula';el.dataset.fid=o.id;mathLayer.appendChild(el);
+  const f=Object.assign({el,align:'center',size:32,ox:0,oy:0,w:600,color:'#f7fbff'},o);FM[o.id]=f;placeFormula(f);setTex(o.id,o.tex);return f}
+function moveFormula(id,o){Object.assign(FM[id],o);placeFormula(FM[id])}
+function showF(ids){for(const k in FM)FM[k].el.style.display=ids.includes(k)?'block':'none'}
+function syncMath(){const r=stage.getBoundingClientRect();mathLayer.style.transform=`scale(${r.width/CW},${r.height/CH})`}
+new ResizeObserver(syncMath).observe(stage);addEventListener('resize',syncMath);syncMath();
+
+/* ---------- maximum-entropy candidate shapes (all normalised on [0,W]) ---------- */
+const gs=(u,m,s)=>Math.exp(-.5*((u-m)/s)**2)/(s*Math.sqrt(2*Math.PI));
+const SHAPES={
+  uniform :{zh:'均勻',en:'Uniform',color:P.lime,q:u=>1},
+  unimodal:{zh:'單峰',en:'Unimodal',color:P.cyan,q:u=>6*u*(1-u)},
+  bimodal :{zh:'雙峰',en:'Bimodal',color:P.violet,q:u=>gs(u,.25,.11)+gs(u,.75,.11)},
+  sharp   :{zh:'高尖峰',en:'Sharp peak',color:P.coral,q:u=>gs(u,.5,.08)}};
+const SHAPE_KEYS=['uniform','unimodal','bimodal','sharp'];
+(function(){const N=4000;for(const k of SHAPE_KEYS){const s=SHAPES[k];let Z=0;
+  for(let i=0;i<N;i++)Z+=s.q((i+.5)/N)/N;
+  s.Z=Z;s.qn=u=>(u<0||u>1)?0:s.q(u)/Z;
+  let h=0;for(let i=0;i<N;i++){const p=s.qn((i+.5)/N);if(p>1e-300)h-=p*Math.log(p)/N}
+  s.HQ=h}})();                                   /* entropy on the unit interval; H(W)=HQ+ln W */
+const pdf=(k,x,W)=>SHAPES[k].qn(x/W)/W;
+const entropy=(k,W)=>SHAPES[k].HQ+Math.log(W);
+function areaOf(k,W){const N=2000;let a=0;for(let i=0;i<N;i++)a+=pdf(k,(i+.5)*W/N,W)*W/N;return a}
+function peakOf(k,W){let m=0;for(let i=0;i<=400;i++)m=Math.max(m,pdf(k,i*W/400,W));return m}
+
+/* ---------- plotting ---------- */
+function mapper(px,py,pw,ph,x0,x1,y0,y1){return{X:x=>px+(x-x0)/(x1-x0)*pw,Y:y=>py+ph-(y-y0)/(y1-y0)*ph,px,py,pw,ph,x0,x1,y0,y1}}
+function curvePath(f,m,xa,xb,n=240){ctx.beginPath();for(let i=0;i<=n;i++){const x=xa+(xb-xa)*i/n,X=m.X(x),Y=m.Y(f(x));i?ctx.lineTo(X,Y):ctx.moveTo(X,Y)}}
+function plotCurve(f,m,xa,xb,color,lw=5,fillAlpha=null,dash=[]){
+  if(fillAlpha){curvePath(f,m,xa,xb);ctx.lineTo(m.X(xb),m.Y(0));ctx.lineTo(m.X(xa),m.Y(0));ctx.closePath();ctx.fillStyle=color+fillAlpha;ctx.fill()}
+  ctx.save();ctx.setLineDash(dash);curvePath(f,m,xa,xb);ctx.strokeStyle=color;ctx.lineWidth=lw;ctx.lineJoin='round';ctx.stroke();ctx.restore()}
+function axes(m,xticks,ytickVals,xfmt=v=>v,yfmt=v=>v.toFixed(2),xlabel=''){
+  line(m.px,m.py+m.ph,m.px+m.pw,m.py+m.ph,'#ffffff55',2);line(m.px,m.py,m.px,m.py+m.ph,'#ffffff55',2);
+  for(const v of ytickVals){const Y=m.Y(v);line(m.px,Y,m.px+m.pw,Y,'#ffffff12',1);txt(yfmt(v),m.px-12,Y,17,P.muted,'right',600)}
+  for(const v of xticks){const X=m.X(v);line(X,m.py+m.ph,X,m.py+m.ph+8,'#ffffff55',2);txt(xfmt(v),X,m.py+m.ph+26,17,P.muted,'center',600)}
+  if(xlabel)txt(xlabel,m.px+m.pw,m.py+m.ph+52,17,P.muted,'right',600)}
+const fmt3=v=>v.toFixed(3);
+const rampAnim=(dur,fn)=>{const t0=performance.now();const tick=now=>{const t=Math.min(1,(now-t0)/dur);fn(1-Math.pow(1-t,3));if(t<1)requestAnimationFrame(tick)};requestAnimationFrame(tick)};
+
+/* ===== Page script ===== */
+/* 12 — Summary: five take-aways, each with its core formula */
+let sel=0;
+const ROW=[
+ {zh:'原則：選最不武斷的分佈',en:'Principle: the least prejudiced distribution',col:P.cyan,
+  items:[['最大熵原理','\\hat p=\\arg\\max_{p}\\,H[p]\\quad\\text{s.t. constraints}']],
+  text:'在所有滿足已知限制的候選分佈中，挑出熵最高、最不偏袒任何位置的那一個。只使用證據支持的資訊。'},
+ {zh:'工具：微分熵 = 無偏好分數',en:'Tool: differential entropy as an honesty score',col:P.violet,
+  items:[['微分熵','H=-\\!\\int p(x)\\ln p(x)\\,dx'],['直覺','\\text{flatter}\\ \\Rightarrow\\ \\text{larger }H']],
+  text:'分佈越平坦、越公平，H 越高；機率越集中，代表私自加了更多偏愛，H 越低。'},
+ {zh:'只知道範圍 → 均勻分佈',en:'Range only: the uniform distribution',col:P.lime,
+  items:[['最大熵解','\\hat p(x)=\\dfrac{1}{x_2-x_1}'],['最大熵值','H_{\\max}=\\ln(x_2-x_1)']],
+  text:'由拉格朗日乘子法求導，解不含 x，只能是水平線；再用面積 = 1 決定高度。[0, 4] 上 H = ln 4 ≈ 1.386。'},
+ {zh:'限制改變，答案跟著改變',en:'New constraints, new answer',col:P.amber,
+  items:[['只知範圍','\\text{Uniform}:\\ \\dfrac{1}{x_2-x_1}'],['＋均值 μ、變異數 σ²','\\text{Gaussian}:\\ \\mathcal N(\\mu,\\sigma^2)'],['x ≥ 0 ＋均值 μ','\\text{Exponential}:\\ \\dfrac{1}{\\mu}e^{-x/\\mu}']],
+  text:'嚴格尊重所有已知限制，對限制之外的一切保持徹底的謙遜。'},
+ {zh:'避開四個常見誤解',en:'Avoid the four classic pitfalls',col:P.coral,items:[],
+  text:['① 熵最大 ≠ 資訊最多，而是額外武斷最少。','② 高峰 ≠ 更精確，可能只是缺乏證據的豪賭。','③ 最大熵 ≠ 永遠均勻，答案取決於限制清單。','④ 微分熵依賴尺度，比較必須在同一定義域上進行。']}];
+for(let i=0;i<3;i++)addFormula({id:'d'+i,tex:'',x:1185,y:326+i*108,w:640,size:28});
+function render(){
+  reset();title('總結：最大熵估計的五個重點','Summary: five take-aways of maximum entropy estimation',12);
+  ROW.forEach((r,i)=>{const y=180+i*134,on=i===sel;
+    rr(60,y,740,122,22,on?P.panel2:P.panel,on?r.col:'#ffffff14',on?3:2);area(60,y,740,122,()=>{sel=i;render()});
+    rr(84,y+31,60,60,30,r.col+'22',r.col,3);txt(String(i+1),114,y+62,30,r.col,'center',900);
+    wrap(r.zh,166,y+24,610,32,25,on?r.col:P.ink,850);txt(r.en,166,y+92,16,P.muted,'left',600)});
+  const R=ROW[sel];
+  rr(830,170,710,680,24,P.panel,R.col,3);
+  txt(R.zh,862,208,26,R.col,'left',900);txt(R.en,862,240,17,P.cyan,'left',650);
+  const vis=[];
+  R.items.forEach((it,i)=>{txt(it[0],862,284+i*108,19,P.muted,'left',700);setTex('d'+i,it[1]);vis.push('d'+i)});
+  if(Array.isArray(R.text)){R.text.forEach((t,i)=>wrap(t,862,300+i*92,640,34,24,P.ink,700))}
+  else wrap(R.text,862,R.items.length?(300+R.items.length*108):300,650,34,22,P.ink,650);
+  showF(vis);
+}
+render();
+
+</script></body></html>
