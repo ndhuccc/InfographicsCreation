@@ -207,6 +207,187 @@ canvas {
 }
 ```
 
+## 4.3 數學公式渲染：Canvas + KaTeX Hybrid Rendering
+
+本專案預設採用：
+
+> **Canvas 畫概念與圖形，KaTeX 排核心數學公式。**
+
+不要再要求所有數學公式都用 Canvas `fillText()` 模擬。
+
+### 分工原則
+
+Canvas 負責：
+
+- 背景
+- panel
+- 箭頭
+- 節點
+- 散點
+- Gaussian curve
+- bar / axis
+- slider
+- button
+- animation
+- diagram labels
+- 簡短單一符號或數值
+
+KaTeX 負責：
+
+- 分數
+- 上下標
+- `\hat{}`
+- `\bar{}`
+- `\sum`
+- `\prod`
+- `\int`
+- `\arg\max`
+- 偏微分
+- 矩陣
+- 多行推導
+- piecewise function
+- aligned equations
+- 任何核心教學公式
+
+### 推薦 DOM 結構
+
+```html
+<div class="stage">
+  <canvas id="canvas" width="1600" height="900"></canvas>
+  <div id="math-layer"></div>
+</div>
+```
+
+Canvas 與 `math-layer` 必須共用同一個 1600×900 logical coordinate system。
+
+`math-layer` 應：
+
+```css
+#math-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.formula {
+  position: absolute;
+  transform-origin: top left;
+}
+```
+
+### KaTeX 使用方式
+
+建議使用 KaTeX，因為：
+
+- 速度快
+- 數學排版品質佳
+- 適合大量公式
+- 適合互動式頁面
+- 公式不必隨 Canvas 每一幀重畫
+
+範例：
+
+```javascript
+katex.render(
+  String.raw`\hat{\sigma}_{\mathrm{ML}}^2
+  =
+  \frac{1}{N}
+  \sum_{k=1}^{N}(x_k-\mu)^2`,
+  element,
+  {
+    displayMode: true,
+    throwOnError: false
+  }
+);
+```
+
+### 公式 helper
+
+推薦建立共用 helper，而不是到處手寫 CSS：
+
+```javascript
+addFormula({
+  id: "posterior",
+  tex: String.raw`
+    p(\theta\mid X)
+    =
+    \frac{
+      p(X\mid\theta)p(\theta)
+    }{
+      \int p(X\mid\theta)p(\theta)\,d\theta
+    }
+  `,
+  x: 300,
+  y: 300,
+  width: 1000,
+  align: "center",
+  fontSize: 34
+});
+```
+
+### Formula rendering 分級規則
+
+| 數學內容 | 建議渲染 |
+|---|---|
+| `N = 5`、簡短數值 | Canvas text |
+| 單一 `μ`、`σ²`、`θ` label | Canvas 或 KaTeX |
+| `\hat{\mu}_{MAP}` | KaTeX |
+| 分數 | KaTeX |
+| Summation / Product | KaTeX |
+| Integral | KaTeX |
+| argmax | KaTeX |
+| Partial derivative | KaTeX |
+| Matrix | KaTeX |
+| 多行 derivation | KaTeX |
+| Piecewise function | KaTeX |
+
+核心原則：
+
+> **正式數學公式禁止用 Unicode 字元拼湊來取代真正的 TeX 排版。**
+
+例如不要把核心公式只寫成：
+
+```text
+μ̂_MAP = [ μ₀ + (σ²_μ/σ²) N x̄ ] / [ 1 + (σ²_μ/σ²) N ]
+```
+
+而應使用真正 LaTeX：
+
+```latex
+\hat{\mu}_{\mathrm{MAP}}
+=
+\frac{
+\mu_0+
+\frac{\sigma_\mu^2}{\sigma^2}N\bar{x}
+}{
+1+
+\frac{\sigma_\mu^2}{\sigma^2}N
+}
+```
+
+### MathJax 何時使用
+
+KaTeX 為預設。
+
+只有在：
+
+- KaTeX 不支援需要的 LaTeX
+- 需要非常複雜的 AMS notation
+- 需要 MathJax SVG output
+
+時才改用 MathJax。
+
+不要在同一頁無必要地同時載入 KaTeX 與 MathJax。
+
+### 動態公式更新
+
+互動 slider 改變數值時：
+
+- Canvas 可高頻 redraw
+- KaTeX 只更新真正發生改變的公式
+- 不要每個 animation frame 都重新 typeset 所有公式
+
+---
+
 ---
 
 # 5. 第四階段：雙語與文字規格
@@ -342,7 +523,43 @@ t = String(t).replace(/\\n/g, "\n");
 
 > 不得為了避免 overflow 而直接刪掉重要教材內容。
 
+## 8.4 Formula Audit（MANDATORY）
+
+只要頁面含有核心數學公式，就必須額外做 Formula Audit。
+
+檢查：
+
+- 分數線是否完整且清楚
+- 上標 / 下標位置是否正確
+- `\hat{}` 是否真正覆蓋正確變數
+- `\bar{}` 是否位置正確
+- summation 上下限是否正確
+- integral 上下限與微分項 `d\theta` 是否存在
+- `\arg\max`、`\arg\min` 的下標是否正確
+- partial derivative 的分子分母是否正確
+- matrix bracket 是否完整
+- 括號大小是否合理
+- 向量 / 矩陣粗體是否符合教材記號
+- 公式是否超出 panel
+- KaTeX DOM 是否與 Canvas 圖形、文字、slider、button 重疊
+- 中文 / English 切換後公式位置是否仍安全
+- slider min / max 時動態公式是否仍不 overflow
+- browser zoom / responsive scaling 後是否仍對齊
+
+核心公式若渲染失敗，不可退回用普通 Unicode 字串草率替代。
+
+應先：
+
+1. 修正 LaTeX
+2. 調整 KaTeX font size
+3. 調整公式容器 width
+4. 改成 display mode
+5. 拆成多行 aligned 公式
+6. 必要時拆成另一張 infographic
+
 ---
+
+
 
 # 9. 第八階段：檔名與 Topic 命名
 
@@ -693,11 +910,13 @@ Decide infographic decomposition
         ↓
 Create standalone HTML5 Canvas pages
         ↓
+Add KaTeX math layer for core formulas
+        ↓
 Add conceptual interaction
         ↓
 Check bilingual labels
         ↓
-Check formulas
+Formula Audit
         ↓
 Check \n handling
         ↓
@@ -750,10 +969,22 @@ Verify live URL
 - [ ] 16:9
 - [ ] HTML5
 - [ ] Canvas 原生繪製
+- [ ] Canvas + KaTeX hybrid rendering（有核心公式時）
+- [ ] 核心公式未使用 Unicode / fillText 粗略模擬
 - [ ] standalone
 - [ ] 一張一 HTML
 - [ ] 可 iframe
 - [ ] 有需要時提供互動
+
+## Formula audit
+
+- [ ] 分數 / 上下標 / hat / bar 正確
+- [ ] sum / product / integral / argmax 正確
+- [ ] matrix / partial derivative 正確
+- [ ] KaTeX 公式沒有 overflow
+- [ ] KaTeX 與 Canvas 元素沒有 overlap
+- [ ] 動態公式已測 slider min / max
+- [ ] 中文 / English 狀態皆已檢查
 
 ## Layout audit
 
