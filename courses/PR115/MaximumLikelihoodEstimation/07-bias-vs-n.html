@@ -54,7 +54,7 @@ window.addEventListener('pointerup',()=>drag=null);
 </script>
 <script>
 
-let N=5;function render(){reset();title('偏誤隨樣本數縮小','Bias shrinks as N grows',7);const ratio=(N-1)/N;rr(170,240,1260,470,28,P.panel);addFormula({tex:String.raw`\mathbb{E}[\hat{\sigma}_{ML}^{2}]=\frac{N-1}{N}\sigma^2`,x:430,y:300,width:740,align:'center',size:36,color:P.amber});txt(`當 N=${N} 時，期望值只剩 ${(ratio*100).toFixed(1)}% 的真實 σ²`,800,420,32,P.ink,'center',800);bar(330,500,940,80,ratio,P.violet);txt('0%',330,602,20,P.muted,'center',700);txt('100%',1270,602,20,P.muted,'center',700);slider(320,770,960,2,100,N,v=>{N=Math.round(v);render()},'樣本數 N',v=>String(Math.round(v)),P.amber);wrap('N 越大，(N−1)/N 越接近 1，所以 MLE 的變異數估計量會漸進無偏。',360,640,880,34,22,P.muted,600,'center');}start(render);
+let N=5;function render(){reset();title('偏誤隨樣本數縮小','Bias shrinks as N grows',7);const ratio=(N-1)/N;rr(170,240,1260,470,28,P.panel);addFormula({tex:String.raw`\mathbb{E}[\hat{\sigma}_{ML}^{2}]=\frac{N-1}{N}\sigma^2`,x:430,y:300,width:740,align:'center',size:36,color:P.amber});txt(`當 N=${N} 時，期望值只剩 ${(ratio*100).toFixed(1)}% 的真實 σ²`,800,420,32,P.ink,'center',800);bar(330,500,940,80,ratio,P.violet);txt('0%',330,602,20,P.muted,'center',700);txt('100%',1270,602,20,P.muted,'center',700);slider(320,770,960,2,100,N,v=>{N=Math.round(v);render()},'樣本數 N',v=>String(Math.round(v)),P.amber);wrap('N 越大，(N−1)/N 越接近 1，所以 MLE 的變異數估計量會漸進無偏。',800,640,880,34,22,P.muted,600,'center');}start(render);
 
 </script>
 </body>
