@@ -1,0 +1,169 @@
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>KP15 06 Nearest-Neighbor Distance Formula</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<style>
+:root{--bg:#071521;--panel:#0f2637;--ink:#f7fbff;--muted:#a9bfd0}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;background:#02080d;color:var(--ink);font-family:Inter,"Noto Sans TC","Microsoft JhengHei",sans-serif}
+.wrap{width:100vw;height:100vh;display:grid;place-items:center;background:radial-gradient(circle at 18% 0%,#10344d 0,#02080d 58%,#000 100%)}
+.stage{position:relative;width:min(100vw,177.7778vh);height:min(56.25vw,100vh);aspect-ratio:16/9;background:var(--bg);overflow:hidden}
+canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+#math-layer{position:absolute;left:0;top:0;width:1600px;height:900px;transform-origin:0 0;pointer-events:none}
+.formula{position:absolute;transform:translateY(-50%);line-height:1.2}
+.formula .katex-display{margin:0;text-align:inherit}
+.formula .katex-display>.katex{display:inline-block;text-align:inherit;white-space:nowrap}
+.hint{position:absolute;right:2.1%;top:1.9%;font-size:.8vw;color:#9ab4c7;background:#071521cc;border:1px solid #ffffff18;border-radius:999px;padding:.5em .75em;z-index:5}
+@media(max-width:900px){.hint{font-size:1.4vw}}
+</style></head><body><div class="wrap"><div class="stage" id="stage"><canvas id="c" width="1600" height="900"></canvas><div id="math-layer"></div><div class="hint">互動：點擊 / 拖曳 • Click / Drag</div></div></div>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script>
+/* ===== Shared helpers (Canvas 1600x900 logical space + KaTeX math layer) ===== */
+const CW=1600,CH=900;
+const c=document.getElementById('c'),ctx=c.getContext('2d');
+const stage=document.getElementById('stage'),mathLayer=document.getElementById('math-layer');
+const P={bg:'#071521',panel:'#0f2637',panel2:'#102c40',ink:'#f7fbff',muted:'#a9bfd0',cyan:'#4fd1c5',amber:'#f6c85f',coral:'#ff7b72',lime:'#8fd694',violet:'#b794f4',blue:'#63b3ed',grid:'#17384d'};
+const FONT='Inter,"Noto Sans TC","Microsoft JhengHei","PingFang TC","Noto Sans CJK TC","WenQuanYi Zen Hei",sans-serif';
+let zones=[],drag=null;
+window.__boxes=[];            // text boxes recorded for the layout audit
+const REC=()=>window.__audit===true;
+
+/* ---------- basic drawing ---------- */
+function reset(){zones=[];window.__boxes=[];ctx.clearRect(0,0,CW,CH);ctx.fillStyle=P.bg;ctx.fillRect(0,0,CW,CH);
+  for(let x=0;x<CW;x+=80)line(x,0,x,CH,'#0b2434',1);for(let y=0;y<CH;y+=80)line(0,y,CW,y,'#0b2434',1)}
+function line(x1,y1,x2,y2,color='#fff',lw=3,dash=[]){ctx.save();ctx.strokeStyle=color;ctx.lineWidth=lw;ctx.setLineDash(dash);ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();ctx.restore()}
+function rr(x,y,w,h,r=20,fill=P.panel,stroke=null,lw=2){ctx.beginPath();ctx.roundRect(x,y,w,h,r);if(fill){ctx.fillStyle=fill;ctx.fill()}if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw;ctx.stroke()}}
+function dot(x,y,r,color){ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill()}
+function setFont(size,weight){ctx.font=`${weight} ${size}px ${FONT}`}
+function rec(x0,y0,x1,y1,label){if(REC())window.__boxes.push({x0,y0,x1,y1,label})}
+/* single-line text; x is the anchor according to align (left edge / centre / right edge) */
+function txt(t,x,y,size=30,color=P.ink,align='left',weight=700){
+  t=String(t);ctx.fillStyle=color;setFont(size,weight);ctx.textAlign=align;ctx.textBaseline='middle';ctx.fillText(t,x,y);
+  if(REC()){const w=ctx.measureText(t).width,l=align==='left'?x:align==='center'?x-w/2:x-w;rec(l,y-size*.55,l+w,y+size*.55,t.slice(0,24))}}
+/* wrapped paragraph; returns the y below the last line. Normalises literal "\n". Breaks CJK per char, Latin per word. */
+function wrap(t,x,y,maxw,lh=34,size=24,color=P.muted,weight=550,align='left'){
+  t=String(t).replace(/\\n/g,'\n');setFont(size,weight);ctx.fillStyle=color;ctx.textBaseline='top';ctx.textAlign=align;
+  const out=[];
+  for(const para of t.split('\n')){
+    const raw=para.match(/[一-鿿]|[^\s一-鿿　-〿＀-￯]+\s*|\s+|[　-〿＀-￯]/g)||[''];
+    const toks=[];for(let i=0;i<raw.length;i++){if(/^[「『（《【“‘]$/.test(raw[i])&&i+1<raw.length){toks.push(raw[i]+raw[i+1]);i++}else toks.push(raw[i])}
+    let ln='';
+    for(const tk of toks){
+      const q=ln+tk;
+      const isPunct=/^[　-〿＀-￯]$/.test(tk);
+      if(ctx.measureText(q.trimEnd()).width>maxw&&ln&&!isPunct){out.push(ln.trimEnd());ln=tk.trimStart()}else ln=q}
+    out.push(ln.trimEnd());
+  }
+  let yy=y;
+  for(const l of out){ctx.fillText(l,x,yy);
+    if(REC()){const w=ctx.measureText(l).width,lx=align==='left'?x:align==='center'?x-w/2:x-w;rec(lx,yy,lx+w,yy+size*1.15,l.slice(0,24))}
+    yy+=lh}
+  return yy}
+function footer(n){txt('PR115 · Ch02 · KP-15  維度詛咒與 kNN 密度估計 Curse of Dimensionality & kNN',70,878,15,'#6f8da3','left',600);txt(`${n} / 11`,1530,878,15,'#6f8da3','right',700)}
+function title(zh,en,no){txt(`${String(no).padStart(2,'0')}  ${zh}`,70,68,40,P.ink,'left',900);txt(en,72,111,22,P.cyan,'left',650);line(70,146,1530,146,P.grid,2);footer(no)}
+function chip(t,x,y,w,color){rr(x,y,w,40,20,color+'20',color,2);txt(t,x+w/2,y+20,18,color,'center',800)}
+function btn(label,x,y,w,h,onClick,active=false,color=P.cyan,size=19){rr(x,y,w,h,15,active?color+'28':'#ffffff0c',active?color:'#ffffff22',2);txt(label,x+w/2,y+h/2,size,active?color:P.ink,'center',800);zones.push({type:'button',x,y,w,h,onClick})}
+function area(x,y,w,h,onClick){zones.push({type:'button',x,y,w,h,onClick})}
+function slider(x,y,w,min,max,value,onChange,label,fmt=v=>v.toFixed(2)){
+  line(x,y,x+w,y,'#ffffff35',8);const t=(value-min)/(max-min),kx=x+t*w;line(x,y,kx,y,P.amber+'88',8);dot(kx,y,15,P.amber);
+  txt(label,x,y-31,20,P.muted,'left',650);txt(fmt(value),x+w,y-31,22,P.amber,'right',850);
+  zones.push({type:'slider',x:x-20,y:y-28,w:w+40,h:56,min,max,onChange})}
+function arrow(x1,y1,x2,y2,color=P.cyan,lw=5){line(x1,y1,x2,y2,color,lw);const a=Math.atan2(y2-y1,x2-x1),s=14;ctx.fillStyle=color;ctx.beginPath();ctx.moveTo(x2,y2);ctx.lineTo(x2-s*Math.cos(a-.5),y2-s*Math.sin(a-.5));ctx.lineTo(x2-s*Math.cos(a+.5),y2-s*Math.sin(a+.5));ctx.closePath();ctx.fill()}
+function card(x,y,w,h,color,active=true){rr(x,y,w,h,22,active?P.panel2:P.panel,active?color:'#ffffff14',3)}
+
+/* ---------- pointer interaction (logical coordinates) ---------- */
+function pos(e){const r=c.getBoundingClientRect();return{x:(e.clientX-r.left)*CW/r.width,y:(e.clientY-r.top)*CH/r.height}}
+function sliderVal(z,p){const t=Math.max(0,Math.min(1,(p.x-(z.x+20))/(z.w-40)));return z.min+t*(z.max-z.min)}
+c.addEventListener('pointerdown',e=>{const p=pos(e);
+  for(let i=zones.length-1;i>=0;i--){const z=zones[i];
+    if(p.x>=z.x&&p.x<=z.x+z.w&&p.y>=z.y&&p.y<=z.y+z.h){
+      if(z.type==='button'){z.onClick(p);return}
+      if(z.type==='slider'||z.type==='drag'){drag=z;z.onChange(sliderVal(z,p),p);return}}}});
+c.addEventListener('pointermove',e=>{if(!drag)return;const p=pos(e);drag.onChange(sliderVal(drag,p),p)});
+addEventListener('pointerup',()=>drag=null);
+addEventListener('pointercancel',()=>drag=null);
+
+/* ---------- KaTeX math layer (shares the 1600x900 logical coordinate system) ---------- */
+const FM={};
+function placeFormula(f){const s=f.el.style;s.width=f.w+'px';s.fontSize=f.size+'px';s.color=f.color;s.textAlign=f.align;
+  let left=f.x+f.ox;if(f.align==='center')left-=f.w/2;else if(f.align==='right')left-=f.w;
+  s.left=left+'px';s.top=(f.y+f.oy)+'px'}
+function setTex(id,tex){const f=FM[id];if(f.cur===tex)return;f.cur=tex;
+  if(window.katex)katex.render(tex,f.el,{displayMode:true,throwOnError:false,strict:'ignore'});else f.el.textContent=tex}
+/* x,y: anchor (y = vertical centre of the formula box); align: left|center|right; size: logical px */
+function addFormula(o){const el=document.createElement('div');el.className='formula';el.dataset.fid=o.id;mathLayer.appendChild(el);
+  const f=Object.assign({el,align:'center',size:32,ox:0,oy:0,w:600,color:'#f7fbff'},o);FM[o.id]=f;placeFormula(f);setTex(o.id,o.tex);return f}
+function moveFormula(id,o){Object.assign(FM[id],o);placeFormula(FM[id])}
+function showF(ids){for(const k in FM)FM[k].el.style.display=ids.includes(k)?'block':'none'}
+function syncMath(){const r=stage.getBoundingClientRect();mathLayer.style.transform=`scale(${r.width/CW},${r.height/CH})`}
+new ResizeObserver(syncMath).observe(stage);addEventListener('resize',syncMath);syncMath();
+
+/* ---------- plotting ---------- */
+function mapper(px,py,pw,ph,x0,x1,y0,y1){return{X:x=>px+(x-x0)/(x1-x0)*pw,Y:y=>py+ph-(y-y0)/(y1-y0)*ph,px,py,pw,ph,x0,x1,y0,y1}}
+function curvePath(f,m,xa,xb,n=240){ctx.beginPath();for(let i=0;i<=n;i++){const x=xa+(xb-xa)*i/n,X=m.X(x),Y=m.Y(f(x));i?ctx.lineTo(X,Y):ctx.moveTo(X,Y)}}
+function plotCurve(f,m,xa,xb,color,lw=5,fillAlpha=null,dash=[]){
+  if(fillAlpha){curvePath(f,m,xa,xb);ctx.lineTo(m.X(xb),m.Y(0));ctx.lineTo(m.X(xa),m.Y(0));ctx.closePath();ctx.fillStyle=color+fillAlpha;ctx.fill()}
+  ctx.save();ctx.setLineDash(dash);curvePath(f,m,xa,xb);ctx.strokeStyle=color;ctx.lineWidth=lw;ctx.lineJoin='round';ctx.stroke();ctx.restore()}
+function axes(m,xticks,ytickVals,xfmt=v=>v,yfmt=v=>v.toFixed(2),xlabel=''){
+  line(m.px,m.py+m.ph,m.px+m.pw,m.py+m.ph,'#ffffff55',2);line(m.px,m.py,m.px,m.py+m.ph,'#ffffff55',2);
+  for(const v of ytickVals){const Y=m.Y(v);line(m.px,Y,m.px+m.pw,Y,'#ffffff12',1);txt(yfmt(v),m.px-12,Y,17,P.muted,'right',600)}
+  for(const v of xticks){const X=m.X(v);line(X,m.py+m.ph,X,m.py+m.ph+8,'#ffffff55',2);txt(xfmt(v),X,m.py+m.ph+26,17,P.muted,'center',600)}
+  if(xlabel)txt(xlabel,m.px+m.pw,m.py+m.ph+52,17,P.muted,'right',600)}
+const fmt3=v=>v.toFixed(3);
+const rampAnim=(dur,fn)=>{const t0=performance.now();const tick=now=>{const t=Math.min(1,(now-t0)/dur);fn(1-Math.pow(1-t,3));if(t<1)requestAnimationFrame(tick)};requestAnimationFrame(tick)};
+
+/* ===== Page script ===== */
+/* ===== Shared numerics for KP15: seeded RNG, Gamma function, textbook nearest-neighbour distance ===== */
+const C1='#63b3ed',C2='#ff7b72';                        /* class omega_1 (blue) / omega_2 (coral) */
+function rng(seed){let a=seed>>>0;return()=>{a=(a+0x6D2B79F5)>>>0;let t=a;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return((t^(t>>>14))>>>0)/4294967296}}
+function gaussRand(r){let u=0;while(u===0)u=r();const v=r();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v)}
+/* Lanczos approximation of ln Gamma(z), z > 0 */
+function lgamma(z){const c=[0.99999999999980993,676.5203681218851,-1259.1392167224028,771.32342877765313,-176.61502916214059,12.507343278686905,-0.13857109526572012,9.9843695780195716e-6,1.5056327351493116e-7];
+  z-=1;let x=c[0];const t=z+7.5;for(let i=1;i<9;i++)x+=c[i]/(z+i);return .5*Math.log(2*Math.PI)+(z+.5)*Math.log(t)-t+Math.log(x)}
+/* textbook average nearest-neighbour distance in the unit hypercube [0,1]^l with N samples */
+const dForm=(l,N)=>2*Math.exp((Math.log(l)+lgamma(l/2)-Math.log(2)-(l/2)*Math.log(Math.PI)-Math.log(N))/l);
+const SUP={'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','-':'⁻'};
+const sup=n=>String(n).split('').map(c=>SUP[c]||c).join('');
+function sci(v){if(!isFinite(v)||v===0)return String(v);const e=Math.floor(Math.log10(Math.abs(v)));if(e>=-2&&e<=3)return v.toPrecision(3).replace(/\.?0+$/,m=>m.includes('.')?'':m);return (v/Math.pow(10,e)).toFixed(2)+'×10'+sup(e)}
+/* 06 — The textbook average nearest-neighbour distance d(l,N), read term by term, checked against simulation */
+let st=0,L=10,lgN=10;
+const HEX=[null,'#f6c85f','#ff7b72','#b794f4'];
+const hl=(k,s)=>st===k?`{\\color{${HEX[k]}}${s}}`:s;
+const mainTex=()=>`d(l,N)=2\\left(\\dfrac{${hl(3,'l\\,\\Gamma(l/2)')}}{2\\,\\pi^{l/2}\\,${hl(1,'N')}}\\right)^{${hl(2,'1/l')}}`;
+addFormula({id:'main',tex:mainTex(),x:530,y:298,w:900,size:36});
+/* real Monte-Carlo check, N = 1000 uniform points in [0,1]^l */
+const MC=[1,2,3,5,10,20].map(l=>{const r=rng(500+l),N=1000,X=[];for(let i=0;i<N;i++)X.push(Array.from({length:l},r));
+  const mn=new Array(N).fill(1e9);
+  for(let i=0;i<N;i++)for(let j=i+1;j<N;j++){let s=0;for(let c=0;c<l;c++){const d=X[i][c]-X[j][c];s+=d*d}if(s<mn[i])mn[i]=s;if(s<mn[j])mn[j]=s}
+  const sim=mn.reduce((a,b)=>a+Math.sqrt(b),0)/N,f=dForm(l,N);return{l,sim,f,ratio:f/sim}});
+const TERMS=[
+ ['先看整體：這是「一個球的直徑」','Read the whole: a ball diameter','在邊長為 1 的 l 維超立方體灑入 N 個點，d 是「平均恰好包得住一個樣本」的球直徑。',P.ink],
+ ['分母的 N：樣本越多，距離越小','Denominator N: more data, closer neighbours','常理：資料越多，鄰居越近。',P.amber],
+ ['被開 1/l 次方：兇殘之處','The 1/l-th power is the villain','N 被開 1/l 次方，維度越高，增加樣本的效果被稀釋得越嚴重。',C2],
+ ['分子的 l·Γ(l/2)：幾何因子暴漲','Numerator l·Γ(l/2): geometry inflates','高維超球體積轉換因子快速膨脹，完全壓過分母的成長。',P.violet]];
+function render(){
+  reset();title('數學解密：平均最近鄰距離公式','Mathematical demystification: average nearest-neighbour distance',6);
+  rr(60,170,940,680,24,P.panel,'#ffffff14',2);
+  txt('單位超立方體 [0, 1]^l 中的 N 個均勻點',90,205,23,P.ink,'left',850);txt('Unit hypercube, N uniform samples',90,234,15,P.cyan,'left',650);
+  setTex('main',mainTex());
+  ['全部','N','1/l 次方','l·Γ(l/2)'].forEach((b,i)=>btn(b,90+i*222,376,208,42,()=>{st=i;render()},st===i,i?[null,P.amber,C2,P.violet][i]:P.ink,17));
+  const T=TERMS[st];rr(90,430,880,96,18,P.panel2,T[3]===P.ink?'#ffffff33':T[3],3);
+  txt(T[0],114,458,21,T[3],'left',900);txt(T[1],114,482,14,P.muted,'left',600);wrap(T[2],114,494,830,24,16,P.ink,650);
+  const N=Math.pow(10,lgN),d=dForm(L,N),pw=Math.pow(N,1/L);
+  slider(110,596,380,1,40,L,v=>{L=Math.round(v);render()},'維度 l',v=>v.toFixed(0));
+  slider(560,596,380,2,10,lgN,v=>{lgN=Math.round(v);render()},'樣本數 N = 10^x',v=>'10'+sup(v.toFixed(0)));
+  rr(90,646,880,184,18,'#4fd1c514',P.cyan,2);
+  txt('N^(1/l) = '+pw.toFixed(3),114,676,24,P.amber,'left',900);
+  txt('→ 把 N 乘上 1000 倍，d 只縮小約 1000^(1/l) = '+Math.pow(1000,1/L).toFixed(3)+' 倍',114,714,19,P.ink,'left',700);
+  txt('d(l, N) = '+sci(d),114,766,30,d>1?C2:P.lime,'left',900);
+  txt(d>1?'已超過立方體邊長 1.0：最近的鄰居比整個空間還遠':'仍小於立方體邊長 1.0',114,806,17,P.muted,'left',650);
+  rr(1030,170,510,680,24,P.panel,'#ffffff14',2);
+  txt('公式 對照 實際模擬（N = 1000）',1060,205,21,P.ink,'left',850);txt('Formula vs Monte-Carlo mean nearest-neighbour distance',1060,232,14,P.cyan,'left',650);
+  txt('l',1080,276,16,P.muted,'center',700);txt('公式 d',1190,276,16,P.muted,'center',700);txt('模擬平均',1320,276,16,P.muted,'center',700);txt('比值',1450,276,16,P.muted,'center',700);
+  MC.forEach((m,i)=>{const y=318+i*58;rr(1050,y-24,470,50,12,i%2?'#ffffff08':'#ffffff0f');
+    txt(String(m.l),1080,y,19,P.ink,'center',800);txt(m.f.toFixed(4),1190,y,18,P.cyan,'center',700);txt(m.sim.toFixed(4),1320,y,18,P.lime,'center',700);txt(m.ratio.toFixed(2)+'×',1450,y,18,P.amber,'center',800)});
+  const rs=MC.map(m=>m.ratio),lo=Math.min(...rs).toFixed(1),hi=Math.max(...rs).toFixed(1);
+  wrap(`公式給的是「恰能包住一個樣本」的球直徑，約為實測平均最近鄰距離的 ${lo}–${hi} 倍；但兩者隨 N 的縮放律同為 N^(−1/l)，所以結論不變。`,1060,690,450,26,17,P.ink,650);
+  txt('The formula is a scale estimate; the N^(−1/l) law is what matters.',1060,800,14,P.muted,'left',600);
+  showF(['main']);
+}
+render();
+
+</script></body></html>
