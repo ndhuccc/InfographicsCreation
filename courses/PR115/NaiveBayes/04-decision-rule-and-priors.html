@@ -1,0 +1,176 @@
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>KP16 04 Decision Rule And Priors</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<style>
+:root{--bg:#071521;--panel:#0f2637;--ink:#f7fbff;--muted:#a9bfd0}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;background:#02080d;color:var(--ink);font-family:Inter,"Noto Sans TC","Microsoft JhengHei",sans-serif}
+.wrap{width:100vw;height:100vh;display:grid;place-items:center;background:radial-gradient(circle at 18% 0%,#10344d 0,#02080d 58%,#000 100%)}
+.stage{position:relative;width:min(100vw,177.7778vh);height:min(56.25vw,100vh);aspect-ratio:16/9;background:var(--bg);overflow:hidden}
+canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+#math-layer{position:absolute;left:0;top:0;width:1600px;height:900px;transform-origin:0 0;pointer-events:none}
+.formula{position:absolute;transform:translateY(-50%);line-height:1.2}
+.formula .katex-display{margin:0;text-align:inherit}
+.formula .katex-display>.katex{display:inline-block;text-align:inherit;white-space:nowrap}
+.hint{position:absolute;right:2.1%;top:1.9%;font-size:.8vw;color:#9ab4c7;background:#071521cc;border:1px solid #ffffff18;border-radius:999px;padding:.5em .75em;z-index:5}
+.note{position:absolute;left:2.1%;bottom:2.2%;font-size:.68vw;color:#89a3b8;background:#071521b8;border:1px solid #ffffff12;border-radius:12px;padding:.4em .65em;z-index:5}
+@media(max-width:900px){.hint,.note{font-size:1.4vw}}
+</style>
+</head><body><div class="wrap"><div class="stage" id="stage"><canvas id="c" width="1600" height="900"></canvas><div id="math-layer"></div><div class="hint">互動：點擊 / 拖曳 • Click / Drag</div></div></div>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script>
+/* ===== Shared helpers (Canvas 1600x900 logical space + KaTeX math layer) ===== */
+const CW=1600,CH=900;
+const c=document.getElementById('c'),ctx=c.getContext('2d');
+const stage=document.getElementById('stage'),mathLayer=document.getElementById('math-layer');
+const P={bg:'#071521',panel:'#0f2637',panel2:'#102c40',ink:'#f7fbff',muted:'#a9bfd0',cyan:'#4fd1c5',amber:'#f6c85f',coral:'#ff7b72',lime:'#8fd694',violet:'#b794f4',blue:'#63b3ed',grid:'#17384d'};
+const FONT='Inter,"Noto Sans TC","Microsoft JhengHei","PingFang TC","Noto Sans CJK TC","WenQuanYi Zen Hei",sans-serif';
+let zones=[],drag=null;
+window.__boxes=[];
+const REC=()=>window.__audit===true;
+
+function reset(){zones=[];window.__boxes=[];ctx.clearRect(0,0,CW,CH);ctx.fillStyle=P.bg;ctx.fillRect(0,0,CW,CH);
+  for(let x=0;x<CW;x+=80)line(x,0,x,CH,'#0b2434',1);for(let y=0;y<CH;y+=80)line(0,y,CW,y,'#0b2434',1)}
+function line(x1,y1,x2,y2,color='#fff',lw=3,dash=[]){ctx.save();ctx.strokeStyle=color;ctx.lineWidth=lw;ctx.setLineDash(dash);ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();ctx.restore()}
+function rr(x,y,w,h,r=20,fill=P.panel,stroke=null,lw=2){ctx.beginPath();ctx.roundRect(x,y,w,h,r);if(fill){ctx.fillStyle=fill;ctx.fill()}if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw;ctx.stroke()}}
+function dot(x,y,r,color){ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill()}
+function setFont(size,weight){ctx.font=`${weight} ${size}px ${FONT}`}
+function rec(x0,y0,x1,y1,label){if(REC())window.__boxes.push({x0,y0,x1,y1,label})}
+function txt(t,x,y,size=30,color=P.ink,align='left',weight=700){
+  t=String(t);ctx.fillStyle=color;setFont(size,weight);ctx.textAlign=align;ctx.textBaseline='middle';ctx.fillText(t,x,y);
+  if(REC()){const w=ctx.measureText(t).width,l=align==='left'?x:align==='center'?x-w/2:x-w;rec(l,y-size*.55,l+w,y+size*.55,t.slice(0,24))}}
+function wrap(t,x,y,maxw,lh=34,size=24,color=P.muted,weight=550,align='left'){
+  t=String(t).replace(/\\n/g,'\n');setFont(size,weight);ctx.fillStyle=color;ctx.textBaseline='top';ctx.textAlign=align;
+  const out=[];
+  for(const para of t.split('\n')){
+    const raw=para.match(/[一-鿿]|[^\s一-鿿　-〿＀-￯]+\s*|\s+|[　-〿＀-￯]/g)||[''];
+    const toks=[];for(let i=0;i<raw.length;i++){if(/^[「『（《【“‘]$/.test(raw[i])&&i+1<raw.length){toks.push(raw[i]+raw[i+1]);i++}else toks.push(raw[i])}
+    let ln='';
+    for(const tk of toks){
+      const q=ln+tk;
+      const isPunct=/^[　-〿＀-￯]$/.test(tk);
+      if(ctx.measureText(q.trimEnd()).width>maxw&&ln&&!isPunct){out.push(ln.trimEnd());ln=tk.trimStart()}else ln=q}
+    out.push(ln.trimEnd());
+  }
+  let yy=y;
+  for(const l of out){ctx.fillText(l,x,yy);
+    if(REC()){const w=ctx.measureText(l).width,lx=align==='left'?x:align==='center'?x-w/2:x-w;rec(lx,yy,lx+w,yy+size*1.15,l.slice(0,24))}
+    yy+=lh}
+  return yy}
+function wrapCenter(t,cx,y,maxw,lh=34,size=24,color=P.muted,weight=550){return wrap(t,cx,y,maxw,lh,size,color,weight,'center')}
+function footer(n){txt('PR115 · Ch02 · KP-16  單純貝氏分類器 Naive Bayes Classifier',70,878,15,'#6f8da3','left',600);txt(`${n} / 11`,1530,878,15,'#6f8da3','right',700)}
+function title(zh,en,no){txt(`${String(no).padStart(2,'0')}  ${zh}`,70,68,38,P.ink,'left',900);txt(en,72,111,21,P.cyan,'left',650);line(70,146,1530,146,P.grid,2);footer(no)}
+function chip(t,x,y,w,color){rr(x,y,w,40,20,color+'20',color,2);txt(t,x+w/2,y+20,18,color,'center',800)}
+function btn(label,x,y,w,h,onClick,active=false,color=P.cyan,size=19){rr(x,y,w,h,15,active?color+'28':'#ffffff0c',active?color:'#ffffff22',2);txt(label,x+w/2,y+h/2,size,active?color:P.ink,'center',800);zones.push({type:'button',x,y,w,h,onClick})}
+function area(x,y,w,h,onClick){zones.push({type:'button',x,y,w,h,onClick})}
+function slider(x,y,w,min,max,value,onChange,label,fmt=v=>v.toFixed(2),accent=P.amber){
+  line(x,y,x+w,y,'#ffffff35',8);const t=(value-min)/(max-min),kx=x+t*w;line(x,y,kx,y,accent+'88',8);dot(kx,y,15,accent);
+  txt(label,x,y-31,20,P.muted,'left',650);txt(fmt(value),x+w,y-31,22,accent,'right',850);
+  zones.push({type:'slider',x:x-20,y:y-28,w:w+40,h:56,min,max,onChange})}
+function arrow(x1,y1,x2,y2,color=P.cyan,lw=5){line(x1,y1,x2,y2,color,lw);const a=Math.atan2(y2-y1,x2-x1),s=14;ctx.fillStyle=color;ctx.beginPath();ctx.moveTo(x2,y2);ctx.lineTo(x2-s*Math.cos(a-.5),y2-s*Math.sin(a-.5));ctx.lineTo(x2-s*Math.cos(a+.5),y2-s*Math.sin(a+.5));ctx.closePath();ctx.fill()}
+function card(x,y,w,h,color,active=true){rr(x,y,w,h,22,active?P.panel2:P.panel,active?color:'#ffffff14',3)}
+
+function pos(e){const r=c.getBoundingClientRect();return{x:(e.clientX-r.left)*CW/r.width,y:(e.clientY-r.top)*CH/r.height}}
+function sliderVal(z,p){const t=Math.max(0,Math.min(1,(p.x-(z.x+20))/(z.w-40)));return z.min+t*(z.max-z.min)}
+c.addEventListener('pointerdown',e=>{const p=pos(e);
+  for(let i=zones.length-1;i>=0;i--){const z=zones[i];
+    if(p.x>=z.x&&p.x<=z.x+z.w&&p.y>=z.y&&p.y<=z.y+z.h){
+      if(z.type==='button'){z.onClick(p);return}
+      if(z.type==='slider'||z.type==='drag'){drag=z;z.onChange(sliderVal(z,p),p);return}}}});
+c.addEventListener('pointermove',e=>{if(!drag)return;const p=pos(e);drag.onChange(sliderVal(drag,p),p)});
+addEventListener('pointerup',()=>drag=null);
+addEventListener('pointercancel',()=>drag=null);
+
+const FM={};
+function placeFormula(f){const s=f.el.style;s.width=f.w+'px';s.fontSize=f.size+'px';s.color=f.color;s.textAlign=f.align;
+  let left=f.x+f.ox;if(f.align==='center')left-=f.w/2;else if(f.align==='right')left-=f.w;
+  s.left=left+'px';s.top=(f.y+f.oy)+'px'}
+function setTex(id,tex){const f=FM[id];if(f.cur===tex)return;f.cur=tex;
+  if(window.katex)katex.render(tex,f.el,{displayMode:true,throwOnError:false,strict:'ignore'});else f.el.textContent=tex}
+function addFormula(o){const el=document.createElement('div');el.className='formula';el.dataset.fid=o.id;mathLayer.appendChild(el);
+  const f=Object.assign({el,align:'center',size:32,ox:0,oy:0,w:600,color:'#f7fbff'},o);FM[o.id]=f;placeFormula(f);setTex(o.id,o.tex);return f}
+function moveFormula(id,o){Object.assign(FM[id],o);placeFormula(FM[id])}
+function showF(ids){for(const k in FM)FM[k].el.style.display=ids.includes(k)?'block':'none'}
+function syncMath(){const r=stage.getBoundingClientRect();mathLayer.style.transform=`scale(${r.width/CW},${r.height/CH})`}
+new ResizeObserver(syncMath).observe(stage);addEventListener('resize',syncMath);syncMath();
+
+function mapper(px,py,pw,ph,x0,x1,y0,y1){return{X:x=>px+(x-x0)/(x1-x0)*pw,Y:y=>py+ph-(y-y0)/(y1-y0)*ph,px,py,pw,ph,x0,x1,y0,y1}}
+function axes(m,xticks,ytickVals,xfmt=v=>v,yfmt=v=>v.toFixed(2),xlabel=''){
+  line(m.px,m.py+m.ph,m.px+m.pw,m.py+m.ph,'#ffffff55',2);line(m.px,m.py,m.px,m.py+m.ph,'#ffffff55',2);
+  for(const v of ytickVals){const Y=m.Y(v);line(m.px,Y,m.px+m.pw,Y,'#ffffff12',1);txt(yfmt(v),m.px-12,Y,17,P.muted,'right',600)}
+  for(const v of xticks){const X=m.X(v);line(X,m.py+m.ph,X,m.py+m.ph+8,'#ffffff55',2);txt(xfmt(v),X,m.py+m.ph+26,17,P.muted,'center',600)}
+  if(xlabel)txt(xlabel,m.px+m.pw,m.py+m.ph+52,17,P.muted,'right',600)}
+const rampAnim=(dur,fn)=>{const t0=performance.now();const tick=now=>{const t=Math.min(1,(now-t0)/dur);fn(1-Math.pow(1-t,3));if(t<1)requestAnimationFrame(tick)};requestAnimationFrame(tick)};
+const SUPD={'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','-':'⁻'};
+const sup=n=>String(n).split('').map(ch=>SUPD[ch]||ch).join('');
+function fmtInt(v){return v.toLocaleString('en-US')}
+function fmtBig(v){return v>=1e6?(v/1e6).toFixed(2)+'M':fmtInt(v)}
+const C1=P.blue, C2=P.coral; /* class omega_1 (blue) / omega_2 (coral) throughout this topic */
+</script>
+<script>
+/* ===== Page script ===== */
+
+let full=false;          /* false = equal-prior rule, true = full-prior rule */
+let prior1=0.50;         /* P(omega_1), only used when full===true */
+const S1=0.392, S2=0.080; /* likelihood product scores, reused from the worked example on page 6 */
+const THRESH = S2/(S1+S2); /* prior below which the decision flips even though S1 > S2 */
+
+addFormula({id:'eq',tex:String.raw`\omega_m=\arg\max_{\omega_i}\ \prod_{j=1}^{l}p(x_j\mid\omega_i)`,x:400,y:328,w:680,size:29,align:'center'});
+addFormula({id:'full',tex:String.raw`\omega_m=\arg\max_{\omega_i}\ P(\omega_i)\prod_{j=1}^{l}p(x_j\mid\omega_i)`,x:400,y:328,w:680,size:26,align:'center'});
+
+function render(){
+  reset();
+  title('分類決策規則：等先驗 vs 完整先驗','Decision Rule: Equal Priors vs. the Full Bayesian Posterior',4);
+
+  btn('等先驗 Equal prior',100,170,560,44,()=>{full=false;render()},!full,P.cyan,19);
+  btn('完整先驗 Full prior',680,170,560,44,()=>{full=true;render()},full,P.amber,19);
+
+  rr(60,228,1480,200,22,P.panel,full?P.amber:P.cyan,2);
+  showF([full?'full':'eq']);
+  wrap(full
+    ? '完整貝氏判決：乘上類別先驗 P(ωᵢ)。當兩類原本的出現頻率不同，先驗會把結果拉往比較常見的那一類。'
+    : '簡化原則：直接比較各類別的條件機率連乘積，相當於假設 P(ω₁) = P(ω₂)（事前一樣看待兩類）。',
+    90,400,1420,24,16,P.ink,600);
+
+  /* ---------- interactive comparison using the worked-example scores ---------- */
+  const panelTop=448, panelH=402;
+  rr(60,panelTop,1480,panelH,24,P.panel,'#ffffff14',2);
+  txt('沿用範例分數：S₁ = p(x|ω₁) = 0.392　S₂ = p(x|ω₂) = 0.080　（詳見第 6 頁手算範例）',90,panelTop+24,18,P.ink,'left',800);
+  txt('Reusing the likelihood scores from the worked example on page 6',90,panelTop+50,14,P.cyan,'left',600);
+
+  let score1, score2, pr1, pr2;
+  if(!full){
+    score1=S1; score2=S2; pr1=0.5; pr2=0.5;
+  } else {
+    slider(640,panelTop+140,860,0.01,0.99,prior1,v=>{prior1=v;render()},'先驗機率 P(ω₁)',v=>v.toFixed(2),P.amber);
+    pr1=prior1; pr2=1-prior1;
+    score1=pr1*S1; score2=pr2*S2;
+  }
+
+  const barX=120,barW=1340,maxScore=Math.max(S1,S2,0.001);
+  const y1=panelTop+(full?180:110), y2=panelTop+(full?240:170);
+  const winner = score1>=score2 ? 1 : 2;
+
+  txt(full? `P(ω₁)·S₁ = ${pr1.toFixed(2)} × ${S1.toFixed(3)} = ${score1.toFixed(4)}` : `S₁ = ${S1.toFixed(3)}`,barX,y1-20,19,C1,'left',800);
+  rr(barX,y1,Math.max(6,(score1/maxScore)*barW),30,8,C1+'cc');
+  if(winner===1) txt('勝出 ✓',barX+Math.max(6,(score1/maxScore)*barW)+14,y1+15,17,C1,'left',800);
+
+  txt(full? `P(ω₂)·S₂ = ${pr2.toFixed(2)} × ${S2.toFixed(3)} = ${score2.toFixed(4)}` : `S₂ = ${S2.toFixed(3)}`,barX,y2-20,19,C2,'left',800);
+  rr(barX,y2,Math.max(6,(score2/maxScore)*barW),30,8,C2+'cc');
+  if(winner===2) txt('勝出 ✓',barX+Math.max(6,(score2/maxScore)*barW)+14,y2+15,17,C2,'left',800);
+
+  const calloutY=panelTop+(full?296:216), calloutH=96;
+  if(full){
+    rr(120,calloutY,1340,calloutH,18,winner===1?'#63b3ed18':'#ff7b7218',winner===1?C1:C2,2);
+    txt(winner===1?'→ 判為 ω₁':'→ 判為 ω₂',150,calloutY+30,23,winner===1?C1:C2,'left',900);
+    wrap(prior1<THRESH
+      ? `有趣：雖然似然度 S₁ > S₂，但先驗 P(ω₁) = ${prior1.toFixed(2)} 低於門檻 ${THRESH.toFixed(3)}，完整貝氏判決已經翻盤成 ω₂！`
+      : `目前先驗 P(ω₁) = ${prior1.toFixed(2)} 仍高於翻盤門檻 ${THRESH.toFixed(3)}，判決維持 ω₁，和等先驗情況一致。`,
+      150,calloutY+58,1280,23,15.5,P.ink,600);
+  } else {
+    rr(120,calloutY,1340,calloutH,18,'#63b3ed18',C1,2);
+    txt('→ 判為 ω₁ (S₁ > S₂)',150,calloutY+30,23,C1,'left',900);
+    wrap('切換到「完整先驗」並把 P(ω₁) 拉到很低，看看判決會不會翻盤。',150,calloutY+58,1280,23,15.5,P.ink,600);
+  }
+}
+render();
+
+</script></body></html>
