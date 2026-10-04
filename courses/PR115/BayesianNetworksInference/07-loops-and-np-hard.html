@@ -1,0 +1,185 @@
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>KP19 07 Loops and NP-hardness</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<style>
+:root{--bg:#071521;--panel:#0f2637;--ink:#f7fbff;--muted:#a9bfd0}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;background:#02080d;color:var(--ink);font-family:Inter,"Noto Sans TC","Microsoft JhengHei",sans-serif}
+.wrap{width:100vw;height:100vh;display:grid;place-items:center;background:radial-gradient(circle at 18% 0%,#10344d 0,#02080d 58%,#000 100%)}
+.stage{position:relative;width:min(100vw,177.7778vh);height:min(56.25vw,100vh);aspect-ratio:16/9;background:var(--bg);overflow:hidden}
+canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+#math-layer{position:absolute;left:0;top:0;width:1600px;height:900px;transform-origin:0 0;pointer-events:none}
+.formula{position:absolute;transform:translateY(-50%);line-height:1.2}
+.formula .katex-display{margin:0;text-align:inherit}
+.formula .katex-display>.katex{display:inline-block;text-align:inherit;white-space:nowrap}
+.hint{position:absolute;right:2.1%;top:1.9%;font-size:.8vw;color:#9ab4c7;background:#071521cc;border:1px solid #ffffff18;border-radius:999px;padding:.5em .75em;z-index:5}
+@media(max-width:900px){.hint{font-size:1.4vw}}
+</style></head><body><div class="wrap"><div class="stage" id="stage"><canvas id="c" width="1600" height="900"></canvas><div id="math-layer"></div><div class="hint">互動：點擊 / 拖曳 • Click / Drag</div></div></div>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script>
+/* ===== Shared helpers (Canvas 1600x900 logical space + KaTeX math layer) ===== */
+const CW=1600,CH=900;
+const c=document.getElementById('c'),ctx=c.getContext('2d');
+const stage=document.getElementById('stage'),mathLayer=document.getElementById('math-layer');
+const P={bg:'#071521',panel:'#0f2637',panel2:'#102c40',ink:'#f7fbff',muted:'#a9bfd0',cyan:'#4fd1c5',amber:'#f6c85f',coral:'#ff7b72',lime:'#8fd694',violet:'#b794f4',blue:'#63b3ed',grid:'#17384d'};
+const FONT='Inter,"Noto Sans TC","Microsoft JhengHei","PingFang TC","Noto Sans CJK TC","WenQuanYi Zen Hei",sans-serif';
+let zones=[],drag=null;
+window.__boxes=[];            // text boxes recorded for the layout audit
+const REC=()=>window.__audit===true;
+
+/* ---------- basic drawing ---------- */
+function reset(){zones=[];window.__boxes=[];ctx.clearRect(0,0,CW,CH);ctx.fillStyle=P.bg;ctx.fillRect(0,0,CW,CH);
+  for(let x=0;x<CW;x+=80)line(x,0,x,CH,'#0b2434',1);for(let y=0;y<CH;y+=80)line(0,y,CW,y,'#0b2434',1)}
+function line(x1,y1,x2,y2,color='#fff',lw=3,dash=[]){ctx.save();ctx.strokeStyle=color;ctx.lineWidth=lw;ctx.setLineDash(dash);ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();ctx.restore()}
+function rr(x,y,w,h,r=20,fill=P.panel,stroke=null,lw=2){ctx.beginPath();ctx.roundRect(x,y,w,h,r);if(fill){ctx.fillStyle=fill;ctx.fill()}if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw;ctx.stroke()}}
+function dot(x,y,r,color){ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill()}
+function setFont(size,weight){ctx.font=`${weight} ${size}px ${FONT}`}
+function rec(x0,y0,x1,y1,label){if(REC())window.__boxes.push({x0,y0,x1,y1,label})}
+/* single-line text; x is the anchor according to align (left edge / centre / right edge) */
+function txt(t,x,y,size=30,color=P.ink,align='left',weight=700){
+  t=String(t);ctx.fillStyle=color;setFont(size,weight);ctx.textAlign=align;ctx.textBaseline='middle';ctx.fillText(t,x,y);
+  if(REC()){const w=ctx.measureText(t).width,l=align==='left'?x:align==='center'?x-w/2:x-w;rec(l,y-size*.55,l+w,y+size*.55,t.slice(0,24))}}
+/* wrapped paragraph; returns the y below the last line. Normalises literal "\n". Breaks CJK per char, Latin per word. */
+function wrap(t,x,y,maxw,lh=34,size=24,color=P.muted,weight=550,align='left'){
+  t=String(t).replace(/\\n/g,'\n');setFont(size,weight);ctx.fillStyle=color;ctx.textBaseline='top';ctx.textAlign=align;
+  const out=[];
+  for(const para of t.split('\n')){
+    const raw=para.match(/[一-鿿]|[^\s一-鿿　-〿＀-￯]+\s*|\s+|[　-〿＀-￯]/g)||[''];
+    const toks=[];for(let i=0;i<raw.length;i++){if(/^[「『（《【“‘]$/.test(raw[i])&&i+1<raw.length){toks.push(raw[i]+raw[i+1]);i++}else toks.push(raw[i])}
+    let ln='';
+    for(const tk of toks){
+      const q=ln+tk;
+      const isPunct=/^[　-〿＀-￯]$/.test(tk);
+      if(ctx.measureText(q.trimEnd()).width>maxw&&ln&&!isPunct){out.push(ln.trimEnd());ln=tk.trimStart()}else ln=q}
+    out.push(ln.trimEnd());
+  }
+  let yy=y;
+  for(const l of out){ctx.fillText(l,x,yy);
+    if(REC()){const w=ctx.measureText(l).width,lx=align==='left'?x:align==='center'?x-w/2:x-w;rec(lx,yy,lx+w,yy+size*1.15,l.slice(0,24))}
+    yy+=lh}
+  return yy}
+function footer(n){txt('PR115 · Ch02 · KP-19  貝氏網路（二）Bayesian Networks II',70,878,15,'#6f8da3','left',600);txt(`${n} / 9`,1530,878,15,'#6f8da3','right',700)}
+function title(zh,en,no){txt(`${String(no).padStart(2,'0')}  ${zh}`,70,68,40,P.ink,'left',900);txt(en,72,111,22,P.cyan,'left',650);line(70,146,1530,146,P.grid,2);footer(no)}
+function chip(t,x,y,w,color){rr(x,y,w,40,20,color+'20',color,2);txt(t,x+w/2,y+20,18,color,'center',800)}
+function btn(label,x,y,w,h,onClick,active=false,color=P.cyan,size=19){rr(x,y,w,h,15,active?color+'28':'#ffffff0c',active?color:'#ffffff22',2);txt(label,x+w/2,y+h/2,size,active?color:P.ink,'center',800);zones.push({type:'button',x,y,w,h,onClick})}
+function area(x,y,w,h,onClick){zones.push({type:'button',x,y,w,h,onClick})}
+function slider(x,y,w,min,max,value,onChange,label,fmt=v=>v.toFixed(2)){
+  line(x,y,x+w,y,'#ffffff35',8);const t=(value-min)/(max-min),kx=x+t*w;line(x,y,kx,y,P.amber+'88',8);dot(kx,y,15,P.amber);
+  txt(label,x,y-31,20,P.muted,'left',650);txt(fmt(value),x+w,y-31,22,P.amber,'right',850);
+  zones.push({type:'slider',x:x-20,y:y-28,w:w+40,h:56,min,max,onChange})}
+function arrow(x1,y1,x2,y2,color=P.cyan,lw=5){line(x1,y1,x2,y2,color,lw);const a=Math.atan2(y2-y1,x2-x1),s=14;ctx.fillStyle=color;ctx.beginPath();ctx.moveTo(x2,y2);ctx.lineTo(x2-s*Math.cos(a-.5),y2-s*Math.sin(a-.5));ctx.lineTo(x2-s*Math.cos(a+.5),y2-s*Math.sin(a+.5));ctx.closePath();ctx.fill()}
+function card(x,y,w,h,color,active=true){rr(x,y,w,h,22,active?P.panel2:P.panel,active?color:'#ffffff14',3)}
+
+/* ---------- pointer interaction (logical coordinates) ---------- */
+function pos(e){const r=c.getBoundingClientRect();return{x:(e.clientX-r.left)*CW/r.width,y:(e.clientY-r.top)*CH/r.height}}
+function sliderVal(z,p){const t=Math.max(0,Math.min(1,(p.x-(z.x+20))/(z.w-40)));return z.min+t*(z.max-z.min)}
+c.addEventListener('pointerdown',e=>{const p=pos(e);
+  for(let i=zones.length-1;i>=0;i--){const z=zones[i];
+    if(p.x>=z.x&&p.x<=z.x+z.w&&p.y>=z.y&&p.y<=z.y+z.h){
+      if(z.type==='button'){z.onClick(p);return}
+      if(z.type==='slider'||z.type==='drag'){drag=z;z.onChange(sliderVal(z,p),p);return}}}});
+c.addEventListener('pointermove',e=>{if(!drag)return;const p=pos(e);drag.onChange(sliderVal(drag,p),p)});
+addEventListener('pointerup',()=>drag=null);
+addEventListener('pointercancel',()=>drag=null);
+
+/* ---------- KaTeX math layer (shares the 1600x900 logical coordinate system) ---------- */
+const FM={};
+function placeFormula(f){const s=f.el.style;s.width=f.w+'px';s.fontSize=f.size+'px';s.color=f.color;s.textAlign=f.align;
+  let left=f.x+f.ox;if(f.align==='center')left-=f.w/2;else if(f.align==='right')left-=f.w;
+  s.left=left+'px';s.top=(f.y+f.oy)+'px'}
+function setTex(id,tex){const f=FM[id];if(f.cur===tex)return;f.cur=tex;
+  if(window.katex)katex.render(tex,f.el,{displayMode:true,throwOnError:false,strict:'ignore'});else f.el.textContent=tex}
+/* x,y: anchor (y = vertical centre of the formula box); align: left|center|right; size: logical px */
+function addFormula(o){const el=document.createElement('div');el.className='formula';el.dataset.fid=o.id;mathLayer.appendChild(el);
+  const f=Object.assign({el,align:'center',size:32,ox:0,oy:0,w:600,color:'#f7fbff'},o);FM[o.id]=f;placeFormula(f);setTex(o.id,o.tex);return f}
+function moveFormula(id,o){Object.assign(FM[id],o);placeFormula(FM[id])}
+function showF(ids){for(const k in FM)FM[k].el.style.display=ids.includes(k)?'block':'none'}
+function syncMath(){const r=stage.getBoundingClientRect();mathLayer.style.transform=`scale(${r.width/CW},${r.height/CH})`}
+new ResizeObserver(syncMath).observe(stage);addEventListener('resize',syncMath);syncMath();
+
+/* ---------- plotting ---------- */
+function mapper(px,py,pw,ph,x0,x1,y0,y1){return{X:x=>px+(x-x0)/(x1-x0)*pw,Y:y=>py+ph-(y-y0)/(y1-y0)*ph,px,py,pw,ph,x0,x1,y0,y1}}
+function curvePath(f,m,xa,xb,n=240){ctx.beginPath();for(let i=0;i<=n;i++){const x=xa+(xb-xa)*i/n,X=m.X(x),Y=m.Y(f(x));i?ctx.lineTo(X,Y):ctx.moveTo(X,Y)}}
+function plotCurve(f,m,xa,xb,color,lw=5,fillAlpha=null,dash=[]){
+  if(fillAlpha){curvePath(f,m,xa,xb);ctx.lineTo(m.X(xb),m.Y(0));ctx.lineTo(m.X(xa),m.Y(0));ctx.closePath();ctx.fillStyle=color+fillAlpha;ctx.fill()}
+  ctx.save();ctx.setLineDash(dash);curvePath(f,m,xa,xb);ctx.strokeStyle=color;ctx.lineWidth=lw;ctx.lineJoin='round';ctx.stroke();ctx.restore()}
+function axes(m,xticks,ytickVals,xfmt=v=>v,yfmt=v=>v.toFixed(2),xlabel=''){
+  line(m.px,m.py+m.ph,m.px+m.pw,m.py+m.ph,'#ffffff55',2);line(m.px,m.py,m.px,m.py+m.ph,'#ffffff55',2);
+  for(const v of ytickVals){const Y=m.Y(v);line(m.px,Y,m.px+m.pw,Y,'#ffffff12',1);txt(yfmt(v),m.px-12,Y,17,P.muted,'right',600)}
+  for(const v of xticks){const X=m.X(v);line(X,m.py+m.ph,X,m.py+m.ph+8,'#ffffff55',2);txt(xfmt(v),X,m.py+m.ph+26,17,P.muted,'center',600)}
+  if(xlabel)txt(xlabel,m.px+m.pw,m.py+m.ph+52,17,P.muted,'right',600)}
+const fmt3=v=>v.toFixed(3);
+const rampAnim=(dur,fn)=>{const t0=performance.now();const tick=now=>{const t=Math.min(1,(now-t0)/dur);fn(1-Math.pow(1-t,3));if(t<1)requestAnimationFrame(tick)};requestAnimationFrame(tick)};
+
+/* ===== Page script ===== */
+/* ===== Shared helpers for KP18: DAG drawing, parent sets, CPT parameter counting ===== */
+const C1='#63b3ed',C2='#ff7b72';
+const NM=['x₁','x₂','x₃','x₄','x₅','x₆'];
+const POS6=[[.10,.26],[.10,.76],[.38,.93],[.42,.50],[.70,.22],[.90,.60]];       /* normalised node positions */
+const EDGES_BN=[[2,3],[1,4],[2,4],[4,5],[4,6],[5,6]];                              /* (parent, child), 1-indexed */
+const EDGES_FULL=(()=>{const e=[];for(let j=2;j<=6;j++)for(let i=1;i<j;i++)e.push([i,j]);return e})();
+const parentsOf=(E,i)=>E.filter(e=>e[1]===i).map(e=>e[0]);
+const nParams=(E,n=6)=>{let s=0;for(let i=1;i<=n;i++)s+=Math.pow(2,parentsOf(E,i).length);return s};
+function hasCycle(E,n=6){const adj={};for(let i=1;i<=n;i++)adj[i]=[];E.forEach(e=>adj[e[0]].push(e[1]));const st={};
+  const dfs=u=>{st[u]=1;for(const v of adj[u]){if(st[v]===1)return true;if(!st[v]&&dfs(v))return true}st[u]=2;return false};
+  for(let i=1;i<=n;i++)if(!st[i]&&dfs(i))return true;return false}
+/* draw a DAG in box {x,y,w,h}; opt: sel (node), r (radius), hl (list of [p,c] edges to colour), colors */
+function drawDAG(box,pos,E,opt){opt=opt||{};const r=opt.r||26,sel=opt.sel||0,names=opt.names||NM,P_=sel?parentsOf(E,sel):[];
+  const at=i=>[box.x+pos[i-1][0]*box.w,box.y+pos[i-1][1]*box.h];
+  for(const [p,c] of E){const [x1,y1]=at(p),[x2,y2]=at(c),a=Math.atan2(y2-y1,x2-x1);
+    const hot=(sel&&c===sel)||(opt.hl&&opt.hl.some(h=>h[0]===p&&h[1]===c));
+    arrow(x1+Math.cos(a)*(r+2),y1+Math.sin(a)*(r+2),x2-Math.cos(a)*(r+4),y2-Math.sin(a)*(r+4),hot?(opt.hotColor||P.lime):(opt.edgeColor||'#9fb7c9'),hot?5:(opt.thin?2:3.5))}
+  const out=[];
+  for(let i=1;i<=pos.length;i++){const [x,y]=at(i),isSel=i===sel,isPar=P_.includes(i);
+    ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fillStyle=isSel?P.amber+'44':(isPar?P.lime+'33':P.panel2);ctx.fill();
+    ctx.strokeStyle=isSel?P.amber:(isPar?P.lime:'#8fb2c9');ctx.lineWidth=isSel||isPar?4:2.5;ctx.stroke();
+    txt(names[i-1],x,y+1,r>20?22:15,P.ink,'center',900);out.push([x,y])}
+  return out}
+const SUPM={'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','-':'⁻'};
+const sup=n=>String(n).split('').map(c=>SUPM[c]||c).join('');
+
+/* ===== KP19: the four-variable chain x -> y -> z -> w with the lecture's CPTs ===== */
+const CPC={px:.6,py:[.3,.4],pz:[.6,.25],pw:[.3,.45]};        /* P(child=1 | parent=0/1) */
+const NC=['x','y','z','w'],POS4=[[.07,.5],[.36,.5],[.64,.5],[.93,.5]];
+const bern=(p,t)=>t?p:1-p;
+function jointC(v,th){th=th||CPC;return bern(th.px,v[0])*bern(th.py[v[0]],v[1])*bern(th.pz[v[1]],v[2])*bern(th.pw[v[2]],v[3])}
+/* exact posterior P(q=1 | evidence) by full enumeration; ev maps node index -> 0/1 */
+function postC(q,ev,th){let n1=0,n0=0;for(let m=0;m<16;m++){const v=[(m>>3)&1,(m>>2)&1,(m>>1)&1,m&1];
+  if(Object.keys(ev).some(k=>v[k]!==ev[k]))continue;const j=jointC(v,th);if(v[q])n1+=j;else n0+=j}return n1/(n1+n0)}
+/* 07 — Singly connected (linear-time exact inference) vs multiply connected (NP-hard); build your own graph */
+const POS5=[[.50,.04],[.20,.36],[.80,.36],[.50,.66],[.50,.97]];
+const CAND=[[1,2],[1,3],[2,4],[3,4],[2,3],[4,5],[2,5]];
+const PRESET=[['鏈','chain',[[1,2],[2,4],[4,5]]],['樹','tree',[[1,2],[1,3],[2,4],[2,5]]],['菱形迴圈','diamond',[[1,2],[1,3],[2,4],[3,4],[4,5]]]];
+const LB=['A','B','C','D','E'];
+let on=PRESET[2][2].map(e=>e.join('-'));
+function analyse(E){const n=5,adj=Array.from({length:6},()=>[]);E.forEach(([a,b])=>{adj[a].push(b);adj[b].push(a)});
+  const seen=new Set();let comp=0;for(let i=1;i<=n;i++)if(!seen.has(i)){comp++;const q=[i];seen.add(i);while(q.length){const u=q.pop();adj[u].forEach(v=>{if(!seen.has(v)){seen.add(v);q.push(v)}})}}
+  const loops=E.length-n+comp;
+  const onCycle=E.map(([a,b])=>{const q=[a],s=new Set([a]);while(q.length){const u=q.pop();for(const w of adj[u]){if(u===a&&w===b&&!(adj[u].filter(x=>x===b).length>1))continue;if(w===b){return true}if(!s.has(w)){s.add(w);q.push(w)}}}return false});
+  return{loops,comp,onCycle}}
+function bridgeCycle(E){return E.map(([a,b],i)=>{const rest=E.filter((_,j)=>j!==i),adj=Array.from({length:6},()=>[]);rest.forEach(([x,y])=>{adj[x].push(y);adj[y].push(x)});const s=new Set([a]),q=[a];while(q.length){const u=q.pop();adj[u].forEach(v=>{if(!s.has(v)){s.add(v);q.push(v)}})}return s.has(b)})}
+function render(){
+  reset();title('邊界警示：單一連通 對 多重連通','Boundary warning: singly vs multiply connected networks',7);
+  const E=on.map(s=>s.split('-').map(Number)),A=analyse(E),dag=!hasCycle(E,5),oc=bridgeCycle(E),multi=A.loops>0;
+  rr(60,170,860,680,24,P.panel,'#ffffff14',2);
+  txt('自己搭一張圖：點選邊來開關',90,205,22,P.ink,'left',850);txt('Toggle edges and watch the classification change',90,233,15,P.cyan,'left',650);
+  PRESET.forEach((p,i)=>btn(p[0],90+i*180,252,166,42,()=>{on=p[2].map(e=>e.join('-'));render()},false,P.cyan,16));
+  const box={x:150,y:330,w:620,h:420};
+  const at=i=>[box.x+POS5[i-1][0]*box.w,box.y+POS5[i-1][1]*box.h*0.92];
+  E.forEach(([a,b],k)=>{const [x1,y1]=at(a),[x2,y2]=at(b),an=Math.atan2(y2-y1,x2-x1);arrow(x1+Math.cos(an)*30,y1+Math.sin(an)*30,x2-Math.cos(an)*34,y2-Math.sin(an)*34,oc[k]?C2:'#9fb7c9',oc[k]?6:4)});
+  for(let i=1;i<=5;i++){const [x,y]=at(i);ctx.beginPath();ctx.arc(x,y,28,0,Math.PI*2);ctx.fillStyle=P.panel2;ctx.fill();ctx.strokeStyle='#8fb2c9';ctx.lineWidth=3;ctx.stroke();txt(LB[i-1],x,y+1,22,P.ink,'center',900)}
+  txt('候選邊（點選開關）',90,780,15,P.muted,'left',650);
+  CAND.forEach((c,i)=>{const key=c.join('-'),act=on.includes(key);btn(LB[c[0]-1]+'→'+LB[c[1]-1],230+i*90,764,82,36,()=>{on=act?on.filter(k=>k!==key):[...on,key];render()},act,P.amber,14)});
+  txt(dag?'✓ 這是合法的 DAG（無有向迴圈）':'✗ 出現有向迴圈',90,822,16,dag?P.lime:C2,'left',750);
+  rr(950,170,590,680,24,P.panel,'#ffffff14',2);
+  const col=multi?C2:P.lime;
+  rr(976,196,540,150,18,P.panel2,col,3);
+  txt(multi?'多重連通 Multiply connected':'單一連通 Singly connected',1000,232,26,col,'left',900);
+  txt(`無向迴圈數 = ${A.loops}（邊數 − 節點數 + 連通塊數）`,1000,272,17,P.ink,'left',700);
+  txt(multi?'紅色邊位於封閉環路上':'任兩節點之間最多一條路徑',1000,306,17,P.muted,'left',650);
+  const items=multi?[['訊息可能在環路中震盪','或被重複計算（雙重計數）。'],['精確推論是 NP-hard','Cooper (1990) 的證明結果。'],['實務轉向近似推論','Loopy BP、MCMC 抽樣、變分推論。']]:[['訊息單向傳遞','不會產生迴音，也不會重複計算。'],['推論複雜度 O(N)','隨節點總數 N 線性成長。'],['精確解保證高效','樹狀與鏈狀都屬於此類。']];
+  items.forEach((it,i)=>{const y=376+i*118;rr(976,y,540,102,16,'#ffffff08','#ffffff22',2);txt(it[0],1000,y+34,21,col,'left',900);txt(it[1],1000,y+72,17,P.ink,'left',650)});
+  txt('NP-hard claim is cited from the lecture (Cooper, 1990).',976,744,14,P.muted,'left',600);
+  showF([]);
+}
+render();
+
+</script></body></html>
