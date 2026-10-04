@@ -1471,6 +1471,139 @@ wrap(..., "center")
 
 ---
 
+## 問題 K：`String.raw` 中 LaTeX 被過度跳脫（double-escaped）
+
+### 症狀
+
+公式原本應該是：
+
+```latex
+\hat{p}(x)\approx \frac{1}{b}\cdot\frac{k_N}{N}
+```
+
+但瀏覽器畫面卻出現：
+
+```text
+hatp(x)
+approx
+frac1b
+cdot
+frack_NN
+```
+
+或其他 TeX command 名稱直接變成可見文字。
+
+### 根因
+
+若 JavaScript 使用：
+
+```javascript
+String.raw`...`
+```
+
+則 LaTeX command 前只需要 **一個反斜線**。
+
+錯誤：
+
+```javascript
+String.raw`\\hat{p}(x)\\approx \\frac{1}{b}\\cdot\\frac{k_N}{N}`
+```
+
+在 `String.raw` 裡，`\\hat` 代表實際字串中存在兩個反斜線。KaTeX 會把前面的 `\\` 解讀成 TeX 換行命令，後面的 `hat`、`frac`、`cdot` 就可能被當成普通字母或產生錯誤布局。
+
+正確：
+
+```javascript
+String.raw`\hat{p}(x)\approx \frac{1}{b}\cdot\frac{k_N}{N}`
+```
+
+### 特別注意：多層字串生成
+
+如果 HTML 是由 Python / JSON / JavaScript generator 產生，必須檢查的是：
+
+> **最終輸出的 HTML source 裡，String.raw template literal 是否真的只有一個反斜線。**
+
+不能只看 generator source，因為：
+
+```text
+Python escaping
+→ JS source escaping
+→ String.raw
+→ KaTeX parser
+```
+
+中間任何一層都可能多 escape 一次。
+
+### 強制 source audit
+
+對所有 HTML 搜尋：
+
+```text
+String.raw`
+```
+
+再檢查其內容是否出現：
+
+```text
+\\hat
+\\frac
+\\sum
+\\int
+\\cdot
+\\approx
+\\theta
+\\sigma
+\\mu
+\\mathcal
+\\boldsymbol
+```
+
+若是在 `String.raw` 中，通常都代表 over-escaped。
+
+例外只有真的需要 TeX 換行的 `\\`，但 infographic 單行公式通常不需要。
+
+### Browser formula audit
+
+實際渲染後，若公式區域出現以下可見文字，立即判定 Formula Audit 失敗：
+
+- `hat`
+- `frac`
+- `cdot`
+- `approx`
+- `sum`
+- `theta`
+- `sigma`
+
+前提是這些字原本應該是 TeX command，而不是教材文字。
+
+### 建議自動檢查
+
+可在 build/audit script 中掃描：
+
+```python
+re.search(r'String\.raw`[^\`]*\\\\[A-Za-z]', html)
+```
+
+或等價邏輯。
+
+若命中，必須人工確認是否為真正需要的 TeX line break。
+
+### 離線穩定方案
+
+對完全靜態、核心且重要的公式，可以考慮：
+
+```text
+LaTeX
+→ SVG
+→ inline SVG
+```
+
+把公式直接嵌入 HTML，避免 CDN 載入或 runtime typesetting 問題。
+
+但若使用 KaTeX，仍必須優先修正 TeX source，不可用 SVG 掩蓋錯誤的 source pipeline。
+
+---
+
 ## 問題 J：Git object API 更新 main，不代表 GitHub Actions 一定已部署
 
 ### 症狀
@@ -1649,6 +1782,10 @@ Verify live URL
 - [ ] KaTeX 與 Canvas 元素沒有 overlap
 - [ ] 動態公式已測 slider min / max
 - [ ] 中文 / English 狀態皆已檢查
+- [ ] 所有 `String.raw` LaTeX 已檢查，不存在不必要的 double backslash
+- [ ] 最終 HTML source 中 TeX command 前的反斜線數量正確
+- [ ] 實際瀏覽器畫面沒有顯示 `hat` / `frac` / `cdot` / `approx` 等 raw TeX command 名稱
+- [ ] generator source 與最終 HTML source 都已抽查，避免多層 escaping 造成 over-escape
 
 ## Layout audit
 
