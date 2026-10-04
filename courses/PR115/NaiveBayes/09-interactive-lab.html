@@ -1,0 +1,184 @@
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>KP16 09 Interactive Lab</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<style>
+:root{--bg:#071521;--panel:#0f2637;--ink:#f7fbff;--muted:#a9bfd0}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;background:#02080d;color:var(--ink);font-family:Inter,"Noto Sans TC","Microsoft JhengHei",sans-serif}
+.wrap{width:100vw;height:100vh;display:grid;place-items:center;background:radial-gradient(circle at 18% 0%,#10344d 0,#02080d 58%,#000 100%)}
+.stage{position:relative;width:min(100vw,177.7778vh);height:min(56.25vw,100vh);aspect-ratio:16/9;background:var(--bg);overflow:hidden}
+canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+#math-layer{position:absolute;left:0;top:0;width:1600px;height:900px;transform-origin:0 0;pointer-events:none}
+.formula{position:absolute;transform:translateY(-50%);line-height:1.2}
+.formula .katex-display{margin:0;text-align:inherit}
+.formula .katex-display>.katex{display:inline-block;text-align:inherit;white-space:nowrap}
+.hint{position:absolute;right:2.1%;top:1.9%;font-size:.8vw;color:#9ab4c7;background:#071521cc;border:1px solid #ffffff18;border-radius:999px;padding:.5em .75em;z-index:5}
+.note{position:absolute;left:2.1%;bottom:2.2%;font-size:.68vw;color:#89a3b8;background:#071521b8;border:1px solid #ffffff12;border-radius:12px;padding:.4em .65em;z-index:5}
+@media(max-width:900px){.hint,.note{font-size:1.4vw}}
+</style>
+</head><body><div class="wrap"><div class="stage" id="stage"><canvas id="c" width="1600" height="900"></canvas><div id="math-layer"></div><div class="hint">互動：點擊 / 拖曳 • Click / Drag</div></div></div>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script>
+/* ===== Shared helpers (Canvas 1600x900 logical space + KaTeX math layer) ===== */
+const CW=1600,CH=900;
+const c=document.getElementById('c'),ctx=c.getContext('2d');
+const stage=document.getElementById('stage'),mathLayer=document.getElementById('math-layer');
+const P={bg:'#071521',panel:'#0f2637',panel2:'#102c40',ink:'#f7fbff',muted:'#a9bfd0',cyan:'#4fd1c5',amber:'#f6c85f',coral:'#ff7b72',lime:'#8fd694',violet:'#b794f4',blue:'#63b3ed',grid:'#17384d'};
+const FONT='Inter,"Noto Sans TC","Microsoft JhengHei","PingFang TC","Noto Sans CJK TC","WenQuanYi Zen Hei",sans-serif';
+let zones=[],drag=null;
+window.__boxes=[];
+const REC=()=>window.__audit===true;
+
+function reset(){zones=[];window.__boxes=[];ctx.clearRect(0,0,CW,CH);ctx.fillStyle=P.bg;ctx.fillRect(0,0,CW,CH);
+  for(let x=0;x<CW;x+=80)line(x,0,x,CH,'#0b2434',1);for(let y=0;y<CH;y+=80)line(0,y,CW,y,'#0b2434',1)}
+function line(x1,y1,x2,y2,color='#fff',lw=3,dash=[]){ctx.save();ctx.strokeStyle=color;ctx.lineWidth=lw;ctx.setLineDash(dash);ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();ctx.restore()}
+function rr(x,y,w,h,r=20,fill=P.panel,stroke=null,lw=2){ctx.beginPath();ctx.roundRect(x,y,w,h,r);if(fill){ctx.fillStyle=fill;ctx.fill()}if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw;ctx.stroke()}}
+function dot(x,y,r,color){ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill()}
+function setFont(size,weight){ctx.font=`${weight} ${size}px ${FONT}`}
+function rec(x0,y0,x1,y1,label){if(REC())window.__boxes.push({x0,y0,x1,y1,label})}
+function txt(t,x,y,size=30,color=P.ink,align='left',weight=700){
+  t=String(t);ctx.fillStyle=color;setFont(size,weight);ctx.textAlign=align;ctx.textBaseline='middle';ctx.fillText(t,x,y);
+  if(REC()){const w=ctx.measureText(t).width,l=align==='left'?x:align==='center'?x-w/2:x-w;rec(l,y-size*.55,l+w,y+size*.55,t.slice(0,24))}}
+function wrap(t,x,y,maxw,lh=34,size=24,color=P.muted,weight=550,align='left'){
+  t=String(t).replace(/\\n/g,'\n');setFont(size,weight);ctx.fillStyle=color;ctx.textBaseline='top';ctx.textAlign=align;
+  const out=[];
+  for(const para of t.split('\n')){
+    const raw=para.match(/[一-鿿]|[^\s一-鿿　-〿＀-￯]+\s*|\s+|[　-〿＀-￯]/g)||[''];
+    const toks=[];for(let i=0;i<raw.length;i++){if(/^[「『（《【“‘]$/.test(raw[i])&&i+1<raw.length){toks.push(raw[i]+raw[i+1]);i++}else toks.push(raw[i])}
+    let ln='';
+    for(const tk of toks){
+      const q=ln+tk;
+      const isPunct=/^[　-〿＀-￯]$/.test(tk);
+      if(ctx.measureText(q.trimEnd()).width>maxw&&ln&&!isPunct){out.push(ln.trimEnd());ln=tk.trimStart()}else ln=q}
+    out.push(ln.trimEnd());
+  }
+  let yy=y;
+  for(const l of out){ctx.fillText(l,x,yy);
+    if(REC()){const w=ctx.measureText(l).width,lx=align==='left'?x:align==='center'?x-w/2:x-w;rec(lx,yy,lx+w,yy+size*1.15,l.slice(0,24))}
+    yy+=lh}
+  return yy}
+function wrapCenter(t,cx,y,maxw,lh=34,size=24,color=P.muted,weight=550){return wrap(t,cx,y,maxw,lh,size,color,weight,'center')}
+function footer(n){txt('PR115 · Ch02 · KP-16  單純貝氏分類器 Naive Bayes Classifier',70,878,15,'#6f8da3','left',600);txt(`${n} / 11`,1530,878,15,'#6f8da3','right',700)}
+function title(zh,en,no){txt(`${String(no).padStart(2,'0')}  ${zh}`,70,68,38,P.ink,'left',900);txt(en,72,111,21,P.cyan,'left',650);line(70,146,1530,146,P.grid,2);footer(no)}
+function chip(t,x,y,w,color){rr(x,y,w,40,20,color+'20',color,2);txt(t,x+w/2,y+20,18,color,'center',800)}
+function btn(label,x,y,w,h,onClick,active=false,color=P.cyan,size=19){rr(x,y,w,h,15,active?color+'28':'#ffffff0c',active?color:'#ffffff22',2);txt(label,x+w/2,y+h/2,size,active?color:P.ink,'center',800);zones.push({type:'button',x,y,w,h,onClick})}
+function area(x,y,w,h,onClick){zones.push({type:'button',x,y,w,h,onClick})}
+function slider(x,y,w,min,max,value,onChange,label,fmt=v=>v.toFixed(2),accent=P.amber){
+  line(x,y,x+w,y,'#ffffff35',8);const t=(value-min)/(max-min),kx=x+t*w;line(x,y,kx,y,accent+'88',8);dot(kx,y,15,accent);
+  txt(label,x,y-31,20,P.muted,'left',650);txt(fmt(value),x+w,y-31,22,accent,'right',850);
+  zones.push({type:'slider',x:x-20,y:y-28,w:w+40,h:56,min,max,onChange})}
+function arrow(x1,y1,x2,y2,color=P.cyan,lw=5){line(x1,y1,x2,y2,color,lw);const a=Math.atan2(y2-y1,x2-x1),s=14;ctx.fillStyle=color;ctx.beginPath();ctx.moveTo(x2,y2);ctx.lineTo(x2-s*Math.cos(a-.5),y2-s*Math.sin(a-.5));ctx.lineTo(x2-s*Math.cos(a+.5),y2-s*Math.sin(a+.5));ctx.closePath();ctx.fill()}
+function card(x,y,w,h,color,active=true){rr(x,y,w,h,22,active?P.panel2:P.panel,active?color:'#ffffff14',3)}
+
+function pos(e){const r=c.getBoundingClientRect();return{x:(e.clientX-r.left)*CW/r.width,y:(e.clientY-r.top)*CH/r.height}}
+function sliderVal(z,p){const t=Math.max(0,Math.min(1,(p.x-(z.x+20))/(z.w-40)));return z.min+t*(z.max-z.min)}
+c.addEventListener('pointerdown',e=>{const p=pos(e);
+  for(let i=zones.length-1;i>=0;i--){const z=zones[i];
+    if(p.x>=z.x&&p.x<=z.x+z.w&&p.y>=z.y&&p.y<=z.y+z.h){
+      if(z.type==='button'){z.onClick(p);return}
+      if(z.type==='slider'||z.type==='drag'){drag=z;z.onChange(sliderVal(z,p),p);return}}}});
+c.addEventListener('pointermove',e=>{if(!drag)return;const p=pos(e);drag.onChange(sliderVal(drag,p),p)});
+addEventListener('pointerup',()=>drag=null);
+addEventListener('pointercancel',()=>drag=null);
+
+const FM={};
+function placeFormula(f){const s=f.el.style;s.width=f.w+'px';s.fontSize=f.size+'px';s.color=f.color;s.textAlign=f.align;
+  let left=f.x+f.ox;if(f.align==='center')left-=f.w/2;else if(f.align==='right')left-=f.w;
+  s.left=left+'px';s.top=(f.y+f.oy)+'px'}
+function setTex(id,tex){const f=FM[id];if(f.cur===tex)return;f.cur=tex;
+  if(window.katex)katex.render(tex,f.el,{displayMode:true,throwOnError:false,strict:'ignore'});else f.el.textContent=tex}
+function addFormula(o){const el=document.createElement('div');el.className='formula';el.dataset.fid=o.id;mathLayer.appendChild(el);
+  const f=Object.assign({el,align:'center',size:32,ox:0,oy:0,w:600,color:'#f7fbff'},o);FM[o.id]=f;placeFormula(f);setTex(o.id,o.tex);return f}
+function moveFormula(id,o){Object.assign(FM[id],o);placeFormula(FM[id])}
+function showF(ids){for(const k in FM)FM[k].el.style.display=ids.includes(k)?'block':'none'}
+function syncMath(){const r=stage.getBoundingClientRect();mathLayer.style.transform=`scale(${r.width/CW},${r.height/CH})`}
+new ResizeObserver(syncMath).observe(stage);addEventListener('resize',syncMath);syncMath();
+
+function mapper(px,py,pw,ph,x0,x1,y0,y1){return{X:x=>px+(x-x0)/(x1-x0)*pw,Y:y=>py+ph-(y-y0)/(y1-y0)*ph,px,py,pw,ph,x0,x1,y0,y1}}
+function axes(m,xticks,ytickVals,xfmt=v=>v,yfmt=v=>v.toFixed(2),xlabel=''){
+  line(m.px,m.py+m.ph,m.px+m.pw,m.py+m.ph,'#ffffff55',2);line(m.px,m.py,m.px,m.py+m.ph,'#ffffff55',2);
+  for(const v of ytickVals){const Y=m.Y(v);line(m.px,Y,m.px+m.pw,Y,'#ffffff12',1);txt(yfmt(v),m.px-12,Y,17,P.muted,'right',600)}
+  for(const v of xticks){const X=m.X(v);line(X,m.py+m.ph,X,m.py+m.ph+8,'#ffffff55',2);txt(xfmt(v),X,m.py+m.ph+26,17,P.muted,'center',600)}
+  if(xlabel)txt(xlabel,m.px+m.pw,m.py+m.ph+52,17,P.muted,'right',600)}
+const rampAnim=(dur,fn)=>{const t0=performance.now();const tick=now=>{const t=Math.min(1,(now-t0)/dur);fn(1-Math.pow(1-t,3));if(t<1)requestAnimationFrame(tick)};requestAnimationFrame(tick)};
+const SUPD={'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','-':'⁻'};
+const sup=n=>String(n).split('').map(ch=>SUPD[ch]||ch).join('');
+function fmtInt(v){return v.toLocaleString('en-US')}
+function fmtBig(v){return v>=1e6?(v/1e6).toFixed(2)+'M':fmtInt(v)}
+const C1=P.blue, C2=P.coral; /* class omega_1 (blue) / omega_2 (coral) throughout this topic */
+</script>
+<script>
+/* ===== Page script ===== */
+
+let L=6;
+let X=[1,0,1];
+const P1=[0.8,0.3,0.7], Q1=[0.4,0.6,0.5];
+const LOGMAX=Math.log10(Math.pow(2,20)-1);
+
+addFormula({id:'g',tex:String.raw`g(\boldsymbol{x})=\boldsymbol{w}^{T}\boldsymbol{x}+w_0`,x:1180,y:636,w:500,size:21,align:'center',color:P.amber});
+
+function render(){
+  reset();
+  title('動態探索實驗室：維度 × 條件獨立 × 乘積決策','Interactive Lab: Dimension, Independence, and Product-Score Decisions',9);
+
+  /* ======================= LEFT: dimension & parameter scaling ======================= */
+  rr(60,170,760,672,24,P.panel,'#ffffff14',2);
+  txt('A　特徵維度與參數規模',90,204,20,P.ink,'left',850);
+  txt('Dimension l controls how many parameters each model needs',90,230,14,P.cyan,'left',600);
+
+  [3,6,10,15,20].forEach((v,i)=>btn('l='+v,90+i*132,256,118,38,()=>{L=v;render()},L===v,P.cyan,16));
+  slider(130,340,640,1,20,L,v=>{L=Math.round(v);render()},'特徵維度 l (1–20)',v=>'l = '+v.toFixed(0));
+
+  const fullParams=Math.pow(2,L)-1, naiveParams=2*L, ratio=fullParams/naiveParams;
+  const barX=90,maxW=700;
+  const fullW=Math.max(8,(Math.log10(Math.max(1,fullParams))/LOGMAX)*maxW);
+  const naiveW=Math.max(8,(Math.log10(Math.max(1,naiveParams))/LOGMAX)*maxW);
+
+  txt(`完整聯合模型 2ˡ−1 = ${fmtBig(fullParams)}`,barX,410,18,P.coral,'left',800);
+  rr(barX,422,maxW,30,8,'#ffffff10'); rr(barX,422,fullW,30,8,P.coral+'dd');
+  txt(`單純貝氏 2l = ${naiveParams}`,barX,478,18,P.lime,'left',800);
+  rr(barX,490,maxW,30,8,'#ffffff10'); rr(barX,490,naiveW,30,8,P.lime+'dd');
+
+  rr(barX,548,maxW,110,16,'#ffffff08');
+  txt(`節省倍率 = ${fullParams>=naiveParams?(ratio>=100?ratio.toFixed(0):ratio.toFixed(2)):ratio.toFixed(2)}×`,barX+20,580,22,P.amber,'left',850);
+  wrap(fullParams>=naiveParams
+    ? `l = ${L} 時，完整模型要估 ${fmtInt(fullParams)} 個參數，單純貝氏只要 ${naiveParams} 個。`
+    : `l = ${L} 太小，優勢還沒顯現；l ≥ 3 後差距才會急遽放大。`,
+    barX+20,610,maxW-40,24,16,P.ink,600);
+
+  wrap('拖曳滑桿觀察：維度越高，指數模型越快撐不住，單純貝氏仍穩健線性成長。',90,682,700,25,16,P.muted,600);
+
+  /* ======================= RIGHT: 3-feature product-score decision ======================= */
+  rr(840,170,700,672,24,P.panel2,'#ffffff14',2);
+  txt('B　三維特徵開關與乘積分數決策',870,204,20,P.ink,'left',850);
+  txt('Toggle each bit and watch the product scores race',870,230,14,P.amber,'left',600);
+
+  const swX=[870,1070,1270];
+  X.forEach((v,i)=>btn(`x${i+1} = ${v}`,swX[i],256,170,46,()=>{X[i]=1-X[i];render()},true,v===1?P.lime:P.coral,19));
+
+  let s1=1,s2=1;
+  for(let j=0;j<3;j++){ s1*= X[j]===1?P1[j]:1-P1[j]; s2*= X[j]===1?Q1[j]:1-Q1[j]; }
+  const total=s1+s2, pr1=s1/total, win=s1>=s2?1:2;
+
+  const sbX=870,sbW=620,maxScore=Math.max(s1,s2,0.01);
+  txt(`S₁ = ${s1.toFixed(3)}`,sbX,344,19,C1,'left',800);
+  rr(sbX,356,sbW,30,8,'#ffffff10'); rr(sbX,356,Math.max(6,(s1/maxScore)*sbW),30,8,C1+'dd');
+  txt(`S₂ = ${s2.toFixed(3)}`,sbX,412,19,C2,'left',800);
+  rr(sbX,424,sbW,30,8,'#ffffff10'); rr(sbX,424,Math.max(6,(s2/maxScore)*sbW),30,8,C2+'dd');
+
+  rr(870,480,620,96,16,win===1?'#63b3ed1c':'#ff7b721c',win===1?C1:C2,2);
+  txt(`判決 ω̂ = ω${win}`,900,512,24,win===1?C1:C2,'left',900);
+  txt(`後驗機率 ≈ ${(Math.max(pr1,1-pr1)*100).toFixed(1)}%`,900,548,18,win===1?C1:C2,'left',700);
+
+  /* log-linear cross-check */
+  const W=[0,1,2].map(j=>Math.log((P1[j]*(1-Q1[j]))/(Q1[j]*(1-P1[j]))));
+  const W0=[0,1,2].reduce((a,j)=>a+Math.log((1-P1[j])/(1-Q1[j])),0);
+  const gx = W.reduce((a,w,j)=>a+w*X[j],0)+W0;
+  rr(870,600,620,210,18,P.panel,P.amber+'55',2);
+  showF(['g']);
+  txt(`g(x) = ln(S₁/S₂) = ${Math.log(s1/s2).toFixed(3)}`,900,696,18,P.ink,'left',700);
+  txt(`w·x + w₀ = ${gx.toFixed(3)}`,900,726,18,P.ink,'left',700);
+  txt(Math.abs(gx-Math.log(s1/s2))<1e-6?'✓ 兩種算法完全一致 Consistent':'',900,758,16,P.lime,'left',650);
+  txt(`x = (${X.join(', ')})`,1460,758,18,P.amber,'right',800);
+}
+render();
+
+</script></body></html>
