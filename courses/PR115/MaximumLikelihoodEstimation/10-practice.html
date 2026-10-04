@@ -1,29 +1,61 @@
-<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>10 Practice</title><style>
-:root{--bg:#071521;--panel:#0d2434;--panel2:#102c40;--ink:#f7fbff;--muted:#a8bed0;--cyan:#4fd1c5;--amber:#f6c85f;--coral:#ff7b72;--lime:#8fd694;--violet:#b794f4}
-*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#02080d;font-family:Inter,"Noto Sans TC","Microsoft JhengHei",Arial,sans-serif}.wrap{width:100vw;height:100vh;display:grid;place-items:center;background:radial-gradient(circle at 20% 0%,#10344d 0,#02080d 58%,#000 100%)}.stage{position:relative;width:min(100vw,177.7778vh);height:min(56.25vw,100vh);aspect-ratio:16/9;background:#071521;overflow:hidden}.stage canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none}.hint{position:absolute;right:2.2%;top:2.2%;font-size:clamp(10px,.78vw,15px);color:#9ab4c7;background:#071521dd;border:1px solid #ffffff1c;border-radius:999px;padding:.45em .72em;z-index:3;pointer-events:none}
-</style></head><body><div class="wrap"><div class="stage"><canvas id="c" width="1600" height="900"></canvas><div class="hint">互動：點擊 / 拖曳 · Click / Drag</div></div></div><script>
-const c=document.getElementById('c'),ctx=c.getContext('2d');const W=1600,H=900;
-const P={bg:'#071521',panel:'#0d2434',panel2:'#102c40',ink:'#f7fbff',muted:'#a8bed0',cyan:'#4fd1c5',amber:'#f6c85f',coral:'#ff7b72',lime:'#8fd694',violet:'#b794f4',grid:'#17384d'};
-let zones=[],drag=null;
-function reset(){zones=[];ctx.clearRect(0,0,W,H);ctx.fillStyle=P.bg;ctx.fillRect(0,0,W,H);ctx.save();ctx.strokeStyle='#0b2434';ctx.lineWidth=1;for(let x=0;x<W;x+=80){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()}for(let y=0;y<H;y+=80){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}ctx.restore()}
-function rr(x,y,w,h,r=20,fill=P.panel,stroke=null,lw=2){ctx.beginPath();ctx.roundRect(x,y,w,h,r);if(fill){ctx.fillStyle=fill;ctx.fill()}if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw;ctx.stroke()}}
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MLE 10 Practice</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<style>
+:root{--bg:#071521;--panel:#102638;--panel2:#133149;--ink:#f7fbff;--muted:#aac1d2;--cyan:#4fd1c5;--amber:#f6c85f;--coral:#ff7b72;--lime:#8fd694;--violet:#b794f4;--blue:#63b3ed;--grid:#17384d;}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;background:#02080d;color:var(--ink);font-family:Inter,"Noto Sans TC","Microsoft JhengHei",sans-serif}
+.wrap{width:100vw;height:100vh;display:grid;place-items:center;background:radial-gradient(circle at 18% 0%,#10344d 0,#02080d 58%,#000 100%)}
+.stage{position:relative;width:min(100vw,177.7778vh);height:min(56.25vw,100vh);aspect-ratio:16/9;background:var(--bg);overflow:hidden}
+canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+#math-layer{position:absolute;left:0;top:0;width:1600px;height:900px;transform-origin:top left;pointer-events:none;z-index:3}
+.formula{position:absolute;line-height:1;display:flex;align-items:flex-start;justify-content:flex-start;color:var(--ink)}
+.formula.center{justify-content:center;text-align:center}.formula.right{justify-content:flex-end;text-align:right}
+.formula .katex-display{margin:0;width:100%}.formula .katex{line-height:1.02}
+.hint{position:absolute;right:2.1%;top:1.9%;font-size:.78vw;color:#9ab4c7;background:#071521cc;border:1px solid #ffffff18;border-radius:999px;padding:.45em .75em;z-index:5}
+.note{position:absolute;left:2.1%;bottom:2.2%;font-size:.72vw;color:#89a3b8;background:#071521b8;border:1px solid #ffffff12;border-radius:12px;padding:.42em .65em;z-index:5;max-width:34%}
+@media(max-width:900px){.hint,.note{font-size:1.28vw}}
+</style>
+</head>
+<body>
+<div class="wrap"><div class="stage" id="stage"><canvas id="c" width="1600" height="900"></canvas><div id="math-layer"></div><div class="hint">互動：點擊 / 拖曳 • Click / Drag</div><div class="note">Canvas + KaTeX hybrid infographic • audited logical-coordinate edition</div></div></div>
+<script>
+const stage=document.getElementById('stage');
+const c=document.getElementById('c'),ctx=c.getContext('2d');
+const mathLayer=document.getElementById('math-layer');
+const W=1600,H=900;
+const P={bg:'#071521',panel:'#102638',panel2:'#133149',ink:'#f7fbff',muted:'#aac1d2',cyan:'#4fd1c5',amber:'#f6c85f',coral:'#ff7b72',lime:'#8fd694',violet:'#b794f4',blue:'#63b3ed',grid:'#17384d'};
+let zones=[],drag=null,formulaNodes=[];
+function syncMathLayer(){const r=stage.getBoundingClientRect();mathLayer.style.transform=`scale(${r.width/1600},${r.height/900})`;}
+new ResizeObserver(syncMathLayer).observe(stage); window.addEventListener('resize',syncMathLayer);
+function reset(){zones=[];formulaNodes.forEach(n=>n.remove());formulaNodes=[];ctx.clearRect(0,0,W,H);ctx.fillStyle=P.bg;ctx.fillRect(0,0,W,H);for(let x=0;x<W;x+=80)line(x,0,x,H,'#0b2434',1);for(let y=0;y<H;y+=80)line(0,y,W,y,'#0b2434',1)}
 function line(x1,y1,x2,y2,color='#fff',lw=3,dash=[]){ctx.save();ctx.strokeStyle=color;ctx.lineWidth=lw;ctx.setLineDash(dash);ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();ctx.restore()}
+function rr(x,y,w,h,r=20,fill=P.panel,stroke=null,lw=2){ctx.beginPath();ctx.roundRect(x,y,w,h,r);if(fill){ctx.fillStyle=fill;ctx.fill()}if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw;ctx.stroke()}}
+function txt(t,x,y,size=30,color=P.ink,align='left',weight=700){ctx.fillStyle=color;ctx.font=`${weight} ${size}px Inter,Noto Sans TC,Microsoft JhengHei,sans-serif`;ctx.textAlign=align;ctx.textBaseline='middle';ctx.fillText(t,x,y)}
+function wrap(t,x,y,maxw,lh=34,size=24,color=P.muted,weight=550,align='left'){ctx.fillStyle=color;ctx.font=`${weight} ${size}px Inter,Noto Sans TC,Microsoft JhengHei,sans-serif`;ctx.textAlign=align;ctx.textBaseline='top';t=String(t).replace(/\\n/g,'\n');let ln='',yy=y;for(const ch of t){if(ch==='\n'){if(ln)ctx.fillText(ln,x,yy);ln='';yy+=lh;continue}const q=ln+ch;if(ctx.measureText(q).width>maxw&&ln){ctx.fillText(ln,x,yy);ln=ch;yy+=lh}else ln=q}if(ln)ctx.fillText(ln,x,yy);return yy+lh}
+function title(zh,en,no){txt(`${String(no).padStart(2,'0')}  ${zh}`,70,68,40,P.ink,'left',900);txt(en,72,111,22,P.cyan,'left',650);line(70,146,1530,146,P.grid,2)}
+function chip(t,x,y,w,color){rr(x,y,w,40,20,color+'20',color,2);txt(t,x+w/2,y+20,18,color,'center',800)}
+function btn(label,x,y,w,h,onClick,active=false,color=P.cyan){rr(x,y,w,h,15,active?color+'28':'#ffffff0c',active?color:'#ffffff22',2);txt(label,x+w/2,y+h/2,19,active?color:P.ink,'center',800);zones.push({type:'button',x,y,w,h,onClick})}
+function slider(x,y,w,min,max,value,onChange,label,fmt=v=>v.toFixed(2),accent=P.amber){line(x,y,x+w,y,'#ffffff35',8);const t=(value-min)/(max-min),kx=x+t*w;ctx.fillStyle=accent;ctx.beginPath();ctx.arc(kx,y,15,0,Math.PI*2);ctx.fill();txt(label,x,y-31,20,P.muted,'left',650);txt(fmt(value),x+w,y-31,22,accent,'right',850);zones.push({type:'slider',x:x-20,y:y-28,w:w+40,h:56,min,max,onChange})}
 function arrow(x1,y1,x2,y2,color=P.cyan,lw=5){line(x1,y1,x2,y2,color,lw);const a=Math.atan2(y2-y1,x2-x1),s=14;ctx.fillStyle=color;ctx.beginPath();ctx.moveTo(x2,y2);ctx.lineTo(x2-s*Math.cos(a-.5),y2-s*Math.sin(a-.5));ctx.lineTo(x2-s*Math.cos(a+.5),y2-s*Math.sin(a+.5));ctx.closePath();ctx.fill()}
-function font(size,weight=700){ctx.font=`${weight} ${size}px Inter,Noto Sans TC,Microsoft JhengHei,Arial,sans-serif`}
-function txt(t,x,y,size=30,color=P.ink,align='left',weight=700){ctx.fillStyle=color;font(size,weight);ctx.textAlign=align;ctx.textBaseline='middle';ctx.fillText(String(t),x,y)}
-function fitText(t,x,y,maxw,size=30,min=15,color=P.ink,align='left',weight=700){let s=size;font(s,weight);while(s>min&&ctx.measureText(t).width>maxw){s--;font(s,weight)}txt(t,x,y,s,color,align,weight);return s}
-function wrap(t,x,y,maxw,lh=34,size=24,color=P.muted,weight=550,maxLines=99){t=String(t).replace(/\\n/g,'\n');ctx.fillStyle=color;font(size,weight);ctx.textAlign='left';ctx.textBaseline='top';let yy=y,ln='',lines=0;function flush(){if(lines<maxLines){ctx.fillText(ln,x,yy);yy+=lh;lines++}ln=''}for(const ch of t){if(ch==='\n'){flush();continue}const q=ln+ch;if(ctx.measureText(q).width>maxw&&ln){flush();ln=ch}else ln=q}if(ln&&lines<maxLines)flush();return {bottom:yy,lines}}
-function title(zh,en,no){fitText(`${String(no).padStart(2,'0')}  ${zh}`,70,68,1160,42,30,P.ink,'left',900);fitText(en,72,113,1100,23,18,P.cyan,'left',650);line(70,148,1530,148,P.grid,2)}
-function chip(t,x,y,w,color){rr(x,y,w,40,20,color+'20',color,2);fitText(t,x+w/2,y+20,w-24,18,13,color,'center',800)}
-function btn(label,x,y,w,h,onClick,active=false,color=P.cyan){rr(x,y,w,h,15,active?color+'28':'#ffffff0c',active?color:'#ffffff24',2);fitText(label,x+w/2,y+h/2,w-26,19,13,active?color:P.ink,'center',800);zones.push({type:'button',x,y,w,h,onClick})}
-function slider(x,y,w,min,max,value,onChange,label,fmt=v=>String(v)){line(x,y,x+w,y,'#ffffff35',8);const t=(value-min)/(max-min),kx=x+t*w;ctx.fillStyle=P.amber;ctx.beginPath();ctx.arc(kx,y,15,0,Math.PI*2);ctx.fill();fitText(label,x,y-31,w*.72,20,14,P.muted,'left',650);fitText(fmt(value),x+w,y-31,w*.25,22,14,P.amber,'right',850);zones.push({type:'slider',x:x-20,y:y-28,w:w+40,h:56,min,max,onChange})}
-function gaussian(cx,base,amp,sig,color,lw=5){ctx.beginPath();for(let x=cx-220;x<=cx+220;x+=3){const y=base-amp*Math.exp(-.5*((x-cx)/sig)**2);x===cx-220?ctx.moveTo(x,y):ctx.lineTo(x,y)}ctx.strokeStyle=color;ctx.lineWidth=lw;ctx.stroke()}
-function dot(x,y,r,color){ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill()}
+function gauss(cx,base,amp,sig,color,lw=5,dash=[]){ctx.save();ctx.setLineDash(dash);ctx.beginPath();for(let x=cx-260;x<=cx+260;x+=3){const y=base-amp*Math.exp(-.5*((x-cx)/sig)**2);x===cx-260?ctx.moveTo(x,y):ctx.lineTo(x,y)}ctx.strokeStyle=color;ctx.lineWidth=lw;ctx.stroke();ctx.restore()}
+function bar(x,y,w,h,pct,color){rr(x,y,w,h,18,'#ffffff0b');rr(x,y,w*pct,h,18,color);rr(x,y,w,h,18,null,'#ffffff22',2)}
+function addFormula({tex,x,y,width=220,align='left',size=30,color=P.ink,display=true,offsetX=0,offsetY=0}){const el=document.createElement('div');el.className='formula'+(align==='center'?' center':align==='right'?' right':'');el.style.left=x+'px';el.style.top=y+'px';el.style.width=width+'px';el.style.fontSize=size+'px';el.style.color=color;el.style.transform=`translate(${offsetX}px,${offsetY}px)`;mathLayer.appendChild(el);formulaNodes.push(el);if(window.katex){katex.render(tex,el,{displayMode:display,throwOnError:false})}else{el.textContent=tex}return el}
 function pos(e){const r=c.getBoundingClientRect();return{x:(e.clientX-r.left)*W/r.width,y:(e.clientY-r.top)*H/r.height}}
-c.addEventListener('pointerdown',e=>{const p=pos(e);for(let i=zones.length-1;i>=0;i--){const z=zones[i];if(p.x>=z.x&&p.x<=z.x+z.w&&p.y>=z.y&&p.y<=z.y+z.h){if(z.type==='button'){z.onClick();return}if(z.type==='slider'){drag=z;const t=Math.max(0,Math.min(1,(p.x-(z.x+20))/(z.w-40)));z.onChange(z.min+t*(z.max-z.min));return}}}});
-c.addEventListener('pointermove',e=>{if(!drag)return;const p=pos(e),t=Math.max(0,Math.min(1,(p.x-(drag.x+20))/(drag.w-40)));drag.onChange(drag.min+t*(drag.max-drag.min))});addEventListener('pointerup',()=>drag=null);
+function start(renderFn){function kickoff(){syncMathLayer();renderFn()} if(document.readyState==='complete') setTimeout(kickoff,80); else window.addEventListener('load',()=>setTimeout(kickoff,80));}
+c.addEventListener('pointerdown',e=>{const p=pos(e);for(const z of zones){if(p.x>=z.x&&p.x<=z.x+z.w&&p.y>=z.y&&p.y<=z.y+z.h){if(z.type==='button'){z.onClick();return} if(z.type==='slider'){drag=z;const t=Math.max(0,Math.min(1,(p.x-(z.x+20))/(z.w-40)));z.onChange(z.min+t*(z.max-z.min));return}}}});
+c.addEventListener('pointermove',e=>{if(!drag)return;const p=pos(e),t=Math.max(0,Math.min(1,(p.x-(drag.x+20))/(drag.w-40)));drag.onChange(drag.min+t*(drag.max-drag.min))});
+window.addEventListener('pointerup',()=>drag=null);
+</script>
+<script>
 
+function render(){reset();title('練習題：把偏誤換算成數字','Practice checkpoint',10);rr(160,240,1280,520,28,P.panel);wrap('已知 N=4，某組樣本算得 MLE 變異數估計值為 σ̂²_ML = 0.75。',220,320,1120,42,28,P.ink,700);wrap('1. 無偏變異數估計 s²（分母用 N−1）是多少？',250,430,1000,38,24,P.muted,600);wrap('2. 若樣本數增加到 N=100，MLE 相對偏誤比率還剩多少？',250,490,1000,38,24,P.muted,600);addFormula({tex:String.raw`s^2=\frac{N}{N-1}\hat{\sigma}_{ML}^{2}=\frac{4}{3}\times 0.75=1.0`,x:270,y:590,width:500,size:28,color:P.cyan});addFormula({tex:String.raw`\frac{N-1}{N}=\frac{99}{100}=99\%`,x:900,y:590,width:300,align:'center',size:30,color:P.amber});}start(render);
 
-let show=false;function render(){reset();title('課後思考練習','Practice: correct the biased variance estimate',10);rr(180,215,1240,350,30,P.panel);txt('Given / 已知',260,270,27,P.cyan,'left',850);fitText('N = 4,   σ̂²_ML = 0.75',800,350,850,50,32,P.ink,'center',900);wrap('Q1. 分母若改成 N−1，無偏樣本變異數 s² 是多少？\nQ2. 若 N=100，ML variance 的相對低估比例是多少？',310,445,980,42,27,P.muted,650,5);btn(show?'隱藏答案 Hide':'顯示答案 Reveal',570,610,460,65,()=>{show=!show;render()},show,P.lime);if(show){rr(300,720,1000,110,24,'#102f26',P.lime,2);fitText('s² = 0.75 × 4/3 = 1.00',520,770,410,29,20,P.lime,'center',900);fitText('relative bias = 1/100 = 1%',1080,770,410,29,20,P.lime,'center',900);line(800,735,800,805,'#ffffff22',2)}}
-
-render();</script></body></html>
+</script>
+</body>
+</html>
