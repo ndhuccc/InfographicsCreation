@@ -1,0 +1,140 @@
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>KP13 09 Pitfalls</title>
+
+<style>
+:root{--bg:#071521;--panel:#0f2637;--ink:#f7fbff;--muted:#a9bfd0}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;background:#02080d;color:var(--ink);font-family:Inter,"Noto Sans TC","Microsoft JhengHei",sans-serif}
+.wrap{width:100vw;height:100vh;display:grid;place-items:center;background:radial-gradient(circle at 18% 0%,#10344d 0,#02080d 58%,#000 100%)}
+.stage{position:relative;width:min(100vw,177.7778vh);height:min(56.25vw,100vh);aspect-ratio:16/9;background:var(--bg);overflow:hidden}
+canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+#math-layer{position:absolute;left:0;top:0;width:1600px;height:900px;transform-origin:0 0;pointer-events:none}
+.formula{position:absolute;transform:translateY(-50%);line-height:1.2}
+.formula .katex-display{margin:0;text-align:inherit}
+.formula .katex-display>.katex{display:inline-block;text-align:inherit;white-space:nowrap}
+.hint{position:absolute;right:2.1%;top:1.9%;font-size:.8vw;color:#9ab4c7;background:#071521cc;border:1px solid #ffffff18;border-radius:999px;padding:.5em .75em;z-index:5}
+@media(max-width:900px){.hint{font-size:1.4vw}}
+</style></head><body><div class="wrap"><div class="stage" id="stage"><canvas id="c" width="1600" height="900"></canvas><div id="math-layer"></div><div class="hint">互動：點擊 / 拖曳 • Click / Drag</div></div></div>
+
+<script>
+/* ===== Shared helpers (Canvas 1600x900 logical space + KaTeX math layer) ===== */
+const CW=1600,CH=900;
+const c=document.getElementById('c'),ctx=c.getContext('2d');
+const stage=document.getElementById('stage'),mathLayer=document.getElementById('math-layer');
+const P={bg:'#071521',panel:'#0f2637',panel2:'#102c40',ink:'#f7fbff',muted:'#a9bfd0',cyan:'#4fd1c5',amber:'#f6c85f',coral:'#ff7b72',lime:'#8fd694',violet:'#b794f4',blue:'#63b3ed',grid:'#17384d'};
+const FONT='Inter,"Noto Sans TC","Microsoft JhengHei","PingFang TC","Noto Sans CJK TC","WenQuanYi Zen Hei",sans-serif';
+let zones=[],drag=null;
+window.__boxes=[];            // text boxes recorded for the layout audit
+const REC=()=>window.__audit===true;
+
+/* ---------- basic drawing ---------- */
+function reset(){zones=[];window.__boxes=[];ctx.clearRect(0,0,CW,CH);ctx.fillStyle=P.bg;ctx.fillRect(0,0,CW,CH);
+  for(let x=0;x<CW;x+=80)line(x,0,x,CH,'#0b2434',1);for(let y=0;y<CH;y+=80)line(0,y,CW,y,'#0b2434',1)}
+function line(x1,y1,x2,y2,color='#fff',lw=3,dash=[]){ctx.save();ctx.strokeStyle=color;ctx.lineWidth=lw;ctx.setLineDash(dash);ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();ctx.restore()}
+function rr(x,y,w,h,r=20,fill=P.panel,stroke=null,lw=2){ctx.beginPath();ctx.roundRect(x,y,w,h,r);if(fill){ctx.fillStyle=fill;ctx.fill()}if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw;ctx.stroke()}}
+function dot(x,y,r,color){ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill()}
+function setFont(size,weight){ctx.font=`${weight} ${size}px ${FONT}`}
+function rec(x0,y0,x1,y1,label){if(REC())window.__boxes.push({x0,y0,x1,y1,label})}
+/* single-line text; x is the anchor according to align (left edge / centre / right edge) */
+function txt(t,x,y,size=30,color=P.ink,align='left',weight=700){
+  t=String(t);ctx.fillStyle=color;setFont(size,weight);ctx.textAlign=align;ctx.textBaseline='middle';ctx.fillText(t,x,y);
+  if(REC()){const w=ctx.measureText(t).width,l=align==='left'?x:align==='center'?x-w/2:x-w;rec(l,y-size*.55,l+w,y+size*.55,t.slice(0,24))}}
+/* wrapped paragraph; returns the y below the last line. Normalises literal "\n". Breaks CJK per char, Latin per word. */
+function wrap(t,x,y,maxw,lh=34,size=24,color=P.muted,weight=550,align='left'){
+  t=String(t).replace(/\\n/g,'\n');setFont(size,weight);ctx.fillStyle=color;ctx.textBaseline='top';ctx.textAlign=align;
+  const out=[];
+  for(const para of t.split('\n')){
+    const raw=para.match(/[一-鿿]|[^\s一-鿿　-〿＀-￯]+\s*|\s+|[　-〿＀-￯]/g)||[''];
+    const toks=[];for(let i=0;i<raw.length;i++){if(/^[「『（《【“‘]$/.test(raw[i])&&i+1<raw.length){toks.push(raw[i]+raw[i+1]);i++}else toks.push(raw[i])}
+    let ln='';
+    for(const tk of toks){
+      const q=ln+tk;
+      const isPunct=/^[　-〿＀-￯]$/.test(tk);
+      if(ctx.measureText(q.trimEnd()).width>maxw&&ln&&!isPunct){out.push(ln.trimEnd());ln=tk.trimStart()}else ln=q}
+    out.push(ln.trimEnd());
+  }
+  let yy=y;
+  for(const l of out){ctx.fillText(l,x,yy);
+    if(REC()){const w=ctx.measureText(l).width,lx=align==='left'?x:align==='center'?x-w/2:x-w;rec(lx,yy,lx+w,yy+size*1.15,l.slice(0,24))}
+    yy+=lh}
+  return yy}
+function footer(n){txt('PR115 · Ch02 · KP-13  混合模型與 EM 演算法 Mixture Models & EM',70,878,15,'#6f8da3','left',600);txt(`${n} / 11`,1530,878,15,'#6f8da3','right',700)}
+function title(zh,en,no){txt(`${String(no).padStart(2,'0')}  ${zh}`,70,68,40,P.ink,'left',900);txt(en,72,111,22,P.cyan,'left',650);line(70,146,1530,146,P.grid,2);footer(no)}
+function chip(t,x,y,w,color){rr(x,y,w,40,20,color+'20',color,2);txt(t,x+w/2,y+20,18,color,'center',800)}
+function btn(label,x,y,w,h,onClick,active=false,color=P.cyan,size=19){rr(x,y,w,h,15,active?color+'28':'#ffffff0c',active?color:'#ffffff22',2);txt(label,x+w/2,y+h/2,size,active?color:P.ink,'center',800);zones.push({type:'button',x,y,w,h,onClick})}
+function area(x,y,w,h,onClick){zones.push({type:'button',x,y,w,h,onClick})}
+function slider(x,y,w,min,max,value,onChange,label,fmt=v=>v.toFixed(2)){
+  line(x,y,x+w,y,'#ffffff35',8);const t=(value-min)/(max-min),kx=x+t*w;line(x,y,kx,y,P.amber+'88',8);dot(kx,y,15,P.amber);
+  txt(label,x,y-31,20,P.muted,'left',650);txt(fmt(value),x+w,y-31,22,P.amber,'right',850);
+  zones.push({type:'slider',x:x-20,y:y-28,w:w+40,h:56,min,max,onChange})}
+function arrow(x1,y1,x2,y2,color=P.cyan,lw=5){line(x1,y1,x2,y2,color,lw);const a=Math.atan2(y2-y1,x2-x1),s=14;ctx.fillStyle=color;ctx.beginPath();ctx.moveTo(x2,y2);ctx.lineTo(x2-s*Math.cos(a-.5),y2-s*Math.sin(a-.5));ctx.lineTo(x2-s*Math.cos(a+.5),y2-s*Math.sin(a+.5));ctx.closePath();ctx.fill()}
+function card(x,y,w,h,color,active=true){rr(x,y,w,h,22,active?P.panel2:P.panel,active?color:'#ffffff14',3)}
+
+/* ---------- pointer interaction (logical coordinates) ---------- */
+function pos(e){const r=c.getBoundingClientRect();return{x:(e.clientX-r.left)*CW/r.width,y:(e.clientY-r.top)*CH/r.height}}
+function sliderVal(z,p){const t=Math.max(0,Math.min(1,(p.x-(z.x+20))/(z.w-40)));return z.min+t*(z.max-z.min)}
+c.addEventListener('pointerdown',e=>{const p=pos(e);
+  for(let i=zones.length-1;i>=0;i--){const z=zones[i];
+    if(p.x>=z.x&&p.x<=z.x+z.w&&p.y>=z.y&&p.y<=z.y+z.h){
+      if(z.type==='button'){z.onClick(p);return}
+      if(z.type==='slider'||z.type==='drag'){drag=z;z.onChange(sliderVal(z,p),p);return}}}});
+c.addEventListener('pointermove',e=>{if(!drag)return;const p=pos(e);drag.onChange(sliderVal(drag,p),p)});
+addEventListener('pointerup',()=>drag=null);
+addEventListener('pointercancel',()=>drag=null);
+
+/* ---------- KaTeX math layer (shares the 1600x900 logical coordinate system) ---------- */
+const FM={};
+function placeFormula(f){const s=f.el.style;s.width=f.w+'px';s.fontSize=f.size+'px';s.color=f.color;s.textAlign=f.align;
+  let left=f.x+f.ox;if(f.align==='center')left-=f.w/2;else if(f.align==='right')left-=f.w;
+  s.left=left+'px';s.top=(f.y+f.oy)+'px'}
+function setTex(id,tex){const f=FM[id];if(f.cur===tex)return;f.cur=tex;
+  if(window.katex)katex.render(tex,f.el,{displayMode:true,throwOnError:false,strict:'ignore'});else f.el.textContent=tex}
+/* x,y: anchor (y = vertical centre of the formula box); align: left|center|right; size: logical px */
+function addFormula(o){const el=document.createElement('div');el.className='formula';el.dataset.fid=o.id;mathLayer.appendChild(el);
+  const f=Object.assign({el,align:'center',size:32,ox:0,oy:0,w:600,color:'#f7fbff'},o);FM[o.id]=f;placeFormula(f);setTex(o.id,o.tex);return f}
+function moveFormula(id,o){Object.assign(FM[id],o);placeFormula(FM[id])}
+function showF(ids){for(const k in FM)FM[k].el.style.display=ids.includes(k)?'block':'none'}
+function syncMath(){const r=stage.getBoundingClientRect();mathLayer.style.transform=`scale(${r.width/CW},${r.height/CH})`}
+new ResizeObserver(syncMath).observe(stage);addEventListener('resize',syncMath);syncMath();
+
+/* ---------- plotting ---------- */
+function mapper(px,py,pw,ph,x0,x1,y0,y1){return{X:x=>px+(x-x0)/(x1-x0)*pw,Y:y=>py+ph-(y-y0)/(y1-y0)*ph,px,py,pw,ph,x0,x1,y0,y1}}
+function curvePath(f,m,xa,xb,n=240){ctx.beginPath();for(let i=0;i<=n;i++){const x=xa+(xb-xa)*i/n,X=m.X(x),Y=m.Y(f(x));i?ctx.lineTo(X,Y):ctx.moveTo(X,Y)}}
+function plotCurve(f,m,xa,xb,color,lw=5,fillAlpha=null,dash=[]){
+  if(fillAlpha){curvePath(f,m,xa,xb);ctx.lineTo(m.X(xb),m.Y(0));ctx.lineTo(m.X(xa),m.Y(0));ctx.closePath();ctx.fillStyle=color+fillAlpha;ctx.fill()}
+  ctx.save();ctx.setLineDash(dash);curvePath(f,m,xa,xb);ctx.strokeStyle=color;ctx.lineWidth=lw;ctx.lineJoin='round';ctx.stroke();ctx.restore()}
+function axes(m,xticks,ytickVals,xfmt=v=>v,yfmt=v=>v.toFixed(2),xlabel=''){
+  line(m.px,m.py+m.ph,m.px+m.pw,m.py+m.ph,'#ffffff55',2);line(m.px,m.py,m.px,m.py+m.ph,'#ffffff55',2);
+  for(const v of ytickVals){const Y=m.Y(v);line(m.px,Y,m.px+m.pw,Y,'#ffffff12',1);txt(yfmt(v),m.px-12,Y,17,P.muted,'right',600)}
+  for(const v of xticks){const X=m.X(v);line(X,m.py+m.ph,X,m.py+m.ph+8,'#ffffff55',2);txt(xfmt(v),X,m.py+m.ph+26,17,P.muted,'center',600)}
+  if(xlabel)txt(xlabel,m.px+m.pw,m.py+m.ph+52,17,P.muted,'right',600)}
+const fmt3=v=>v.toFixed(3);
+const rampAnim=(dur,fn)=>{const t0=performance.now();const tick=now=>{const t=Math.min(1,(now-t0)/dur);fn(1-Math.pow(1-t,3));if(t<1)requestAnimationFrame(tick)};requestAnimationFrame(tick)};
+
+/* ===== Page script ===== */
+/* 09 — Four pitfalls, each backed by a number measured on this page set's own runs */
+const PIT=[
+ {q:'EM 需要全新的統計魔法？',qe:'Does EM need some brand-new statistical magic?',t:'沒有魔法，只是「責任度加權」的老朋友！',d:'M 步的均值、變異數、比例，就是 KP09 的樣本統計量，只是每個人的那一票，按「有幾成屬於我」加權。',e:'False. The M-step is the familiar weighted sample mean, variance and proportion.',col:P.cyan},
+ {q:'責任度可以直接四捨五入成硬分類？',qe:'Why not simply round responsibilities to hard labels?',t:'硬分類丟掉了不確定性。',d:'本例的群分得很開，硬分類也收斂到幾乎相同的結果（log L −86.593 對 −86.590）。但它最大化的是另一個目標，不再保證 log L 單調上升。',e:'On well-separated data both agree, yet hard assignment discards uncertainty and drops the monotonic guarantee.',col:P.lime},
+ {q:'log L 一路上升 ＝ 找到全域最佳？',qe:'A monotone log L means the global optimum was found?',t:'不保證，起點決定終點！',d:'同一份一維資料，起點 A 收斂到 log L = −155.542，起點 B 收斂到 −153.864。單調上升只保證停在某個山頂。',e:'False. Same data, two initialisations, two different stationary points.',col:P.amber},
+ {q:'兩個元件的起點可以完全一樣？',qe:'Can both components start at exactly the same place?',t:'對稱死結：永遠分不開。',d:'實測二維資料：兩個中心完全相同時，責任度永遠各 50%，更新後兩元件仍然重合，log L 卡在 −148.41（分開時可達 −86.59）。',e:'False. Identical components receive identical responsibilities and never separate.',col:P.coral}];
+const flip=[false,false,false,false];
+function render(){
+  reset();title('觀念自查：四個常見誤解排雷','Diagnostic debunking: four frequent pitfalls of EM',9);
+  const all=flip.every(Boolean);
+  btn(all?'全部蓋回 Hide all':'全部翻開 Reveal all',1250,86,280,46,()=>{flip.fill(!all);render()},all,P.amber,17);
+  PIT.forEach((p,i)=>{const x=60+(i%2)*750,y=170+Math.floor(i/2)*350,w=730,h=330,on=flip[i];
+    rr(x,y,w,h,24,on?P.panel2:P.panel,on?p.col:'#ffffff1c',on?3:2);area(x,y,w,h,()=>{flip[i]=!flip[i];render()});
+    chip((on?'真相 Truth ':'誤解 Pitfall ')+(i+1),x+26,y+24,on?190:210,p.col);
+    if(!on){
+      wrap(p.q,x+36,y+100,660,48,38,P.ink,900);
+      txt(p.qe,x+36,y+230,19,P.muted,'left',650);
+      txt('點擊翻面，查看真相　·　Click to reveal the truth',x+36,y+288,18,p.col,'left',750);
+    }else{
+      wrap(p.t,x+36,y+84,660,36,28,p.col,900);
+      wrap(p.d,x+36,y+132,660,36,23,P.ink,600);
+      wrap(p.e,x+36,y+262,660,24,16,'#7f9bb0',600);
+    }});
+  showF([]);
+}
+render();
+
+</script></body></html>

@@ -1,0 +1,178 @@
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>KP13 02 Three Actors</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<style>
+:root{--bg:#071521;--panel:#0f2637;--ink:#f7fbff;--muted:#a9bfd0}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;background:#02080d;color:var(--ink);font-family:Inter,"Noto Sans TC","Microsoft JhengHei",sans-serif}
+.wrap{width:100vw;height:100vh;display:grid;place-items:center;background:radial-gradient(circle at 18% 0%,#10344d 0,#02080d 58%,#000 100%)}
+.stage{position:relative;width:min(100vw,177.7778vh);height:min(56.25vw,100vh);aspect-ratio:16/9;background:var(--bg);overflow:hidden}
+canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+#math-layer{position:absolute;left:0;top:0;width:1600px;height:900px;transform-origin:0 0;pointer-events:none}
+.formula{position:absolute;transform:translateY(-50%);line-height:1.2}
+.formula .katex-display{margin:0;text-align:inherit}
+.formula .katex-display>.katex{display:inline-block;text-align:inherit;white-space:nowrap}
+.hint{position:absolute;right:2.1%;top:1.9%;font-size:.8vw;color:#9ab4c7;background:#071521cc;border:1px solid #ffffff18;border-radius:999px;padding:.5em .75em;z-index:5}
+@media(max-width:900px){.hint{font-size:1.4vw}}
+</style></head><body><div class="wrap"><div class="stage" id="stage"><canvas id="c" width="1600" height="900"></canvas><div id="math-layer"></div><div class="hint">互動：點擊 / 拖曳 • Click / Drag</div></div></div>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script>
+/* ===== Shared helpers (Canvas 1600x900 logical space + KaTeX math layer) ===== */
+const CW=1600,CH=900;
+const c=document.getElementById('c'),ctx=c.getContext('2d');
+const stage=document.getElementById('stage'),mathLayer=document.getElementById('math-layer');
+const P={bg:'#071521',panel:'#0f2637',panel2:'#102c40',ink:'#f7fbff',muted:'#a9bfd0',cyan:'#4fd1c5',amber:'#f6c85f',coral:'#ff7b72',lime:'#8fd694',violet:'#b794f4',blue:'#63b3ed',grid:'#17384d'};
+const FONT='Inter,"Noto Sans TC","Microsoft JhengHei","PingFang TC","Noto Sans CJK TC","WenQuanYi Zen Hei",sans-serif';
+let zones=[],drag=null;
+window.__boxes=[];            // text boxes recorded for the layout audit
+const REC=()=>window.__audit===true;
+
+/* ---------- basic drawing ---------- */
+function reset(){zones=[];window.__boxes=[];ctx.clearRect(0,0,CW,CH);ctx.fillStyle=P.bg;ctx.fillRect(0,0,CW,CH);
+  for(let x=0;x<CW;x+=80)line(x,0,x,CH,'#0b2434',1);for(let y=0;y<CH;y+=80)line(0,y,CW,y,'#0b2434',1)}
+function line(x1,y1,x2,y2,color='#fff',lw=3,dash=[]){ctx.save();ctx.strokeStyle=color;ctx.lineWidth=lw;ctx.setLineDash(dash);ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();ctx.restore()}
+function rr(x,y,w,h,r=20,fill=P.panel,stroke=null,lw=2){ctx.beginPath();ctx.roundRect(x,y,w,h,r);if(fill){ctx.fillStyle=fill;ctx.fill()}if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw;ctx.stroke()}}
+function dot(x,y,r,color){ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill()}
+function setFont(size,weight){ctx.font=`${weight} ${size}px ${FONT}`}
+function rec(x0,y0,x1,y1,label){if(REC())window.__boxes.push({x0,y0,x1,y1,label})}
+/* single-line text; x is the anchor according to align (left edge / centre / right edge) */
+function txt(t,x,y,size=30,color=P.ink,align='left',weight=700){
+  t=String(t);ctx.fillStyle=color;setFont(size,weight);ctx.textAlign=align;ctx.textBaseline='middle';ctx.fillText(t,x,y);
+  if(REC()){const w=ctx.measureText(t).width,l=align==='left'?x:align==='center'?x-w/2:x-w;rec(l,y-size*.55,l+w,y+size*.55,t.slice(0,24))}}
+/* wrapped paragraph; returns the y below the last line. Normalises literal "\n". Breaks CJK per char, Latin per word. */
+function wrap(t,x,y,maxw,lh=34,size=24,color=P.muted,weight=550,align='left'){
+  t=String(t).replace(/\\n/g,'\n');setFont(size,weight);ctx.fillStyle=color;ctx.textBaseline='top';ctx.textAlign=align;
+  const out=[];
+  for(const para of t.split('\n')){
+    const raw=para.match(/[一-鿿]|[^\s一-鿿　-〿＀-￯]+\s*|\s+|[　-〿＀-￯]/g)||[''];
+    const toks=[];for(let i=0;i<raw.length;i++){if(/^[「『（《【“‘]$/.test(raw[i])&&i+1<raw.length){toks.push(raw[i]+raw[i+1]);i++}else toks.push(raw[i])}
+    let ln='';
+    for(const tk of toks){
+      const q=ln+tk;
+      const isPunct=/^[　-〿＀-￯]$/.test(tk);
+      if(ctx.measureText(q.trimEnd()).width>maxw&&ln&&!isPunct){out.push(ln.trimEnd());ln=tk.trimStart()}else ln=q}
+    out.push(ln.trimEnd());
+  }
+  let yy=y;
+  for(const l of out){ctx.fillText(l,x,yy);
+    if(REC()){const w=ctx.measureText(l).width,lx=align==='left'?x:align==='center'?x-w/2:x-w;rec(lx,yy,lx+w,yy+size*1.15,l.slice(0,24))}
+    yy+=lh}
+  return yy}
+function footer(n){txt('PR115 · Ch02 · KP-13  混合模型與 EM 演算法 Mixture Models & EM',70,878,15,'#6f8da3','left',600);txt(`${n} / 11`,1530,878,15,'#6f8da3','right',700)}
+function title(zh,en,no){txt(`${String(no).padStart(2,'0')}  ${zh}`,70,68,40,P.ink,'left',900);txt(en,72,111,22,P.cyan,'left',650);line(70,146,1530,146,P.grid,2);footer(no)}
+function chip(t,x,y,w,color){rr(x,y,w,40,20,color+'20',color,2);txt(t,x+w/2,y+20,18,color,'center',800)}
+function btn(label,x,y,w,h,onClick,active=false,color=P.cyan,size=19){rr(x,y,w,h,15,active?color+'28':'#ffffff0c',active?color:'#ffffff22',2);txt(label,x+w/2,y+h/2,size,active?color:P.ink,'center',800);zones.push({type:'button',x,y,w,h,onClick})}
+function area(x,y,w,h,onClick){zones.push({type:'button',x,y,w,h,onClick})}
+function slider(x,y,w,min,max,value,onChange,label,fmt=v=>v.toFixed(2)){
+  line(x,y,x+w,y,'#ffffff35',8);const t=(value-min)/(max-min),kx=x+t*w;line(x,y,kx,y,P.amber+'88',8);dot(kx,y,15,P.amber);
+  txt(label,x,y-31,20,P.muted,'left',650);txt(fmt(value),x+w,y-31,22,P.amber,'right',850);
+  zones.push({type:'slider',x:x-20,y:y-28,w:w+40,h:56,min,max,onChange})}
+function arrow(x1,y1,x2,y2,color=P.cyan,lw=5){line(x1,y1,x2,y2,color,lw);const a=Math.atan2(y2-y1,x2-x1),s=14;ctx.fillStyle=color;ctx.beginPath();ctx.moveTo(x2,y2);ctx.lineTo(x2-s*Math.cos(a-.5),y2-s*Math.sin(a-.5));ctx.lineTo(x2-s*Math.cos(a+.5),y2-s*Math.sin(a+.5));ctx.closePath();ctx.fill()}
+function card(x,y,w,h,color,active=true){rr(x,y,w,h,22,active?P.panel2:P.panel,active?color:'#ffffff14',3)}
+
+/* ---------- pointer interaction (logical coordinates) ---------- */
+function pos(e){const r=c.getBoundingClientRect();return{x:(e.clientX-r.left)*CW/r.width,y:(e.clientY-r.top)*CH/r.height}}
+function sliderVal(z,p){const t=Math.max(0,Math.min(1,(p.x-(z.x+20))/(z.w-40)));return z.min+t*(z.max-z.min)}
+c.addEventListener('pointerdown',e=>{const p=pos(e);
+  for(let i=zones.length-1;i>=0;i--){const z=zones[i];
+    if(p.x>=z.x&&p.x<=z.x+z.w&&p.y>=z.y&&p.y<=z.y+z.h){
+      if(z.type==='button'){z.onClick(p);return}
+      if(z.type==='slider'||z.type==='drag'){drag=z;z.onChange(sliderVal(z,p),p);return}}}});
+c.addEventListener('pointermove',e=>{if(!drag)return;const p=pos(e);drag.onChange(sliderVal(drag,p),p)});
+addEventListener('pointerup',()=>drag=null);
+addEventListener('pointercancel',()=>drag=null);
+
+/* ---------- KaTeX math layer (shares the 1600x900 logical coordinate system) ---------- */
+const FM={};
+function placeFormula(f){const s=f.el.style;s.width=f.w+'px';s.fontSize=f.size+'px';s.color=f.color;s.textAlign=f.align;
+  let left=f.x+f.ox;if(f.align==='center')left-=f.w/2;else if(f.align==='right')left-=f.w;
+  s.left=left+'px';s.top=(f.y+f.oy)+'px'}
+function setTex(id,tex){const f=FM[id];if(f.cur===tex)return;f.cur=tex;
+  if(window.katex)katex.render(tex,f.el,{displayMode:true,throwOnError:false,strict:'ignore'});else f.el.textContent=tex}
+/* x,y: anchor (y = vertical centre of the formula box); align: left|center|right; size: logical px */
+function addFormula(o){const el=document.createElement('div');el.className='formula';el.dataset.fid=o.id;mathLayer.appendChild(el);
+  const f=Object.assign({el,align:'center',size:32,ox:0,oy:0,w:600,color:'#f7fbff'},o);FM[o.id]=f;placeFormula(f);setTex(o.id,o.tex);return f}
+function moveFormula(id,o){Object.assign(FM[id],o);placeFormula(FM[id])}
+function showF(ids){for(const k in FM)FM[k].el.style.display=ids.includes(k)?'block':'none'}
+function syncMath(){const r=stage.getBoundingClientRect();mathLayer.style.transform=`scale(${r.width/CW},${r.height/CH})`}
+new ResizeObserver(syncMath).observe(stage);addEventListener('resize',syncMath);syncMath();
+
+/* ---------- plotting ---------- */
+function mapper(px,py,pw,ph,x0,x1,y0,y1){return{X:x=>px+(x-x0)/(x1-x0)*pw,Y:y=>py+ph-(y-y0)/(y1-y0)*ph,px,py,pw,ph,x0,x1,y0,y1}}
+function curvePath(f,m,xa,xb,n=240){ctx.beginPath();for(let i=0;i<=n;i++){const x=xa+(xb-xa)*i/n,X=m.X(x),Y=m.Y(f(x));i?ctx.lineTo(X,Y):ctx.moveTo(X,Y)}}
+function plotCurve(f,m,xa,xb,color,lw=5,fillAlpha=null,dash=[]){
+  if(fillAlpha){curvePath(f,m,xa,xb);ctx.lineTo(m.X(xb),m.Y(0));ctx.lineTo(m.X(xa),m.Y(0));ctx.closePath();ctx.fillStyle=color+fillAlpha;ctx.fill()}
+  ctx.save();ctx.setLineDash(dash);curvePath(f,m,xa,xb);ctx.strokeStyle=color;ctx.lineWidth=lw;ctx.lineJoin='round';ctx.stroke();ctx.restore()}
+function axes(m,xticks,ytickVals,xfmt=v=>v,yfmt=v=>v.toFixed(2),xlabel=''){
+  line(m.px,m.py+m.ph,m.px+m.pw,m.py+m.ph,'#ffffff55',2);line(m.px,m.py,m.px,m.py+m.ph,'#ffffff55',2);
+  for(const v of ytickVals){const Y=m.Y(v);line(m.px,Y,m.px+m.pw,Y,'#ffffff12',1);txt(yfmt(v),m.px-12,Y,17,P.muted,'right',600)}
+  for(const v of xticks){const X=m.X(v);line(X,m.py+m.ph,X,m.py+m.ph+8,'#ffffff55',2);txt(xfmt(v),X,m.py+m.ph+26,17,P.muted,'center',600)}
+  if(xlabel)txt(xlabel,m.px+m.pw,m.py+m.ph+52,17,P.muted,'right',600)}
+const fmt3=v=>v.toFixed(3);
+const rampAnim=(dur,fn)=>{const t0=performance.now();const tick=now=>{const t=Math.min(1,(now-t0)/dur);fn(1-Math.pow(1-t,3));if(t<1)requestAnimationFrame(tick)};requestAnimationFrame(tick)};
+
+/* ===== Page script ===== */
+const PTS=[[1.991,2.055,1],[0.744,1.238,0],[0.753,0.919,0],[1.231,0.841,0],[0.774,1.148,0],[0.848,1.189,0],[1.277,1.081,0],[0.899,0.699,0],[1.279,1.215,0],[0.484,0.622,0],[1.67,0.648,0],[2.221,2.21,1],[1.264,0.813,0],[0.89,1.168,0],[1.011,1.004,0],[1.289,0.994,0],[0.604,1.186,0],[1.003,0.913,0],[1.387,0.906,0],[1.855,2.388,1],[0.324,1.0,0],[1.409,1.318,0],[0.965,0.859,0],[0.767,0.948,0],[0.798,1.0,0],[2.202,2.417,1],[0.22,1.195,0],[1.115,1.093,0],[0.956,1.01,0],[1.104,0.588,0],[2.351,2.053,1],[1.188,1.282,0],[0.628,1.051,0],[0.969,1.03,0],[1.977,2.034,1],[0.479,1.08,0],[0.96,1.212,0],[0.837,0.479,0],[1.472,2.262,1],[0.794,1.273,0],[1.013,0.908,0],[0.983,0.983,0],[1.101,0.741,0],[1.818,1.629,1],[1.08,1.283,0],[1.245,1.061,0],[0.782,1.046,0],[1.806,0.683,0],[0.549,1.105,0],[0.872,1.088,0],[1.801,2.073,1],[0.734,0.84,0],[1.053,1.034,0],[0.143,0.403,0],[2.278,1.64,1],[1.009,1.173,0],[2.013,1.489,1],[1.334,0.288,0],[0.881,1.646,0],[0.689,0.65,0],[2.173,1.663,1],[2.304,1.143,1],[1.063,0.852,0],[0.605,0.901,0],[2.624,2.066,1],[1.141,1.148,0],[0.928,1.134,0],[1.017,1.086,0],[0.876,1.515,0],[1.554,0.965,0],[0.723,0.521,0],[0.612,0.784,0],[0.673,1.211,0],[0.97,0.918,0],[2.284,1.925,1],[0.945,0.866,0],[1.068,1.069,0],[1.109,1.26,0],[1.002,0.645,0],[0.939,1.269,0],[0.83,1.184,0],[0.654,1.461,0],[1.278,0.661,0],[0.891,0.531,0],[1.482,0.518,0],[1.011,0.84,0],[0.666,0.715,0],[1.089,0.633,0],[2.156,2.051,1],[1.074,1.24,0],[1.286,1.141,0],[1.205,1.21,0],[1.162,0.867,0],[1.705,2.908,1],[0.977,0.701,0],[1.813,1.96,1],[1.508,2.053,1],[1.753,2.028,1],[1.385,1.121,0],[0.944,0.733,0]];
+const X1D=[-2.999,-2.851,-3.137,-3.445,-3.227,-3.496,-2.97,-2.33,-3.246,-3.31,-2.755,-2.822,-2.947,-3.465,-3.015,-2.652,-3.672,-3.229,-3.951,-3.645,-3.921,-3.118,-3.634,-2.864,-2.922,-0.093,-1.258,-0.269,-0.024,0.057,-0.765,-0.239,-0.489,-0.404,0.53,-0.404,-0.016,0.442,-0.292,-0.056,0.055,0.032,-0.613,0.038,0.679,-0.774,0.43,0.06,-0.321,1.0,3.381,2.4,3.037,3.288,2.906,3.341,2.967,3.334,3.719,2.662,3.102,2.768,3.064,2.406,2.71,2.902,3.449,3.573,2.338,2.603,3.323,2.004,2.768,2.951,3.629];
+/* ===== EM engines: spherical 2-D Gaussian mixture (PTS) and 1-D Gaussian mixture (X1D) ===== */
+const C1='#63b3ed',C2='#ff7b72';                        /* component 1 (class A, blue) / component 2 (class B, coral) */
+const INIT2={mu:[[1.37,1.20],[1.81,1.62]],v:[.25,.25],P:[.5,.5]};
+const cloneTh=t=>({mu:t.mu.map(m=>Array.isArray(m)?m.slice():m),v:t.v.slice(),P:t.P.slice()});
+const mixc=(r1)=>{const a=[99,179,237],b=[255,123,114];const c=a.map((v,i)=>Math.round(v*r1+b[i]*(1-r1)));return `rgb(${c[0]},${c[1]},${c[2]})`};
+/* E-step: responsibilities under theta, plus the log-likelihood log L(theta) */
+function resp2(th){const R=[];let ll=0;
+  for(const p of PTS){const d=[0,1].map(j=>{const q=(p[0]-th.mu[j][0])**2+(p[1]-th.mu[j][1])**2;return th.P[j]/(2*Math.PI*th.v[j])*Math.exp(-q/(2*th.v[j]))});
+    const s=d[0]+d[1];R.push([d[0]/s,d[1]/s]);ll+=Math.log(s)}
+  return{R,ll}}
+/* M-step (closed form, responsibility-weighted). bug=true divides sigma^2 by N instead of sum_k r_kj */
+function mstep2(R,bug,pts){pts=pts||PTS;const N=pts.length,mu=[],v=[],P=[];
+  for(let j=0;j<2;j++){let n=0,sx=0,sy=0;for(let k=0;k<N;k++){const r=R[k][j];n+=r;sx+=r*pts[k][0];sy+=r*pts[k][1]}
+    const m=[sx/n,sy/n];let s2=0;for(let k=0;k<N;k++)s2+=R[k][j]*((pts[k][0]-m[0])**2+(pts[k][1]-m[1])**2);
+    mu.push(m);v.push(s2/(2*(bug?N:n)));P.push(n/N)}
+  return{mu,v,P}}
+/* H[t] = {th: theta^(t), R: responsibilities under theta^(t), ll: log L(theta^(t))} */
+function runEM2(th0,T,bug){const H=[];let th=cloneTh(th0);
+  for(let t=0;t<=T;t++){const e=resp2(th);H.push({th,R:e.R,ll:e.ll});if(t<T)th=mstep2(e.R,bug)}
+  return H}
+const gpdf=(x,m,v)=>Math.exp(-((x-m)**2)/(2*v))/Math.sqrt(2*Math.PI*v);
+function resp1(th,xs){xs=xs||X1D;const R=[];let ll=0;
+  for(const x of xs){const d=[0,1].map(j=>th.P[j]*gpdf(x,th.mu[j],th.v[j]));const s=d[0]+d[1];R.push([d[0]/s,d[1]/s]);ll+=Math.log(s)}
+  return{R,ll}}
+function mstep1(R,xs){xs=xs||X1D;const N=xs.length,mu=[],v=[],P=[];
+  for(let j=0;j<2;j++){let n=0,sx=0;for(let k=0;k<N;k++){n+=R[k][j];sx+=R[k][j]*xs[k]}
+    const m=sx/n;let s2=0;for(let k=0;k<N;k++)s2+=R[k][j]*(xs[k]-m)**2;mu.push(m);v.push(Math.max(s2/n,1e-6));P.push(n/N)}
+  return{mu,v,P}}
+function runEM1(th0,T){const H=[];let th=cloneTh(th0);
+  for(let t=0;t<=T;t++){const e=resp1(th);H.push({th,R:e.R,ll:e.ll});if(t<T)th=mstep1(e.R)}
+  return H}
+/* 02 — Three actors of a mixture model; live 1-D mixture density */
+let P1=.8,x0=1.5;
+const V=.1,MU=[1,2];
+const CARDS=[['元件標籤 j','Component label','看不見的「隱藏座位牌」',C1,'a0','j\\in\\{1,2\\}'],['混合比例 Pⱼ','Mixing proportion','各群在全體的「份量」',P.amber,'a1','\\textstyle\\sum_{j=1}^{J}P_j=1'],['混合密度 p(x)','Mixture density','加權疊加的「立體地形」',P.lime,'a2','p(x)=\\textstyle\\sum_{j=1}^{J}p(x\\mid j)\\,P_j']];
+CARDS.forEach((c,i)=>addFormula({id:c[4],tex:c[5],x:300+i*500,y:318,w:440,size:30,color:c[3]}));
+['f1','f2','f3'].forEach((id,i)=>addFormula({id,tex:'',x:1290,y:668+i*62,w:460,size:23}));
+const M=mapper(140,478,820,214,-0.5,3.5,0,1.4);
+function render(){
+  reset();title('認知坐標：混合模型的三位主角','Cognitive anchor: three protagonists of a mixture model',2);
+  CARDS.forEach((c,i)=>{const x=60+i*500;card(x,170,480,200,c[3],true);
+    txt(c[0],x+24,204,24,c[3],'left',850);txt(c[1],x+24,232,16,P.muted,'left',650);txt(c[2],x+24,260,18,P.ink,'left',700)});
+  const P2=1-P1,Pj=[P1,P2];
+  rr(60,390,1480,460,24,P.panel,'#ffffff14',2);
+  txt('調整份量，看多峰地形如何疊加',90,422,24,P.ink,'left',850);txt('Weighted components add up to a multi-peak landscape',90,450,16,P.cyan,'left',650);
+  axes(M,[0,1,2,3],[0,.35,.7,1.05,1.4],v=>v,v=>v.toFixed(2));
+  const comp=(j)=>x=>Pj[j]*gpdf(x,MU[j],V);
+  plotCurve(comp(0),M,-.5,3.5,C1,3,'22',[10,8]);plotCurve(comp(1),M,-.5,3.5,C2,3,'22',[10,8]);
+  plotCurve(x=>comp(0)(x)+comp(1)(x),M,-.5,3.5,P.ink,5);
+  line(M.X(x0),M.Y(0),M.X(x0),M.Y(1.4),P.amber,2,[6,6]);
+  const a=comp(0)(x0),b=comp(1)(x0);dot(M.X(x0),M.Y(a),7,C1);dot(M.X(x0),M.Y(b),7,C2);dot(M.X(x0),M.Y(a+b),8,P.ink);
+  txt('甲班 P₁p(x|1)',M.X(1),M.Y(P1*gpdf(1,1,V))-16,15,C1,'center',750);txt('乙班 P₂p(x|2)',M.X(2),M.Y(Math.max(P2*gpdf(2,2,V),.22))-16,15,C2,'center',750);
+  txt('白線：混合密度 p(x)',M.px+M.pw-6,M.py+14,16,P.ink,'right',700);
+  wrap('x 是分數；甲班平均 1.0、乙班平均 2.0，σ² = 0.1。',90,806,860,26,17,P.muted,600);
+  slider(1090,500,400,.05,.95,P1,v=>{P1=Math.round(v*100)/100;render()},'甲班份量 P₁（P₂ = 1 − P₁）',v=>v.toFixed(2));
+  slider(1090,590,400,-.3,3.3,x0,v=>{x0=Math.round(v*20)/20;render()},'查詢分數 x₀',v=>v.toFixed(2));
+  setTex('f1',`P_1\\,p(x_0\\mid1)=${P1.toFixed(2)}\\times${gpdf(x0,1,V).toFixed(3)}=${a.toFixed(3)}`);
+  setTex('f2',`P_2\\,p(x_0\\mid2)=${P2.toFixed(2)}\\times${gpdf(x0,2,V).toFixed(3)}=${b.toFixed(3)}`);
+  setTex('f3',`p(x_0)=${a.toFixed(3)}+${b.toFixed(3)}=${(a+b).toFixed(3)}`);
+  showF(['a0','a1','a2','f1','f2','f3']);
+}
+render();
+
+</script></body></html>
