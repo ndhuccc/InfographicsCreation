@@ -1255,6 +1255,272 @@ Agent 不可把兩者混為一談。
 
 ---
 
+## 問題 G：修正了原始檔，但使用者下載到的仍然是舊版本
+
+### 症狀
+
+- 本地工作目錄中的 HTML 已經修改。
+- Agent 重新提供「同一個路徑」或「同名 ZIP」給使用者。
+- 使用者下載後打開，內容卻仍然是修改前版本。
+- Agent 誤以為修正沒有生效。
+
+### 根因
+
+conversation artifact / uploaded artifact 可能是不可變 snapshot。
+
+也就是：
+
+```text
+第一次 surface：
+/mnt/data/topic/page.html
+        ↓
+artifact snapshot A
+```
+
+之後即使同一路徑檔案被修改：
+
+```text
+/mnt/data/topic/page.html
+        ↓ modified
+```
+
+先前已 surfaced 的下載引用仍可能指向 snapshot A，而不是新的檔案內容。
+
+同理，重新產生同名 ZIP 也不能假設使用者一定拿到新 snapshot。
+
+### 正確做法：Versioned Artifact Output
+
+任何已對使用者提供過下載連結的成品，後續修正版不要覆寫舊 artifact。
+
+應建立新版本：
+
+```text
+topic_v1/
+topic_v2/
+topic_v3/
+topic_v4/
+```
+
+或：
+
+```text
+topic.zip
+topic_fixed.zip
+topic_fixed_v2.zip
+topic_v4.zip
+```
+
+推薦：
+
+```text
+maximum_likelihood_estimation_infographics_v4/
+maximum_likelihood_estimation_infographics_v4.zip
+```
+
+### 交付前驗證
+
+提供新下載連結前必須：
+
+1. 確認新路徑確實存在。
+2. 讀回新 HTML 的修正程式碼。
+3. 確認 ZIP 內包含新版本目錄。
+4. 使用新 artifact path / 新 file id surface 給使用者。
+5. 不要再次引用舊 snapshot 的 sandbox link。
+
+---
+
+## 問題 H：只看原始碼「覺得座標正確」，但實際瀏覽器仍然跑位
+
+### 症狀
+
+- 靜態 code review 看起來：
+  - x 在 panel 中心
+  - width 看起來足夠
+  - formula coordinate 合理
+- 但使用者截圖仍看到：
+  - paragraph 跑出 panel
+  - footer 被裁切
+  - label 超出 card
+  - formula 與文字實際視覺間距不對
+
+### 根因
+
+程式碼稽核只能檢查「邏輯座標合理性」，不能完全取代瀏覽器真正的 typography/layout 結果。
+
+Canvas 與 DOM 都可能受：
+
+- 實際字型 metrics
+- browser font fallback
+- KaTeX glyph bounding box
+- DPR / zoom
+- CSS scaling
+- font weight
+- CJK 字寬
+
+影響。
+
+### 正確做法：Render Audit 是強制程序
+
+完成一組 infographic 後，除了 code audit，還必須實際使用瀏覽器渲染代表性頁面。
+
+最低要求：
+
+```text
+HTML source audit
+        ↓
+browser render
+        ↓
+screenshot / visual inspection
+        ↓
+fix
+        ↓
+render again
+```
+
+對使用者已回報有問題的頁面：
+
+> 必須實際渲染確認後才可宣告修正成功。
+
+不能只說：
+
+> 「我已將 x 從 300 改成 800，所以應該好了。」
+
+---
+
+## 問題 I：置中段落應使用專用 `wrapCenter()`，避免 anchor 再次誤用
+
+### 問題背景
+
+多次出現：
+
+```javascript
+wrap(text, cardX + padding, ..., "center");
+```
+
+這種錯誤。
+
+即使 agent 知道 center anchor 規則，手動傳參數仍很容易再次寫錯。
+
+### 標準解法
+
+建立專用 helper：
+
+```javascript
+function wrapCenter(
+  text,
+  centerX,
+  y,
+  maxWidth,
+  lineHeight = 34,
+  fontSize = 24,
+  color = P.muted,
+  weight = 550
+) {
+  return wrap(
+    text,
+    centerX,
+    y,
+    maxWidth,
+    lineHeight,
+    fontSize,
+    color,
+    weight,
+    "center"
+  );
+}
+```
+
+Card 中使用：
+
+```javascript
+wrapCenter(
+  description,
+  cardX + cardWidth / 2,
+  textY,
+  cardWidth - 2 * padding,
+  ...
+);
+```
+
+Panel 中使用：
+
+```javascript
+wrapCenter(
+  paragraph,
+  panelX + panelWidth / 2,
+  textY,
+  panelWidth - 2 * padding,
+  ...
+);
+```
+
+### 稽核原則
+
+後續 agent 應優先搜尋：
+
+```text
+wrap(..., 'center')
+wrap(..., "center")
+```
+
+若專案已提供 `wrapCenter()`，則：
+
+> 新頁面原則上不再直接呼叫 `wrap(..., 'center')`。
+
+這可以從 API 層降低 anchor 錯誤。
+
+---
+
+## 問題 J：Git object API 更新 main，不代表 GitHub Actions 一定已部署
+
+### 症狀
+
+- `create_blob → create_tree → create_commit → update_ref(main)` 成功。
+- GitHub repository 中的新 HTML 內容已存在。
+- 但 GitHub Pages 仍顯示舊版本。
+- 查詢 Actions 時，最新 commit 沒有 workflow run。
+
+### 原因
+
+不同 connector / API mutation 對 GitHub push event 的觸發行為可能不同。
+
+即使 branch ref 已更新，也不能只假設：
+
+```text
+update_ref success
+=
+GitHub Actions 已啟動
+```
+
+### 正確做法
+
+GitHub push 後分兩層驗證：
+
+#### Repository verification
+
+確認：
+
+- main HEAD
+- file SHA
+- file content
+
+#### Deployment verification
+
+再確認：
+
+- Deploy Pages workflow run 是否存在
+- workflow head_sha 是否對應最新 commit
+- workflow status / conclusion
+- Pages 是否已更新
+
+如果 Git object API 更新後沒有 Actions run，需使用能產生正常 push event 的寫入方式做一個安全的 trigger commit，例如一般 Contents API 的小型檔案更新。
+
+但不要建立大量無意義 trigger commits。
+
+推薦在專案中保留明確的 rebuild trigger 策略。
+
+---
+
 ## Hybrid Rendering Debug Checklist
 
 若使用者回報「公式或文字跑位」，依序執行：
@@ -1266,11 +1532,15 @@ Agent 不可把兩者混為一談。
 - [ ] transform-origin 是否為 top left？
 - [ ] formula left/top 是否為 logical coordinate？
 - [ ] `textAlign="center"` 的 x 是否真的是 container center？
+- [ ] 是否應改用 `wrapCenter()` 而不是直接 `wrap(...,'center')`？
 - [ ] wrap() 的 max width 是否小於 card width？
 - [ ] formula 是否只是 optical baseline 偏差？
 - [ ] 是否只需 offsetY ±1~5px？
 - [ ] 是否誤把 structural problem 當成 x/y micro-adjustment？
 - [ ] 原 artifact 是否唯讀？若是，改在新工作目錄輸出。
+- [ ] 是否正在覆寫曾經 surface 過的 artifact 路徑？若是，改用新版本目錄 / ZIP。
+- [ ] 是否只做 code audit，尚未做 browser render audit？
+- [ ] GitHub repo 是否已更新，但 Pages workflow 尚未部署？
 
 ---
 
@@ -1390,6 +1660,19 @@ Verify live URL
 - [ ] button states 已測
 - [ ] 展開狀態已測
 - [ ] 畫面沒有顯示 literal `\n`
+- [ ] 所有置中 paragraph / caption 使用真實 container center
+- [ ] 優先使用 `wrapCenter()`，避免直接手算 center anchor
+- [ ] 至少對代表性頁面做 browser render audit
+- [ ] 使用者回報有問題的頁面已實際渲染複查
+- [ ] browser render 與 code audit 結果一致
+- [ ] 不同 viewport / iframe 尺寸下 Canvas 與 KaTeX 不漂移
+
+## Artifact delivery audit
+
+- [ ] 修正版使用新的 versioned output directory
+- [ ] 修正版 ZIP 使用新檔名，不覆寫舊 artifact snapshot
+- [ ] 提供下載前已讀回新檔確認修正內容存在
+- [ ] 新 artifact link 指向新 snapshot，而不是先前舊連結
 
 ## GitHub
 
@@ -1401,10 +1684,15 @@ Verify live URL
 
 ## Pages
 
-- [ ] Actions trigger
+- [ ] repository main HEAD 已更新
+- [ ] GitHub 上 file SHA / content 已重新讀取確認
+- [ ] Deploy Pages Actions run 確實存在
+- [ ] workflow head_sha 對應最新要部署的 commit
+- [ ] workflow 成功完成
 - [ ] build_site.py 可掃描
 - [ ] topic 出現在自動 index
 - [ ] live URL 可以開啟
+- [ ] live URL 顯示的是最新修正版，而不是舊 deployment
 
 ---
 
