@@ -1,0 +1,212 @@
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>KP16 13 Log Trick Product To Sum</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<style>
+:root{--bg:#071521;--panel:#0f2637;--ink:#f7fbff;--muted:#a9bfd0}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;background:#02080d;color:var(--ink);font-family:Inter,"Noto Sans TC","Microsoft JhengHei",sans-serif}
+.wrap{width:100vw;height:100vh;display:grid;place-items:center;background:radial-gradient(circle at 18% 0%,#10344d 0,#02080d 58%,#000 100%)}
+.stage{position:relative;width:min(100vw,177.7778vh);height:min(56.25vw,100vh);aspect-ratio:16/9;background:var(--bg);overflow:hidden}
+canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+#math-layer{position:absolute;left:0;top:0;width:1600px;height:900px;transform-origin:0 0;pointer-events:none}
+.formula{position:absolute;transform:translateY(-50%);line-height:1.2}
+.formula .katex-display{margin:0;text-align:inherit}
+.formula .katex-display>.katex{display:inline-block;text-align:inherit;white-space:nowrap}
+.hint{position:absolute;right:2.1%;top:1.9%;font-size:.8vw;color:#9ab4c7;background:#071521cc;border:1px solid #ffffff18;border-radius:999px;padding:.5em .75em;z-index:5}
+.note{position:absolute;left:2.1%;bottom:2.2%;font-size:.68vw;color:#89a3b8;background:#071521b8;border:1px solid #ffffff12;border-radius:12px;padding:.4em .65em;z-index:5}
+@media(max-width:900px){.hint,.note{font-size:1.4vw}}
+</style>
+</head><body><div class="wrap"><div class="stage" id="stage"><canvas id="c" width="1600" height="900"></canvas><div id="math-layer"></div><div class="hint">互動：點擊 / 拖曳 • Click / Drag</div></div></div>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script>
+/* ===== Shared helpers (Canvas 1600x900 logical space + KaTeX math layer) ===== */
+const CW=1600,CH=900;
+const c=document.getElementById('c'),ctx=c.getContext('2d');
+const stage=document.getElementById('stage'),mathLayer=document.getElementById('math-layer');
+const P={bg:'#071521',panel:'#0f2637',panel2:'#102c40',ink:'#f7fbff',muted:'#a9bfd0',cyan:'#4fd1c5',amber:'#f6c85f',coral:'#ff7b72',lime:'#8fd694',violet:'#b794f4',blue:'#63b3ed',grid:'#17384d'};
+const FONT='Inter,"Noto Sans TC","Microsoft JhengHei","PingFang TC","Noto Sans CJK TC","WenQuanYi Zen Hei",sans-serif';
+let zones=[],drag=null;
+window.__boxes=[];
+const REC=()=>window.__audit===true;
+
+function reset(){zones=[];window.__boxes=[];ctx.clearRect(0,0,CW,CH);ctx.fillStyle=P.bg;ctx.fillRect(0,0,CW,CH);
+  for(let x=0;x<CW;x+=80)line(x,0,x,CH,'#0b2434',1);for(let y=0;y<CH;y+=80)line(0,y,CW,y,'#0b2434',1)}
+function line(x1,y1,x2,y2,color='#fff',lw=3,dash=[]){ctx.save();ctx.strokeStyle=color;ctx.lineWidth=lw;ctx.setLineDash(dash);ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();ctx.restore()}
+function rr(x,y,w,h,r=20,fill=P.panel,stroke=null,lw=2){ctx.beginPath();ctx.roundRect(x,y,w,h,r);if(fill){ctx.fillStyle=fill;ctx.fill()}if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw;ctx.stroke()}}
+function dot(x,y,r,color){ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill()}
+function setFont(size,weight){ctx.font=`${weight} ${size}px ${FONT}`}
+function rec(x0,y0,x1,y1,label){if(REC())window.__boxes.push({x0,y0,x1,y1,label})}
+function txt(t,x,y,size=30,color=P.ink,align='left',weight=700){
+  t=String(t);ctx.fillStyle=color;setFont(size,weight);ctx.textAlign=align;ctx.textBaseline='middle';ctx.fillText(t,x,y);
+  if(REC()){const w=ctx.measureText(t).width,l=align==='left'?x:align==='center'?x-w/2:x-w;rec(l,y-size*.55,l+w,y+size*.55,t.slice(0,24))}}
+function wrap(t,x,y,maxw,lh=34,size=24,color=P.muted,weight=550,align='left'){
+  t=String(t).replace(/\\n/g,'\n');setFont(size,weight);ctx.fillStyle=color;ctx.textBaseline='top';ctx.textAlign=align;
+  const out=[];
+  for(const para of t.split('\n')){
+    const raw=para.match(/[一-鿿]|[^\s一-鿿　-〿＀-￯]+\s*|\s+|[　-〿＀-￯]/g)||[''];
+    const toks=[];for(let i=0;i<raw.length;i++){if(/^[「『（《【“‘]$/.test(raw[i])&&i+1<raw.length){toks.push(raw[i]+raw[i+1]);i++}else toks.push(raw[i])}
+    let ln='';
+    for(const tk of toks){
+      const q=ln+tk;
+      const isPunct=/^[　-〿＀-￯]$/.test(tk);
+      if(ctx.measureText(q.trimEnd()).width>maxw&&ln&&!isPunct){out.push(ln.trimEnd());ln=tk.trimStart()}else ln=q}
+    out.push(ln.trimEnd());
+  }
+  let yy=y;
+  for(const l of out){ctx.fillText(l,x,yy);
+    if(REC()){const w=ctx.measureText(l).width,lx=align==='left'?x:align==='center'?x-w/2:x-w;rec(lx,yy,lx+w,yy+size*1.15,l.slice(0,24))}
+    yy+=lh}
+  return yy}
+function wrapCenter(t,cx,y,maxw,lh=34,size=24,color=P.muted,weight=550){return wrap(t,cx,y,maxw,lh,size,color,weight,'center')}
+function footer(n){txt('PR115 · Ch02 · KP-16  單純貝氏分類器 Naive Bayes Classifier',70,878,15,'#6f8da3','left',600);txt(`${n} / 15`,1530,878,15,'#6f8da3','right',700)}
+function title(zh,en,no){txt(`${String(no).padStart(2,'0')}  ${zh}`,70,68,38,P.ink,'left',900);txt(en,72,111,21,P.cyan,'left',650);line(70,146,1530,146,P.grid,2);footer(no)}
+function chip(t,x,y,w,color){rr(x,y,w,40,20,color+'20',color,2);txt(t,x+w/2,y+20,18,color,'center',800)}
+function btn(label,x,y,w,h,onClick,active=false,color=P.cyan,size=19){rr(x,y,w,h,15,active?color+'28':'#ffffff0c',active?color:'#ffffff22',2);txt(label,x+w/2,y+h/2,size,active?color:P.ink,'center',800);zones.push({type:'button',x,y,w,h,onClick})}
+function area(x,y,w,h,onClick){zones.push({type:'button',x,y,w,h,onClick})}
+function slider(x,y,w,min,max,value,onChange,label,fmt=v=>v.toFixed(2),accent=P.amber){
+  line(x,y,x+w,y,'#ffffff35',8);const t=(value-min)/(max-min),kx=x+t*w;line(x,y,kx,y,accent+'88',8);dot(kx,y,15,accent);
+  txt(label,x,y-31,20,P.muted,'left',650);txt(fmt(value),x+w,y-31,22,accent,'right',850);
+  zones.push({type:'slider',x:x-20,y:y-28,w:w+40,h:56,min,max,onChange})}
+function arrow(x1,y1,x2,y2,color=P.cyan,lw=5){line(x1,y1,x2,y2,color,lw);const a=Math.atan2(y2-y1,x2-x1),s=14;ctx.fillStyle=color;ctx.beginPath();ctx.moveTo(x2,y2);ctx.lineTo(x2-s*Math.cos(a-.5),y2-s*Math.sin(a-.5));ctx.lineTo(x2-s*Math.cos(a+.5),y2-s*Math.sin(a+.5));ctx.closePath();ctx.fill()}
+function card(x,y,w,h,color,active=true){rr(x,y,w,h,22,active?P.panel2:P.panel,active?color:'#ffffff14',3)}
+
+function pos(e){const r=c.getBoundingClientRect();return{x:(e.clientX-r.left)*CW/r.width,y:(e.clientY-r.top)*CH/r.height}}
+function sliderVal(z,p){const t=Math.max(0,Math.min(1,(p.x-(z.x+20))/(z.w-40)));return z.min+t*(z.max-z.min)}
+c.addEventListener('pointerdown',e=>{const p=pos(e);
+  for(let i=zones.length-1;i>=0;i--){const z=zones[i];
+    if(p.x>=z.x&&p.x<=z.x+z.w&&p.y>=z.y&&p.y<=z.y+z.h){
+      if(z.type==='button'){z.onClick(p);return}
+      if(z.type==='slider'||z.type==='drag'){drag=z;z.onChange(sliderVal(z,p),p);return}}}});
+c.addEventListener('pointermove',e=>{if(!drag)return;const p=pos(e);drag.onChange(sliderVal(drag,p),p)});
+addEventListener('pointerup',()=>drag=null);
+addEventListener('pointercancel',()=>drag=null);
+window.__listZones=function(){return zones.map(function(z,i){return {i:i,type:z.type,x:z.x,y:z.y,w:z.w,h:z.h}})};
+window.__clickZone=function(i){var z=zones[i];if(!z)return;if(z.type==='button'){z.onClick({x:z.x+z.w/2,y:z.y+z.h/2})}else if(z.type==='slider'){z.onChange((z.min+z.max)/2,{x:z.x+z.w/2,y:z.y+z.h/2})}};
+
+const FM={};
+function placeFormula(f){const s=f.el.style;s.width=f.w+'px';s.fontSize=f.size+'px';s.color=f.color;s.textAlign=f.align;
+  let left=f.x+f.ox;if(f.align==='center')left-=f.w/2;else if(f.align==='right')left-=f.w;
+  s.left=left+'px';s.top=(f.y+f.oy)+'px'}
+function setTex(id,tex){const f=FM[id];if(f.cur===tex)return;f.cur=tex;
+  if(window.katex)katex.render(tex,f.el,{displayMode:true,throwOnError:false,strict:'ignore'});else f.el.textContent=tex}
+function addFormula(o){const el=document.createElement('div');el.className='formula';el.dataset.fid=o.id;mathLayer.appendChild(el);
+  const f=Object.assign({el,align:'center',size:32,ox:0,oy:0,w:600,color:'#f7fbff'},o);FM[o.id]=f;placeFormula(f);setTex(o.id,o.tex);return f}
+function moveFormula(id,o){Object.assign(FM[id],o);placeFormula(FM[id])}
+function showF(ids){for(const k in FM)FM[k].el.style.display=ids.includes(k)?'block':'none'}
+function syncMath(){const r=stage.getBoundingClientRect();mathLayer.style.transform=`scale(${r.width/CW},${r.height/CH})`}
+new ResizeObserver(syncMath).observe(stage);addEventListener('resize',syncMath);syncMath();
+
+function mapper(px,py,pw,ph,x0,x1,y0,y1){return{X:x=>px+(x-x0)/(x1-x0)*pw,Y:y=>py+ph-(y-y0)/(y1-y0)*ph,px,py,pw,ph,x0,x1,y0,y1}}
+function axes(m,xticks,ytickVals,xfmt=v=>v,yfmt=v=>v.toFixed(2),xlabel=''){
+  line(m.px,m.py+m.ph,m.px+m.pw,m.py+m.ph,'#ffffff55',2);line(m.px,m.py,m.px,m.py+m.ph,'#ffffff55',2);
+  for(const v of ytickVals){const Y=m.Y(v);line(m.px,Y,m.px+m.pw,Y,'#ffffff12',1);txt(yfmt(v),m.px-12,Y,17,P.muted,'right',600)}
+  for(const v of xticks){const X=m.X(v);line(X,m.py+m.ph,X,m.py+m.ph+8,'#ffffff55',2);txt(xfmt(v),X,m.py+m.ph+26,17,P.muted,'center',600)}
+  if(xlabel)txt(xlabel,m.px+m.pw,m.py+m.ph+52,17,P.muted,'right',600)}
+const rampAnim=(dur,fn)=>{const t0=performance.now();const tick=now=>{const t=Math.min(1,(now-t0)/dur);fn(1-Math.pow(1-t,3));if(t<1)requestAnimationFrame(tick)};requestAnimationFrame(tick)};
+const SUPD={'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','-':'⁻'};
+const sup=n=>String(n).split('').map(ch=>SUPD[ch]||ch).join('');
+function fmtInt(v){return v.toLocaleString('en-US')}
+function fmtBig(v){return v>=1e6?(v/1e6).toFixed(2)+'M':fmtInt(v)}
+const C1=P.blue, C2=P.coral; /* class omega_1 (blue) / omega_2 (coral) throughout this topic */
+</script>
+<script>
+/* ===== Page script ===== */
+
+const P1=[0.8,0.3,0.7], Q1=[0.4,0.6,0.5];
+let step=1;
+let xi=1;
+
+addFormula({id:'f1',tex:String.raw`\dfrac{p(\boldsymbol{x}\mid\omega_1)}{p(\boldsymbol{x}\mid\omega_2)}\ \ge\ 1\ \Longrightarrow\ \text{決定}\ \omega_1\quad(\text{等先驗 equal priors})`,x:800,y:306,w:1300,size:26,align:'center'});
+addFormula({id:'f2',tex:String.raw`g(\boldsymbol{x})=\ln\dfrac{p(\boldsymbol{x}\mid\omega_1)}{p(\boldsymbol{x}\mid\omega_2)}`,x:800,y:306,w:900,size:34,align:'center'});
+addFormula({id:'f3',tex:String.raw`g(\boldsymbol{x})=\sum_{i=1}^{l}\ln\!\left[\dfrac{p_i^{\,x_i}(1-p_i)^{\,1-x_i}}{q_i^{\,x_i}(1-q_i)^{\,1-x_i}}\right]`,x:800,y:306,w:1200,size:26,align:'center'});
+addFormula({id:'f4',tex:String.raw`g(\boldsymbol{x})=\sum_{i=1}^{l}\Big[\,x_i\ln\dfrac{p_i}{q_i}+(1-x_i)\ln\dfrac{1-p_i}{1-q_i}\,\Big]`,x:800,y:306,w:1300,size:25,align:'center'});
+
+addFormula({id:'chip1',tex:'',x:420,y:0,w:600,size:19,align:'center',color:P.lime});
+addFormula({id:'chip2',tex:'',x:1180,y:0,w:600,size:19,align:'center',color:P.coral});
+
+function drawUnderflowDiagram(px,py,pw,ph){
+  txt('連乘 l 個 < 1 的機率　Multiply l probabilities, each < 1',px+pw/2,py+16,16,P.ink,'center',750);
+  const n=6, gap=22, bw=(pw-gap*(n-1))/n;
+  const heights=[128,102,82,64,48,34];
+  const baseY=py+ph-58;
+  for(let i=0;i<n;i++){
+    const x=px+i*(bw+gap);
+    const h=heights[i];
+    rr(x,baseY-h,bw,h,8,i<3?P.cyan+'cc':P.coral+'cc');
+    txt('p'+(i+1),x+bw/2,baseY+18,14,P.muted,'center',650);
+  }
+  txt('p₁ × p₂ × ⋯ × p_l  →  0　(數值下溢 underflow risk)',px+pw/2,baseY+42,17,P.coral,'center',800);
+}
+
+function drawLnCurveDiagram(px,py,pw,ph){
+  txt('ln(x) 保持順序：比值 vs. ln(比值)　ln preserves order: ratio vs. ln(ratio)',px+pw/2,py+14,15.5,P.ink,'center',750);
+  const m=mapper(px+66,py+42,pw-140,ph-116,0.15,3.2,-2,1.3);
+  rr(m.px,m.py,m.X(1)-m.px,m.ph,0,P.coral+'1a');
+  rr(m.X(1),m.py,m.px+m.pw-m.X(1),m.ph,0,P.cyan+'1a');
+  axes(m,[0.5,1,2,3],[-2,-1,0,1],v=>v,v=>v.toFixed(0),'比值 ratio');
+  ctx.beginPath();ctx.strokeStyle=P.amber;ctx.lineWidth=4;
+  let first=true;
+  for(let x=0.16;x<=3.2;x+=0.02){const X=m.X(x),Y=m.Y(Math.log(x));if(first){ctx.moveTo(X,Y);first=false}else ctx.lineTo(X,Y)}
+  ctx.stroke();
+  dot(m.X(1),m.Y(0),7,P.ink);
+  txt('(1, 0)',m.X(1)+12,m.Y(0)-16,13,P.ink,'left',700);
+  txt('比值<1⟹ln<0（支持 ω₂）',m.px+16,m.py+16,13.5,P.coral,'left',700);
+  txt('比值≥1⟹ln≥0（支持 ω₁）',m.px+m.pw-16,m.py+16,13.5,P.cyan,'right',700);
+}
+
+function drawProductToSumDiagram(px,py,pw,ph){
+  const cx=px+pw/2, midY=py+72;
+  txt('∏',cx-280,midY,84,P.coral,'center',800);
+  txt('連乘 product',cx-280,midY+50,14,P.muted,'center',650);
+  arrow(cx-168,midY-6,cx+168,midY-6,P.amber,5);
+  txt('取 ln　apply ln',cx,midY-36,16,P.amber,'center',750);
+  txt('Σ',cx+280,midY,84,P.lime,'center',800);
+  txt('連加 sum',cx+280,midY+50,14,P.muted,'center',650);
+  wrapCenter('對數法則：ln(A×B) = ln A + ln B，對連乘的每一項都成立 —— 這就是「乘法變加法」的核心魔法。',cx,midY+92,pw-140,24,15.5,P.ink,600);
+}
+
+function render(){
+  reset();
+  title('取對數的魔法：乘法變加法的線性判別式','The Log Trick: Turning a Product Ratio into a Linear Discriminant',13);
+
+  const steps=['① 判定門檻','② 取自然對數','③ 連乘變連加','④ 拆開比值'];
+  const bx=[60,434,808,1182];
+  steps.forEach((s,i)=>btn(s,bx[i],168,358,46,()=>{step=i+1;render()},step===i+1,P.cyan,19));
+
+  rr(60,230,1480,150,22,P.panel,P.cyan,2);
+
+  const diagY=396,diagH=230;
+  rr(60,diagY,1480,diagH,24,P.panel2,'#ffffff14',2);
+  if(step===1) drawUnderflowDiagram(110,diagY+6,1380,diagH-12);
+  if(step===2) drawLnCurveDiagram(110,diagY+6,1380,diagH-12);
+  if(step===3) drawProductToSumDiagram(110,diagY+6,1380,diagH-12);
+  if(step===4){
+    txt('互動：切換 xᵢ，看哪一項被「開關」留下　Toggle xᵢ to see which term switches on',60+1480/2,diagY+26,16,P.ink,'center',750);
+    btn(`xᵢ = ${xi}`,660,diagY+48,280,44,()=>{xi=1-xi;render()},true,xi===1?P.lime:P.coral,20);
+    card(90,diagY+106,660,100,xi===1?P.lime:'#ffffff14',true);
+    card(850,diagY+106,660,100,xi===0?P.coral:'#ffffff14',true);
+    const r1=Math.log(P1[0]/Q1[0]), r2=Math.log((1-P1[0])/(1-Q1[0]));
+    const c1=xi, c2=1-xi;
+    setTex('chip1',String.raw`x_i\ln\dfrac{p_i}{q_i}=${c1}\times\ln\dfrac{0.80}{0.40}=${(c1*r1).toFixed(3)}`);
+    setTex('chip2',String.raw`(1-x_i)\ln\dfrac{1-p_i}{1-q_i}=${c2}\times\ln\dfrac{0.20}{0.60}=${(c2*r2).toFixed(3)}`);
+    moveFormula('chip1',{x:420,y:diagY+156,color:xi===1?P.lime:'#5f7b8f'});
+    moveFormula('chip2',{x:1180,y:diagY+156,color:xi===0?P.coral:'#5f7b8f'});
+  }
+
+  rr(60,642,1480,204,24,P.panel,'#ffffff14',2);
+  const EXPL=[
+    ['等先驗假設下，只要似然比 ≥ 1 就決定 ω₁。但 p(x|ω) 是許多機率相乘，項數一多，乘積會迅速逼近 0，在電腦裡可能下溢成 0，讓比較失真。',
+     'Multiplying many probabilities below 1 makes the product shrink toward 0 — risking floating-point underflow.'],
+    ['對兩邊同取自然對數：ln 是嚴格遞增函式，不改變大小順序，比值 ≥ 1 恰好對應 ln(比值) ≥ 0 —— 我們把這個新分數定義為 g(x)。',
+     'ln is strictly increasing, so ratio ≥ 1 is exactly equivalent to ln(ratio) ≥ 0. Define this new score as g(x).'],
+    ['把 p(x|ω) 的連乘代入 g(x)，ln 作用在「連乘的比」上；由對數法則，ln(連乘) = 每一項 ln 的總和 —— 乘法魔術般地變成了加法。',
+     'Substituting the product likelihoods, ln(product) becomes a sum of logs — multiplication turns into addition.'],
+    ['再對每一項的分子分母用 ln(A/B)=lnA−lnB 展開，壓縮式裡的指數 xᵢ 與 1−xᵢ 就變成了「開關」：xᵢ=1 時只留下第一項，xᵢ=0 時只留下第二項。',
+     'Expanding each ln(A/B), the exponents xᵢ and 1−xᵢ act as switches selecting exactly one term.'],
+  ][step-1];
+  txt(`Step ${step} 說明 Explanation`,90,668,18,P.amber,'left',800);
+  wrap(EXPL[0],90,696,1420,26,16.5,P.ink,650);
+  wrap(EXPL[1],90,776,1420,22,14,P.muted,550);
+
+  if(step===4) showF(['f4','chip1','chip2']); else showF(['f'+step]);
+}
+render();
+</script></body></html>
