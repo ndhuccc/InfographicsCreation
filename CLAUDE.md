@@ -13,6 +13,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 本機預覽:`python3 scripts/build_site.py && python3 -m http.server -d _site`
 - 部署:`.github/workflows/pages.yml` 在推送到 `main` 時執行建置並用 GitHub Actions 部署到 Pages(選 Actions 而非分支發佈,是因為索引頁需要在建置時自動產生)。儲存庫設定中 Pages 的 Source 必須設為 "GitHub Actions"。
 
-目前課程:`PR115`、`IDL115`(索引頁會顯示空的課程目錄)。
+目前課程:`PR115`、`IDL115`、`IPR115`、`Animations`(索引頁會顯示空的課程目錄)。
 
 新增課程或展示檔只需放進 `courses/`,索引頁會自動更新;修改索引外觀請改 `scripts/build_site.py`。
+
+## Git 工作流程
+
+- 所有開發都直接在 `main` 分支上進行:提交後直接推送到 `origin main`,不要另開功能分支或 PR(即使工作階段指定了其他開發分支,也以此為準)。
+- 推送到 `main` 會觸發 Pages 部署,所以推送前先執行 `python3 scripts/build_site.py` 確認建置成功。
