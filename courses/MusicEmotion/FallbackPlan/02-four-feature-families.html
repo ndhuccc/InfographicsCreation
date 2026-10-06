@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>02 四類特徵比較 · Four Feature Families</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#dfe6ea}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#10181e}}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg)}
+body{display:grid;place-items:center;min-height:100vh}
+.stage{position:relative;width:min(100vw,177.7778vh);height:min(56.25vw,100vh);aspect-ratio:16/9}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+canvas:focus-visible{outline:3px solid #e39b0b;outline-offset:-3px}
+</style>
+</head>
+<body>
+<div class="stage" id="stage"><canvas id="canvas" width="1600" height="900" tabindex="0" role="img" aria-label="四類音訊特徵比較互動資訊圖表"></canvas></div>
+<script>
+(function(){
+"use strict";
+const W=1600,H=900,cv=document.getElementById('canvas'),g=cv.getContext('2d');
+const FONT='"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif';
+const P={bg:'#f3f6f8',ink:'#14232e',mut:'#55656f',card:'#ffffff',line:'#cfd8de',
+  teal:'#1b6f7f',amber:'#e39b0b',rose:'#c2455a',violet:'#6a4fb3',green:'#2f8f5b',grey:'#6b7c86'};
+function rr(x,y,w,h,r,fill,stroke,lw){g.beginPath();g.roundRect(x,y,w,h,r);
+  if(fill){g.fillStyle=fill;g.fill();} if(stroke){g.lineWidth=lw||2;g.strokeStyle=stroke;g.stroke();}}
+function tx(s,x,y,size,weight,color,align){g.font=weight+' '+size+'px '+FONT;g.fillStyle=color;
+  g.textAlign=align||'left';g.textBaseline='alphabetic';g.fillText(s,x,y);}
+const OPEN=/^[（「『(]$/, CLOSE=/^[，。、；：）」』！？,.;:)]$/;
+function lines(t,maxW,size,weight){
+  t=String(t).replace(/\\n/g,"\n");g.font=weight+' '+size+'px '+FONT;
+  const out=[];
+  for(const para of t.split("\n")){
+    const raw=para.match(/[A-Za-z0-9._\-²%\/+×=<>'’&]+|\s+|[^\sA-Za-z0-9]/g)||[];
+    const toks=[];let pre='';
+    for(const r of raw){
+      if(OPEN.test(r)){pre+=r;continue;}
+      if(CLOSE.test(r)&&toks.length){toks[toks.length-1]+=r;continue;}
+      toks.push(pre+r);pre='';}
+    if(pre)toks.push(pre);
+    let line='';
+    for(const k of toks){
+      if(g.measureText(line+k).width>maxW&&line.trim()){out.push(line.trimEnd());line=k.trimStart();}
+      else line+=k;}
+    out.push(line.trimEnd());}
+  return out;}
+function wrap(t,x,y,maxW,lh,size,weight,color,align){
+  const ls=lines(t,maxW,size,weight);ls.forEach((l,i)=>tx(l,x,y+i*lh,size,weight,color,align||'left'));
+  return y+ls.length*lh;}
+function wrapCenter(t,cx,y,maxW,lh,size,weight,color){return wrap(t,cx,y,maxW,lh,size,weight,color,'center');}
+function arrow(x1,y1,x2,y2,color,lw){const a=Math.atan2(y2-y1,x2-x1),L=16;
+  g.strokeStyle=color;g.fillStyle=color;g.lineWidth=lw||5;g.lineCap='round';
+  g.beginPath();g.moveTo(x1,y1);g.lineTo(x2-Math.cos(a)*L*.7,y2-Math.sin(a)*L*.7);g.stroke();
+  g.beginPath();g.moveTo(x2,y2);g.lineTo(x2-L*Math.cos(a-.45),y2-L*Math.sin(a-.45));
+  g.lineTo(x2-L*Math.cos(a+.45),y2-L*Math.sin(a+.45));g.closePath();g.fill();}
+function chip(x,y,w,h,s,color,size){rr(x,y,w,h,h/2,color);tx(s,x+w/2,y+h/2+(size||18)*.35,size||18,'700','#fff','center');}
+function circle(x,y,r,fill,stroke,lw){g.beginPath();g.arc(x,y,r,0,Math.PI*2);
+  if(fill){g.fillStyle=fill;g.fill();} if(stroke){g.lineWidth=lw||2;g.strokeStyle=stroke;g.stroke();}}
+// two-line block: zh + en, centred
+function block(x,y,w,h,zh,en,color,fill,zs,es){rr(x,y,w,h,14,fill||'#fff',color,3);
+  const a=wrapCenter(zh,x+w/2,y+(zs||20)+10,w-16,(zs||20)+4,zs||20,'700',P.ink);
+  if(en)wrapCenter(en,x+w/2,a+2,w-16,(es||14)+4,es||14,'400',P.mut);}
+let hits=[];
+function button(id,x,y,w,h,zh,en,on,color){
+  rr(x,y,w,h,12,on?color:'#fff',color,3);
+  if(en){tx(zh,x+w/2,y+h/2-1,22,'700',on?'#fff':color,'center');tx(en,x+w/2,y+h/2+22,15,'400',on?'#fff':P.mut,'center');}
+  else tx(zh,x+w/2,y+h/2+8,22,'700',on?'#fff':color,'center');
+  hits.push({id,x,y,w,h});}
+function header(zh,en,n){
+  const gr=g.createLinearGradient(0,0,W,0);gr.addColorStop(0,'#17495a');gr.addColorStop(1,'#1b6f7f');
+  g.fillStyle=gr;g.fillRect(0,0,W,100);
+  tx(zh,50,54,40,'900','#fff');tx(en,50,86,22,'500','rgba(255,255,255,.85)');
+  tx('備案研究方向 Fallback plan · '+n+' / 4',W-50,50,22,'700','#fff','right');
+  tx('徐小惠 · 2026-10-03 · 教授已核定  Approved by professor',W-50,82,17,'400','rgba(255,255,255,.8)','right');}
+function footer(zh,en){tx(zh+'  ·  '+en,W/2,884,16,'400',P.mut,'center');}
+function pos(e){const r=cv.getBoundingClientRect();return{x:(e.clientX-r.left)*W/r.width,y:(e.clientY-r.top)*H/r.height};}
+function hitAt(p){for(let i=hits.length-1;i>=0;i--){const h=hits[i];if(p.x>=h.x&&p.x<=h.x+h.w&&p.y>=h.y&&p.y<=h.y+h.h)return h;}return null;}
+let drag=null;
+function render(){hits=[];g.clearRect(0,0,W,H);g.fillStyle=P.bg;g.fillRect(0,0,W,H);draw();}
+cv.addEventListener('pointerdown',e=>{const p=pos(e),h=hitAt(p);if(!h)return;
+  if(h.slider){drag=h;cv.setPointerCapture(e.pointerId);} onHit(h.id,p,h);render();});
+cv.addEventListener('pointermove',e=>{const p=pos(e);
+  if(drag){onHit(drag.id,p,drag);render();return;}
+  cv.style.cursor=hitAt(p)?'pointer':'default';});
+cv.addEventListener('pointerup',()=>{drag=null;});
+cv.addEventListener('keydown',e=>{if(typeof step==='function'){
+  if(e.key==='ArrowRight'||e.key==='ArrowDown'){step(1);render();e.preventDefault();}
+  if(e.key==='ArrowLeft'||e.key==='ArrowUp'){step(-1);render();e.preventDefault();}}});
+
+let sel=1,masked=false;
+function step(d){sel=(sel+d+4)%4;}
+function setState(k,v){if(k==='sel')sel=v;if(k==='masked')masked=!!v;}
+function onHit(id){if(id.startsWith('f'))sel=+id.slice(1);if(id==='mask')masked=!masked;}
+const F=[
+ {c:'F0',zh:'傳統特徵',en:'Handcrafted',col:P.grey,
+  pz:'目前的固定算法：梅爾頻譜（把聲音畫成「時間 × 音高」強弱圖）與 openSMILE 聲音特徵。',
+  pe:'Fixed formulas: mel spectrogram and openSMILE audio features.',
+  dz:'現有特徵，不需再訓練',de:'Existing features, no training',lz:'基準 · 已完成',le:'Baseline · done'},
+ {c:'F1',zh:'預訓練音樂模型',en:'Pretrained models',col:P.teal,
+  pz:'直接使用別人在大量音樂上訓練好的模型（MERT、CLAP 的聲音部分、PANNs），把每首歌轉成一串數字。',
+  pe:'Reuse models trained by others on large music corpora; turn each song into a vector.',
+  dz:'PMEmo 596 首（只取特徵，不訓練）',de:'PMEmo 596 songs (feature extraction only)',lz:'低 · 建議最先做',le:'Low · do this first'},
+ {c:'F2',zh:'自訓 Autoencoder',en:'Own autoencoder',col:P.violet,
+  pz:'用 800 首自製歌曲加 PMEmo 訓練歌，訓練「把頻譜壓縮再還原」的模型，取中間壓縮後的數字當特徵；可再試遮蔽式版本。',
+  pe:'Train a compress-and-reconstruct model on spectrograms; use the compressed code as features. Masked variant optional.',
+  dz:'800 首自製歌 + PMEmo 訓練歌（不用答案）',de:'800 own songs + PMEmo train songs (no labels)',lz:'中',le:'Medium'},
+ {c:'F3',zh:'半監督 Autoencoder',en:'Semi-supervised AE',col:P.rose,
+  pz:'讓 Autoencoder 同時做兩件事：還原頻譜、預測情緒。沒有人工答案的歌只做還原，有答案的歌兩件事都做。',
+  pe:'One model, two tasks: reconstruct the spectrogram and predict emotion. Unlabeled songs only reconstruct.',
+  dz:'800 首自製歌（無答案）+ PMEmo（有答案）',de:'800 own songs (unlabeled) + PMEmo (labeled)',lz:'中高 · 最有新意',le:'Medium-high · most novel'}];
+function spec(x,y,w,h,m){const cols=6,rows=4,cw=w/cols,ch=h/rows;
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){const v=(Math.sin(c*1.3+r*.7)+1)/2;
+    const isM=m&&((c+r*2)%5===1||(c*3+r)%7===2);
+    g.fillStyle=isM?'#b9c4cb':'hsl(190,'+(40+v*30)+'%,'+(78-v*38)+'%)';g.fillRect(x+c*cw,y+r*ch,cw-2,ch-2);
+    if(isM)tx('?',x+c*cw+cw/2-1,y+r*ch+ch/2+6,16,'700','#fff','center');}}
+function drawFlow(f,col){
+  const bx=i=>70+i*185,by=400,bw=150,bh=110,fy=450;
+  if(sel<2){
+    const L=sel==0?[['音檔','Audio'],['固定公式','Mel + openSMILE'],['特徵向量','Features'],['嶺迴歸','Ridge'],['預測','Valence / Arousal']]
+      :[['音檔','Audio'],['預訓練模型','Frozen: MERT / CLAP / PANNs'],['嵌入向量','Embedding'],['嶺迴歸','Ridge'],['預測','Valence / Arousal']];
+    L.forEach((b,i)=>{block(bx(i),fy-20,bw,bh,b[0],b[1],i==1?col:P.line,i==1?'#f3fafb':'#fff',19,13);
+      if(i<4)arrow(bx(i)+bw+4,fy+35,bx(i+1)-4,fy+35,P.grey,4);});
+    wrap(sel==0?'特徵由事先設計好的公式算出，不隨資料改變。 Features come from fixed formulas and never change with data.'
+        :'直接取別人訓練好的模型輸出，自己不需訓練。 Take the outputs of existing models as-is; no training on your side.',70,620,880,28,19,'500',P.ink);
+  }else{
+    // spectrogram input
+    rr(bx(0),by,bw,bh+10,14,'#fff',P.line,3);spec(bx(0)+14,by+14,bw-28,58,sel==2&&masked||sel==3&&false);
+    tx(masked&&sel==2?'遮住部分頻譜':'頻譜',bx(0)+bw/2,by+96,17,'700',P.ink,'center');
+    tx(masked&&sel==2?'Masked spectrogram':'Spectrogram',bx(0)+bw/2,by+114,13,'400',P.mut,'center');
+    block(bx(1),by,bw,bh+10,'編碼器','Encoder',col,'#fff',20,14);
+    block(bx(2),by,bw,bh+10,'潛在特徵 z','Latent code z',col,'#f8f4ff',20,14);
+    block(bx(3),by,bw,bh+10,'解碼器','Decoder',P.line,'#fff',20,14);
+    block(bx(4),by,bw,bh+10,'還原頻譜','Reconstruction',P.line,'#fff',20,14);
+    for(let i=0;i<4;i++)arrow(bx(i)+bw+4,by+60,bx(i+1)-4,by+60,P.grey,4);
+    const zx=bx(2)+bw/2;arrow(zx,by+bh+14,zx,by+170,col,5);
+    if(sel==2){
+      block(bx(2),by+175,bw,90,'嶺迴歸','Ridge',P.line,'#fff',20,14);
+      arrow(bx(2)+bw+4,by+220,bx(3)-4,by+220,P.grey,4);
+      block(bx(3),by+175,bw+20,90,'預測','Valence / Arousal',P.line,'#fff',20,14);
+      button('mask',bx(0),by+175,bw+150,90,'遮蔽式 Masked：'+(masked?'開':'關'),'Hide patches, predict them',masked,col);
+      // wrap button area: place left side
+    }else{
+      block(bx(2),by+175,bw,90,'情緒預測頭','Emotion head',col,'#fff4f6',20,14);
+      arrow(bx(2)+bw+4,by+220,bx(3)-4,by+220,P.grey,4);
+      block(bx(3),by+175,bw,90,'預測','Valence / Arousal',P.line,'#fff',20,14);
+      rr(bx(3)+40,by+bh+22,bw+90,34,10,'#e9eef1');tx('還原損失：全部歌曲',bx(3)+40+(bw+90)/2,by+bh+45,16,'700',P.ink,'center');
+      rr(bx(0),by+185,bw+160,70,10,'#fbeef1');wrapCenter('情緒損失：只有有答案的歌 Emotion loss: labeled songs only',bx(0)+(bw+160)/2,by+208,bw+140,20,15,'700',P.rose);
+    }
+    if(sel==2&&masked)tx('灰色方塊 = 被遮住、要讓模型猜的區域',70,by+300,18,'500',P.ink);
+    else if(sel==2)tx('用 z 當特徵，再接和其他三類相同的嶺迴歸',70,by+300,18,'500',P.ink);
+    else tx('沒答案的歌只做還原；有答案的歌兩件事都做',70,by+300,18,'500',P.ink);}
+}
+function draw(){
+  header('四類特徵比較','Four feature families for music emotion',2);
+  rr(50,112,1500,68,14,'#e4f1f4',P.teal,3);
+  tx('研究問題：只有少量人工標註時，哪一種音訊特徵最適合辨識音樂情緒？',80,146,26,'700',P.teal);
+  tx('Research question: which audio features work best for music emotion recognition when only a few labels exist?',80,170,16,'400',P.mut);
+  F.forEach((f,i)=>{const x=50+i*380,on=i==sel;
+    rr(x,190,360,110,16,on?f.col:'#fff',f.col,3);
+    rr(x+16,206,64,44,10,on?'rgba(255,255,255,.25)':f.col);tx(f.c,x+48,238,28,'900','#fff','center');
+    tx(f.zh,x+94,232,24,'700',on?'#fff':P.ink);tx(f.en,x+94,258,16,'400',on?'rgba(255,255,255,.9)':P.mut);
+    tx(f.lz,x+20,288,16,'700',on?'#fff':f.col);hits.push({id:'f'+i,x,y:190,w:360,h:110});});
+  const f=F[sel];
+  rr(50,320,930,400,18,'#fff',P.line,2);tx('資料流  Data flow',74,358,24,'900',f.col);drawFlow(f,f.col);
+  rr(1000,320,550,400,18,'#fff',P.line,2);
+  let y=358;tx('白話說明  Plain words',1024,y,22,'900',f.col);
+  y=wrap(f.pz,1024,y+32,500,29,20,'500',P.ink);y=wrap(f.pe,1024,y+2,500,22,15,'400',P.mut);
+  y+=14;tx('使用資料  Data',1024,y,22,'900',f.col);
+  y=wrap(f.dz,1024,y+30,500,28,19,'500',P.ink);y=wrap(f.de,1024,y,500,22,15,'400',P.mut);
+  y+=14;tx('難度  Difficulty',1024,y,22,'900',f.col);
+  chip(1024,y+14,490,36,f.lz+'  ·  '+f.le,f.col,16);
+  rr(50,740,1500,112,16,'#fff',P.line,2);
+  tx('共同規則  Same for every family',74,774,22,'900',P.teal);
+  wrap('每類特徵後面都接同一種簡單預測器（嶺迴歸），差異才能歸因於特徵本身。 Every family feeds the identical Ridge regressor, so differences are due to the features alone.',74,806,880,28,19,'500',P.ink);
+  tx('進階選項  Optional',1000,774,22,'900',P.amber);
+  wrap('領域適應：學到自製歌曲與 PMEmo 都通用的特徵。 Domain adaptation: features shared by both datasets.',1000,806,520,28,18,'500',P.ink);
+  footer('文獻為依記憶整理、尚未逐篇核對，引用前請用 Google Scholar 確認','References are unverified — check on Google Scholar before citing');}
+
+render();
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(render);
+window.__render=render;window.__set=function(k,v){try{setState(k,v);}catch(_){} render();};
+})();
+</script>
+</body>
+</html>

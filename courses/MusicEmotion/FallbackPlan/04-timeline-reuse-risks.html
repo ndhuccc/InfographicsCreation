@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>04 時程、沿用成果與風險 · Timeline, Reuse, Risks</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#dfe6ea}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#10181e}}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg)}
+body{display:grid;place-items:center;min-height:100vh}
+.stage{position:relative;width:min(100vw,177.7778vh);height:min(56.25vw,100vh);aspect-ratio:16/9}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+canvas:focus-visible{outline:3px solid #e39b0b;outline-offset:-3px}
+</style>
+</head>
+<body>
+<div class="stage" id="stage"><canvas id="canvas" width="1600" height="900" tabindex="0" role="img" aria-label="時程、可沿用成果與風險互動資訊圖表"></canvas></div>
+<script>
+(function(){
+"use strict";
+const W=1600,H=900,cv=document.getElementById('canvas'),g=cv.getContext('2d');
+const FONT='"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif';
+const P={bg:'#f3f6f8',ink:'#14232e',mut:'#55656f',card:'#ffffff',line:'#cfd8de',
+  teal:'#1b6f7f',amber:'#e39b0b',rose:'#c2455a',violet:'#6a4fb3',green:'#2f8f5b',grey:'#6b7c86'};
+function rr(x,y,w,h,r,fill,stroke,lw){g.beginPath();g.roundRect(x,y,w,h,r);
+  if(fill){g.fillStyle=fill;g.fill();} if(stroke){g.lineWidth=lw||2;g.strokeStyle=stroke;g.stroke();}}
+function tx(s,x,y,size,weight,color,align){g.font=weight+' '+size+'px '+FONT;g.fillStyle=color;
+  g.textAlign=align||'left';g.textBaseline='alphabetic';g.fillText(s,x,y);}
+const OPEN=/^[（「『(]$/, CLOSE=/^[，。、；：）」』！？,.;:)]$/;
+function lines(t,maxW,size,weight){
+  t=String(t).replace(/\\n/g,"\n");g.font=weight+' '+size+'px '+FONT;
+  const out=[];
+  for(const para of t.split("\n")){
+    const raw=para.match(/[A-Za-z0-9._\-²%\/+×=<>'’&]+|\s+|[^\sA-Za-z0-9]/g)||[];
+    const toks=[];let pre='';
+    for(const r of raw){
+      if(OPEN.test(r)){pre+=r;continue;}
+      if(CLOSE.test(r)&&toks.length){toks[toks.length-1]+=r;continue;}
+      toks.push(pre+r);pre='';}
+    if(pre)toks.push(pre);
+    let line='';
+    for(const k of toks){
+      if(g.measureText(line+k).width>maxW&&line.trim()){out.push(line.trimEnd());line=k.trimStart();}
+      else line+=k;}
+    out.push(line.trimEnd());}
+  return out;}
+function wrap(t,x,y,maxW,lh,size,weight,color,align){
+  const ls=lines(t,maxW,size,weight);ls.forEach((l,i)=>tx(l,x,y+i*lh,size,weight,color,align||'left'));
+  return y+ls.length*lh;}
+function wrapCenter(t,cx,y,maxW,lh,size,weight,color){return wrap(t,cx,y,maxW,lh,size,weight,color,'center');}
+function arrow(x1,y1,x2,y2,color,lw){const a=Math.atan2(y2-y1,x2-x1),L=16;
+  g.strokeStyle=color;g.fillStyle=color;g.lineWidth=lw||5;g.lineCap='round';
+  g.beginPath();g.moveTo(x1,y1);g.lineTo(x2-Math.cos(a)*L*.7,y2-Math.sin(a)*L*.7);g.stroke();
+  g.beginPath();g.moveTo(x2,y2);g.lineTo(x2-L*Math.cos(a-.45),y2-L*Math.sin(a-.45));
+  g.lineTo(x2-L*Math.cos(a+.45),y2-L*Math.sin(a+.45));g.closePath();g.fill();}
+function chip(x,y,w,h,s,color,size){rr(x,y,w,h,h/2,color);tx(s,x+w/2,y+h/2+(size||18)*.35,size||18,'700','#fff','center');}
+function circle(x,y,r,fill,stroke,lw){g.beginPath();g.arc(x,y,r,0,Math.PI*2);
+  if(fill){g.fillStyle=fill;g.fill();} if(stroke){g.lineWidth=lw||2;g.strokeStyle=stroke;g.stroke();}}
+// two-line block: zh + en, centred
+function block(x,y,w,h,zh,en,color,fill,zs,es){rr(x,y,w,h,14,fill||'#fff',color,3);
+  const a=wrapCenter(zh,x+w/2,y+(zs||20)+10,w-16,(zs||20)+4,zs||20,'700',P.ink);
+  if(en)wrapCenter(en,x+w/2,a+2,w-16,(es||14)+4,es||14,'400',P.mut);}
+let hits=[];
+function button(id,x,y,w,h,zh,en,on,color){
+  rr(x,y,w,h,12,on?color:'#fff',color,3);
+  if(en){tx(zh,x+w/2,y+h/2-1,22,'700',on?'#fff':color,'center');tx(en,x+w/2,y+h/2+22,15,'400',on?'#fff':P.mut,'center');}
+  else tx(zh,x+w/2,y+h/2+8,22,'700',on?'#fff':color,'center');
+  hits.push({id,x,y,w,h});}
+function header(zh,en,n){
+  const gr=g.createLinearGradient(0,0,W,0);gr.addColorStop(0,'#17495a');gr.addColorStop(1,'#1b6f7f');
+  g.fillStyle=gr;g.fillRect(0,0,W,100);
+  tx(zh,50,54,40,'900','#fff');tx(en,50,86,22,'500','rgba(255,255,255,.85)');
+  tx('備案研究方向 Fallback plan · '+n+' / 4',W-50,50,22,'700','#fff','right');
+  tx('徐小惠 · 2026-10-03 · 教授已核定  Approved by professor',W-50,82,17,'400','rgba(255,255,255,.8)','right');}
+function footer(zh,en){tx(zh+'  ·  '+en,W/2,884,16,'400',P.mut,'center');}
+function pos(e){const r=cv.getBoundingClientRect();return{x:(e.clientX-r.left)*W/r.width,y:(e.clientY-r.top)*H/r.height};}
+function hitAt(p){for(let i=hits.length-1;i>=0;i--){const h=hits[i];if(p.x>=h.x&&p.x<=h.x+h.w&&p.y>=h.y&&p.y<=h.y+h.h)return h;}return null;}
+let drag=null;
+function render(){hits=[];g.clearRect(0,0,W,H);g.fillStyle=P.bg;g.fillRect(0,0,W,H);draw();}
+cv.addEventListener('pointerdown',e=>{const p=pos(e),h=hitAt(p);if(!h)return;
+  if(h.slider){drag=h;cv.setPointerCapture(e.pointerId);} onHit(h.id,p,h);render();});
+cv.addEventListener('pointermove',e=>{const p=pos(e);
+  if(drag){onHit(drag.id,p,drag);render();return;}
+  cv.style.cursor=hitAt(p)?'pointer':'default';});
+cv.addEventListener('pointerup',()=>{drag=null;});
+cv.addEventListener('keydown',e=>{if(typeof step==='function'){
+  if(e.key==='ArrowRight'||e.key==='ArrowDown'){step(1);render();e.preventDefault();}
+  if(e.key==='ArrowLeft'||e.key==='ArrowUp'){step(-1);render();e.preventDefault();}}});
+
+let tab=0,stage=0;
+function step(d){if(tab==0)stage=(stage+d+5)%5;else tab=(tab+d+3)%3;}
+function setState(k,v){if(k==='tab')tab=v;if(k==='stage')stage=v;}
+function onHit(id){if(id.startsWith('b'))tab=+id.slice(1);if(id.startsWith('s'))stage=+id.slice(1);}
+const ST=[
+ {zh:'建立評估流程，並用 F0 跑出基準成績',en:'Build the evaluation pipeline; baseline with F0',a:0,b:2,lo:1,tag:'核心 Core',col:P.teal},
+ {zh:'F1：取出 2–3 種預訓練模型的特徵並比較',en:'F1: extract and compare 2–3 pretrained models',a:2,b:4,lo:2,tag:'核心 Core',col:P.teal},
+ {zh:'F2：訓練 Autoencoder 並比較',en:'F2: train an autoencoder and compare',a:4,b:8,lo:3,tag:'加分 Bonus',col:P.violet},
+ {zh:'F3：半監督 Autoencoder',en:'F3: semi-supervised autoencoder',a:8,b:12,lo:3,tag:'加分 Bonus',col:P.violet},
+ {zh:'整理結果、撰寫論文章節',en:'Consolidate results, write the thesis chapter',a:12,b:15,lo:2,tag:'收尾 Wrap-up',col:P.green}];
+const DUR=['1–2 週 weeks','2 週 weeks','3–4 週 weeks','3–4 週 weeks','2–3 週 weeks'];
+const REUSE=[
+ ['PMEmo 資料整理、歌曲編號與標註對齊','（438 首核對的經驗）','評估資料：596 首的人工標註（正負面、激昂）','Evaluation data: human valence / arousal labels'],
+ ['800 首自製歌曲的音檔與頻譜','','Autoencoder 的「自學」材料，不再使用 CLAP 產生的答案','Self-supervised material; no CLAP labels'],
+ ['現有的頻譜與 openSMILE 特徵','','直接作為 F0 基準','Used directly as the F0 baseline'],
+ ['修正後的評估流程','巢狀交叉驗證、配對比較','在備案中完全適用','Applies to the fallback as-is']];
+const RISK=[
+ ['學到的特徵不一定和情緒有關','Learned features may not relate to emotion','Autoencoder 學的是「怎麼還原得像」，常偏重音量、音色等容易還原的資訊。','對策：用 F3 加入情緒資訊。 Fix: add emotion supervision (F3).',P.rose],
+ ['運算資源','Compute','預訓練模型取特徵只需一般顯示卡；自己訓練 Autoencoder 需要較長時間。','對策：先用小模型、小資料試做。 Fix: start small.',P.amber],
+ ['授權','Licensing','自製歌曲音檔有著作權疑慮，只能在本機使用，不可上傳到 GitHub。','對策：使用公開模型與資料集前先確認授權條款。 Fix: check licenses first.',P.violet],
+ ['紀錄','Records','損失值、隨機種子、程式版本，必須由程式實際執行時自動輸出並保存，不可事後補畫或手填。','對策：報告中每個數字都要能找到產生它的輸出檔。 Fix: trace every number.',P.teal]];
+function draw(){
+  header('時程、可沿用成果與風險','Timeline, reusable work, and risks',4);
+  [['時程','Timeline'],['沿用成果','Reusable work'],['風險','Risks']].forEach((t,i)=>button('b'+i,50+i*510,115,480,66,t[0],t[1],i==tab,[P.teal,P.green,P.rose][i]));
+  rr(50,196,1500,660,18,'#fff',P.line,2);
+  if(tab==0){
+    tx('粗估 11–15 週，實際依進度調整  Rough estimate 11–15 weeks; adjust to actual progress',74,232,19,'700',P.ink);
+    const gx=700,gw=820,u=gw/15;
+    for(let w=0;w<=15;w+=3){tx(String(w),gx+w*u,262,15,'400',P.mut,'center');g.strokeStyle='#e3e9ec';g.lineWidth=1;g.beginPath();g.moveTo(gx+w*u,270);g.lineTo(gx+w*u,640);g.stroke();}
+    tx('週 weeks',gx-14,262,14,'400',P.mut,'right');
+    ST.forEach((s,i)=>{const y=280+i*70,on=i==stage;
+      rr(70,y,600,60,12,on?'#f3fafb':'#fff',on?s.col:P.line,on?4:2);
+      circle(104,y+30,20,s.col);tx(String(i+1),104,y+38,22,'900','#fff','center');
+      wrap(s.zh,140,y+26,520,22,18,'700',P.ink);tx(s.tag,140,y+50,14,'700',s.col);
+      rr(gx+s.a*u,y+10,(s.b-s.a)*u,40,10,s.col,null);rr(gx+s.a*u,y+10,s.lo*u,40,10,'rgba(0,0,0,.28)',null);
+      hits.push({id:'s'+i,x:70,y,w:600,h:60});});
+    tx('深色 = 最短估計  darker = shortest estimate',gx,664,15,'400',P.mut);
+    rr(70,690,720,150,16,'#e9f6ee',P.green,3);
+    tx('階段 1–2 完成後，已有可寫成論文章節的完整比較',90,724,20,'700','#1f6b44');
+    tx('Stages 1–2 already give a complete comparison for a thesis chapter.',90,748,15,'400',P.mut);
+    tx('階段 3–4 是加分項  Stages 3–4 are bonus.',90,782,19,'700','#5b3fa6');
+    const s=ST[stage];rr(820,690,700,150,16,'#fff',s.col,4);
+    tx('階段 '+(stage+1)+' · '+DUR[stage],842,724,20,'900',s.col);
+    wrap(s.zh,842,758,656,28,20,'700',P.ink);wrap(s.en,842,816,656,22,15,'400',P.mut);
+  }else if(tab==1){
+    tx('現有工作不會白費  Nothing done so far is wasted',74,236,22,'900',P.green);
+    REUSE.forEach((r,i)=>{const y=262+i*148;
+      rr(74,y,560,128,16,'#f7fafb',P.line,2);tx('現有成果 Existing',94,y+30,15,'700',P.mut);
+      let yy=wrap(r[0],94,y+62,520,28,21,'700',P.ink);if(r[1])wrap(r[1],94,yy,520,24,17,'400',P.mut);
+      arrow(646,y+64,742,y+64,P.green,6);
+      rr(752,y,774,128,16,'#e9f6ee',P.green,3);tx('備案中的用途 Use in fallback',772,y+30,15,'700','#1f6b44');
+      wrap(r[2],772,y+62,730,28,21,'700',P.ink);wrap(r[3],772,y+96,730,22,16,'400',P.mut);});
+  }else{
+    tx('風險與注意事項  Risks and precautions',74,236,22,'900',P.rose);
+    RISK.forEach((r,i)=>{const x=74+(i%2)*746,y=256+Math.floor(i/2)*300,w=718,h=280;
+      rr(x,y,w,h,16,'#fff',r[4],4);rr(x,y,w,70,[16,16,0,0],r[4]);
+      tx(r[0],x+22,y+34,24,'900','#fff');tx(r[1],x+22,y+58,15,'400','rgba(255,255,255,.88)');
+      wrap(r[2],x+22,y+112,w-44,32,21,'500',P.ink);
+      rr(x+16,y+h-98,w-32,82,12,'#f3f6f8');wrap(r[3],x+34,y+h-64,w-68,28,18,'700',r[4]);});
+  }
+  footer('論文題目可隨時視研究需要調整，不必因改走備案而有壓力','The thesis title can be adjusted at any time — no pressure from taking the fallback');}
+
+render();
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(render);
+window.__render=render;window.__set=function(k,v){try{setState(k,v);}catch(_){} render();};
+})();
+</script>
+</body>
+</html>

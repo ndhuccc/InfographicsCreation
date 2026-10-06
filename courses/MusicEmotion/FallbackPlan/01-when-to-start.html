@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>01 何時啟動備案 · When to Start</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#dfe6ea}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#10181e}}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg)}
+body{display:grid;place-items:center;min-height:100vh}
+.stage{position:relative;width:min(100vw,177.7778vh);height:min(56.25vw,100vh);aspect-ratio:16/9}
+canvas{display:block;width:100%;height:100%;touch-action:none}
+canvas:focus-visible{outline:3px solid #e39b0b;outline-offset:-3px}
+</style>
+</head>
+<body>
+<div class="stage" id="stage"><canvas id="canvas" width="1600" height="900" tabindex="0" role="img" aria-label="備案啟動條件互動資訊圖表"></canvas></div>
+<script>
+(function(){
+"use strict";
+const W=1600,H=900,cv=document.getElementById('canvas'),g=cv.getContext('2d');
+const FONT='"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif';
+const P={bg:'#f3f6f8',ink:'#14232e',mut:'#55656f',card:'#ffffff',line:'#cfd8de',
+  teal:'#1b6f7f',amber:'#e39b0b',rose:'#c2455a',violet:'#6a4fb3',green:'#2f8f5b',grey:'#6b7c86'};
+function rr(x,y,w,h,r,fill,stroke,lw){g.beginPath();g.roundRect(x,y,w,h,r);
+  if(fill){g.fillStyle=fill;g.fill();} if(stroke){g.lineWidth=lw||2;g.strokeStyle=stroke;g.stroke();}}
+function tx(s,x,y,size,weight,color,align){g.font=weight+' '+size+'px '+FONT;g.fillStyle=color;
+  g.textAlign=align||'left';g.textBaseline='alphabetic';g.fillText(s,x,y);}
+const OPEN=/^[（「『(]$/, CLOSE=/^[，。、；：）」』！？,.;:)]$/;
+function lines(t,maxW,size,weight){
+  t=String(t).replace(/\\n/g,"\n");g.font=weight+' '+size+'px '+FONT;
+  const out=[];
+  for(const para of t.split("\n")){
+    const raw=para.match(/[A-Za-z0-9._\-²%\/+×=<>'’&]+|\s+|[^\sA-Za-z0-9]/g)||[];
+    const toks=[];let pre='';
+    for(const r of raw){
+      if(OPEN.test(r)){pre+=r;continue;}
+      if(CLOSE.test(r)&&toks.length){toks[toks.length-1]+=r;continue;}
+      toks.push(pre+r);pre='';}
+    if(pre)toks.push(pre);
+    let line='';
+    for(const k of toks){
+      if(g.measureText(line+k).width>maxW&&line.trim()){out.push(line.trimEnd());line=k.trimStart();}
+      else line+=k;}
+    out.push(line.trimEnd());}
+  return out;}
+function wrap(t,x,y,maxW,lh,size,weight,color,align){
+  const ls=lines(t,maxW,size,weight);ls.forEach((l,i)=>tx(l,x,y+i*lh,size,weight,color,align||'left'));
+  return y+ls.length*lh;}
+function wrapCenter(t,cx,y,maxW,lh,size,weight,color){return wrap(t,cx,y,maxW,lh,size,weight,color,'center');}
+function arrow(x1,y1,x2,y2,color,lw){const a=Math.atan2(y2-y1,x2-x1),L=16;
+  g.strokeStyle=color;g.fillStyle=color;g.lineWidth=lw||5;g.lineCap='round';
+  g.beginPath();g.moveTo(x1,y1);g.lineTo(x2-Math.cos(a)*L*.7,y2-Math.sin(a)*L*.7);g.stroke();
+  g.beginPath();g.moveTo(x2,y2);g.lineTo(x2-L*Math.cos(a-.45),y2-L*Math.sin(a-.45));
+  g.lineTo(x2-L*Math.cos(a+.45),y2-L*Math.sin(a+.45));g.closePath();g.fill();}
+function chip(x,y,w,h,s,color,size){rr(x,y,w,h,h/2,color);tx(s,x+w/2,y+h/2+(size||18)*.35,size||18,'700','#fff','center');}
+function circle(x,y,r,fill,stroke,lw){g.beginPath();g.arc(x,y,r,0,Math.PI*2);
+  if(fill){g.fillStyle=fill;g.fill();} if(stroke){g.lineWidth=lw||2;g.strokeStyle=stroke;g.stroke();}}
+// two-line block: zh + en, centred
+function block(x,y,w,h,zh,en,color,fill,zs,es){rr(x,y,w,h,14,fill||'#fff',color,3);
+  const a=wrapCenter(zh,x+w/2,y+(zs||20)+10,w-16,(zs||20)+4,zs||20,'700',P.ink);
+  if(en)wrapCenter(en,x+w/2,a+2,w-16,(es||14)+4,es||14,'400',P.mut);}
+let hits=[];
+function button(id,x,y,w,h,zh,en,on,color){
+  rr(x,y,w,h,12,on?color:'#fff',color,3);
+  if(en){tx(zh,x+w/2,y+h/2-1,22,'700',on?'#fff':color,'center');tx(en,x+w/2,y+h/2+22,15,'400',on?'#fff':P.mut,'center');}
+  else tx(zh,x+w/2,y+h/2+8,22,'700',on?'#fff':color,'center');
+  hits.push({id,x,y,w,h});}
+function header(zh,en,n){
+  const gr=g.createLinearGradient(0,0,W,0);gr.addColorStop(0,'#17495a');gr.addColorStop(1,'#1b6f7f');
+  g.fillStyle=gr;g.fillRect(0,0,W,100);
+  tx(zh,50,54,40,'900','#fff');tx(en,50,86,22,'500','rgba(255,255,255,.85)');
+  tx('備案研究方向 Fallback plan · '+n+' / 4',W-50,50,22,'700','#fff','right');
+  tx('徐小惠 · 2026-10-03 · 教授已核定  Approved by professor',W-50,82,17,'400','rgba(255,255,255,.8)','right');}
+function footer(zh,en){tx(zh+'  ·  '+en,W/2,884,16,'400',P.mut,'center');}
+function pos(e){const r=cv.getBoundingClientRect();return{x:(e.clientX-r.left)*W/r.width,y:(e.clientY-r.top)*H/r.height};}
+function hitAt(p){for(let i=hits.length-1;i>=0;i--){const h=hits[i];if(p.x>=h.x&&p.x<=h.x+h.w&&p.y>=h.y&&p.y<=h.y+h.h)return h;}return null;}
+let drag=null;
+function render(){hits=[];g.clearRect(0,0,W,H);g.fillStyle=P.bg;g.fillRect(0,0,W,H);draw();}
+cv.addEventListener('pointerdown',e=>{const p=pos(e),h=hitAt(p);if(!h)return;
+  if(h.slider){drag=h;cv.setPointerCapture(e.pointerId);} onHit(h.id,p,h);render();});
+cv.addEventListener('pointermove',e=>{const p=pos(e);
+  if(drag){onHit(drag.id,p,drag);render();return;}
+  cv.style.cursor=hitAt(p)?'pointer':'default';});
+cv.addEventListener('pointerup',()=>{drag=null;});
+cv.addEventListener('keydown',e=>{if(typeof step==='function'){
+  if(e.key==='ArrowRight'||e.key==='ArrowDown'){step(1);render();e.preventDefault();}
+  if(e.key==='ArrowLeft'||e.key==='ArrowUp'){step(-1);render();e.preventDefault();}}});
+
+let sel=0;
+function step(d){sel=(sel+d+3)%3;}
+function setState(k,v){if(k==='sel')sel=v;}
+function onHit(id){if(id.startsWith('c'))sel=+id.slice(1);}
+const CRIT=[
+ {zh:'融合是否有實質進步',en:'Does fusion really help?',
+  bz:'在正確的評估方式下（596 首輪流當測試歌曲，審查紀錄第 8.1 節第 4 步），三位評審融合的成績，是否明顯勝過「一律猜最常見的情緒」，以及最好的單一評審？',
+  be:'Under correct evaluation (596 songs take turns as the test song; review §8.1 step 4), does fusing the three judges clearly beat always guessing the most common emotion — and the best single judge?'},
+ {zh:'八類情緒的定義站得住嗎',en:'Do the eight classes hold up?',
+  bz:'重新檢討後（審查紀錄第 5.1、5.2 節），八類答案能否被合理區分？',
+  be:'After the re-examination (review §5.1–5.2), can the eight answer classes be told apart in a reasonable way?'},
+ {zh:'歌詞評審有貢獻嗎',en:'Does the lyrics judge contribute?',
+  bz:'依審查紀錄第 8.2 節改善後，「三位評審」與「只用頻譜＋聲音」是否有明顯差別？',
+  be:'After the improvements in review §8.2, is there a clear difference between the three judges and spectrum + audio only?'}];
+function ill0(){
+  const base=775,items=[['一律猜最常見情緒','Always guess the majority',45,P.grey],['最好的單一評審','Best single judge',85,P.teal],['三位評審融合','Fusion of 3 judges',140,P.amber]];
+  items.forEach((it,i)=>{const x=680+i*270;rr(x,base-it[2],180,it[2],10,it[3]);
+    wrapCenter(it[0],x+90,base+24,260,20,19,'700',P.ink);tx(it[1],x+90,base+43,14,'400',P.mut,'center');});
+  tx('示意圖，非實際結果  Illustration only — not real results',590,612,16,'400',P.mut);
+  tx('須明顯更高 should be clearly higher',1310,base-158,18,'700','#9a6700','center');}
+function ill1(){
+  const cx=1055,cy=665,R=100;
+  for(let i=0;i<8;i++){const a=i/8*Math.PI*2-Math.PI/2,x=cx+R*Math.cos(a),y=cy+R*Math.sin(a);
+    circle(x,y,24,P.amber);tx(String(i+1),x,y+8,22,'900','#fff','center');}
+  tx('能區分嗎？',cx,cy+2,22,'700',P.ink,'center');tx('Separable?',cx,cy+24,15,'400',P.mut,'center');
+  wrapCenter('八類答案  Eight answer classes',720,cy-10,240,24,19,'700',P.ink);
+  wrapCenter('審查紀錄 §5.1、§5.2 重新檢討\nRe-examined in review §5.1–5.2',1390,cy-10,300,26,18,'400',P.mut);}
+function ill2(){
+  const y=610,h=190;
+  rr(600,y,380,h,16,'#fff',P.teal,3);tx('三位評審  Three judges',620,y+36,22,'700',P.teal);
+  ['頻譜 Spectrum','聲音 Audio feat.','歌詞 Lyrics'].forEach((s,i)=>chip(620+(i%2)*180,y+60+Math.floor(i/2)*52,170,40,s,i==2?P.amber:P.teal,17));
+  rr(1130,y,380,h,16,'#fff',P.grey,3);tx('只用頻譜＋聲音',1150,y+36,22,'700',P.grey);tx('Spectrum + audio only',1150,y+58,15,'400',P.mut);
+  ['頻譜 Spectrum','聲音 Audio feat.'].forEach((s,i)=>chip(1150+i*180,y+76,170,40,s,P.teal,17));
+  tx('≟',1055,y+82,52,'900',P.amber,'center');tx('有明顯差別？',1055,y+112,18,'700',P.ink,'center');tx('clear difference?',1055,y+132,14,'400',P.mut,'center');}
+function draw(){
+  header('何時啟動備案？','When to start the fallback plan',1);
+  rr(50,115,1500,76,14,'#fff4d6',P.amber,3);
+  tx('這是「備案」，不是新作業：先專心完成 W40 審查紀錄的修正，再決定是否啟動。',80,150,26,'700','#6b4a00');
+  tx('A fallback, not a new assignment — finish the W40 corrections first, then decide together with the professor.',80,178,17,'400',P.mut);
+  const fl=[['完成 W40 修正','Finish the W40 fixes'],['看修正後的結果','Review the new results'],['對照三項檢視','Check three criteria'],['與教授一起討論','Decide with the professor']];
+  fl.forEach((f,i)=>{const x=50+i*390,on=i==2;
+    rr(x,205,330,64,12,on?P.amber:'#fff',on?P.amber:P.line,3);
+    tx(f[0],x+165,235,22,'700',on?'#fff':P.ink,'center');tx(f[1],x+165,257,15,'400',on?'#fff':P.mut,'center');
+    if(i<3)arrow(x+336,237,x+384,237,P.grey,4);});
+  CRIT.forEach((c,i)=>{const y=290+i*185,on=i==sel;
+    rr(50,y,470,170,16,on?'#fff8e6':'#fff',on?P.amber:P.line,on?5:2);
+    circle(100,y+85,30,on?P.amber:P.grey);tx(String(i+1),100,y+97,34,'900','#fff','center');
+    wrap(c.zh,150,y+75,350,30,25,'700',P.ink);tx(c.en,150,y+130,17,'400',P.mut);
+    hits.push({id:'c'+i,x:50,y,w:470,h:170});});
+  rr(560,290,990,540,18,'#fff',P.line,2);
+  const c=CRIT[sel];
+  tx(c.zh,590,342,30,'900',P.ink);tx(c.en,590,370,18,'400',P.mut);
+  let y=wrap(c.bz,590,410,930,34,23,'500',P.ink);
+  y=wrap(c.be,590,y+8,930,25,17,'400',P.mut);
+  [ill0,ill1,ill2][sel]();
+  footer('門檻不事先設定，等結果出來後與教授討論；即使啟動，現有成果都可沿用（見第 4 頁）','No threshold is fixed in advance; existing work carries over (page 4)');}
+
+render();
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(render);
+window.__render=render;window.__set=function(k,v){try{setState(k,v);}catch(_){} render();};
+})();
+</script>
+</body>
+</html>
