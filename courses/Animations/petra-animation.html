@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>欸，你不跟上來嗎！｜佩特拉小旅行</title>
+<style>
+:root{color-scheme:dark;--paper:#e9dbc9;--muted:#a79788;--accent:#e9aa79;--line:#44372d}
+*{box-sizing:border-box}body{margin:0;background:#1c1916;color:var(--paper);font-family:"Microsoft JhengHei","Noto Sans TC",sans-serif}
+main{max-width:1180px;margin:0 auto;padding:46px 34px 28px}.eyebrow{font-size:11px;letter-spacing:4px;color:var(--accent)}
+header{display:flex;justify-content:space-between;align-items:end;margin:0 0 25px}h1{font-family:"Noto Serif TC","PMingLiU",serif;font-size:clamp(25px,4vw,39px);font-weight:500;letter-spacing:2px;margin:12px 0 0}header p{color:var(--muted);font-size:12px;letter-spacing:1px;margin:0 0 5px}
+.screen{position:relative;aspect-ratio:16/9;background:#d29475;overflow:hidden;box-shadow:0 24px 70px #0005;border:1px solid #726052}
+canvas{width:100%;height:100%;display:block}.start{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(transparent,#21150e66);cursor:pointer;border:0;color:#fff6e7;font:inherit;gap:16px}
+.start span{display:grid;place-items:center;width:66px;height:66px;background:#221b16aa;border:1px solid #fff8;border-radius:50%;font-size:21px;padding-left:4px;backdrop-filter:blur(4px)}.start small{letter-spacing:3px;font-size:12px;text-shadow:0 2px 5px #000}.start[hidden]{display:none}
+.controls{display:flex;align-items:center;gap:18px;padding:17px 0 14px;border-bottom:1px solid var(--line)}button{font:inherit;background:transparent;color:var(--paper);border:0;cursor:pointer;padding:9px 0;white-space:nowrap;font-size:12px}button:hover{color:var(--accent)}button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:5px}.primary{color:var(--accent);min-width:51px;text-align:left}.time{font-family:Georgia,serif;font-size:13px;font-variant-numeric:tabular-nums;white-space:nowrap;color:#c0af9e}.timeline{flex:1;min-width:50px;accent-color:var(--accent);cursor:pointer;height:3px}.divider{height:18px;width:1px;background:var(--line)}
+.chapters{display:grid;grid-template-columns:3fr 3fr 4fr;gap:21px;padding-top:23px}.chapter{padding:0;text-align:left;white-space:normal;display:grid;gap:7px;color:var(--muted);line-height:1.6}.chapter strong{font-size:13px;font-weight:400}.chapter small{font-size:10px;letter-spacing:2px;font-family:Georgia,serif}.chapter.active{color:var(--accent)}footer{display:flex;justify-content:space-between;margin-top:28px;gap:16px;color:#85796e;font-size:10px;line-height:1.7;letter-spacing:.5px}.status{color:#b09d88}.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+@media(max-width:650px){main{padding:26px 14px}header{display:block}header p{margin-top:14px}.controls{gap:12px}.divider{display:none}.chapters{gap:10px}.chapter strong{font-size:11px}footer{display:block}#fullscreen{display:none}}
+.screen:fullscreen{border:0;background:#000;display:flex;align-items:center;justify-content:center}.screen:fullscreen canvas{width:100%;height:100%;object-fit:contain}
+</style>
+</head>
+<body>
+<main>
+<header><div><div class="eyebrow">A LITTLE DETOUR · PETRA</div><h1>欸，你不跟上來嗎！</h1></div><p>佩特拉小旅行　／　10 秒短篇</p></header>
+<section class="screen" id="screen" aria-label="佩特拉古城騎馬喜劇動畫">
+<canvas id="film" width="1280" height="720" role="img" aria-label="導遊牽馬觀光，小馬突然奔跑，男子回頭驚喊的動畫"></canvas>
+<button class="start" id="start" aria-label="播放動畫"><span>▶</span><small>開始這趟小旅行</small></button>
+</section>
+<div class="controls">
+<button id="play" class="primary" aria-label="播放動畫">▶ 播放</button>
+<button id="replay" aria-label="從頭重播">↺ 重播</button>
+<span class="time" id="time">00.0 / 10.0</span>
+<label class="sr" for="timeline">動畫進度</label><input id="timeline" class="timeline" type="range" min="0" max="10" step="0.01" value="0">
+<span class="divider"></span><button id="sound" aria-pressed="true">聲音 開</button><button id="fullscreen">⤢ 全螢幕</button>
+</div>
+<nav class="chapters" aria-label="分鏡時間軸">
+<button class="chapter active" data-time="0"><small>01　/　0–3 SEC</small><strong>悠閒觀光，一切都很美好。</strong></button>
+<button class="chapter" data-time="3"><small>02　/　3–6 SEC</small><strong>等等……馬怎麼自己走了？</strong></button>
+<button class="chapter" data-time="6"><small>03　/　6–10 SEC</small><strong>一個回頭，發現少了一個人。</strong></button>
+</nav>
+<footer><span>HTML5 Canvas 原創動畫 · 玫瑰紅岩城 / 自然光 / 喜劇分鏡</span><span id="voice-status" class="status">中文語音使用瀏覽器可用聲音；字幕固定顯示。</span></footer>
+<p class="sr" id="description" aria-live="polite">導遊牽著小馬，男子悠閒觀光。</p>
+</main>
+<script>
+'use strict';
+const canvas=document.getElementById('film');let ctx=canvas.getContext('2d');
+const $=id=>document.getElementById(id),TAU=Math.PI*2;
+const clamp=(v,a=0,b=1)=>Math.max(a,Math.min(b,v));
+const lerp=(a,b,t)=>a+(b-a)*t;
+const smooth=(a,b,v)=>{let x=clamp((v-a)/(b-a));return x*x*(3-2*x)};
+const noise=n=>{const v=Math.sin(n*127.1+311.7)*43758.5453;return v-Math.floor(v)};
+let t=0,playing=false,last=0,muted=false,spoken=false,lastHoof=-1,voiceList=[],audio=null,chapter=-1;
+const palettes={sand:'#e2b38d',rock:'#ba7560',dark:'#714b3a'};
+function path(points,fill,stroke=null,width=1){ctx.beginPath();for(let i=0;i<points.length;i++){let p=points[i];if(i===0)ctx.moveTo(p[0],p[1]);else ctx.lineTo(p[0],p[1])}ctx.closePath();if(fill){ctx.fillStyle=fill;ctx.fill()}if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=width;ctx.stroke()}}
+function line(points,color,width=2){ctx.beginPath();points.forEach((p,i)=>i?ctx.lineTo(...p):ctx.moveTo(...p));ctx.strokeStyle=color;ctx.lineWidth=width;ctx.lineCap='round';ctx.lineJoin='round';ctx.stroke()}
+function ellipse(x,y,rx,ry,color,angle=0){ctx.beginPath();ctx.ellipse(x,y,rx,ry,angle,0,TAU);ctx.fillStyle=color;ctx.fill()}
+function rect(x,y,w,h,color){ctx.fillStyle=color;ctx.fillRect(x,y,w,h)}
+function gradient(x0,y0,x1,y1,stops){const g=ctx.createLinearGradient(x0,y0,x1,y1);stops.forEach(([s,c])=>g.addColorStop(s,c));return g}
+function rounded(x,y,w,h,r,color){ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fillStyle=color;ctx.fill()}
+
+// The set is painted once; the moving camera reveals different parts of the street.
+const backdrop=document.createElement('canvas');backdrop.width=2400;backdrop.height=720;
+function carveFacade(x,y,w,h){
+ ctx.save();ctx.translate(x,y);
+ rect(0,0,w,h,gradient(0,0,w,h,[[0,'#cb8e76'],[.6,'#b67562'],[1,'#925b4a']]));
+ path([[-13,22],[w/2,-48],[w+13,22]],'#cc927a','#945e4e',2);
+ path([[8,17],[w/2,-31],[w-8,17]],'#b77d67');
+ rect(-12,23,w+24,15,'#d49c82');rect(-6,40,w+12,7,'#a86e5a');
+ rect(18,52,w-36,h-70,'#965e4f');
+ for(let i=0;i<4;i++){
+  let cx=23+i*(w-46)/3;
+  rect(cx-11,58,22,h-81,gradient(cx-11,0,cx+11,0,[[0,'#a7715d'],[.38,'#e2ac8d'],[1,'#a67260']]));
+  rect(cx-15,51,30,12,'#d9a287');rect(cx-15,h-30,30,14,'#d8a183');
+  line([[cx-5,69],[cx-5,h-33]],'#e0ae9055',2);line([[cx+6,69],[cx+6,h-33]],'#81504455',1);
+ }
+ rect(w*.39,h*.44,w*.22,h*.5,'#533a31');rect(w*.415,h*.46,w*.17,h*.47,'#46342e');
+ rect(-19,h-17,w+38,10,'#d09a7a');rect(-28,h-7,w+56,7,'#946451');
+ for(let i=0;i<110;i++){const px=noise(i+9)*w,py=noise(i+981)*h;rect(px,py,1+noise(i)*4,1,'#553d2b18')}
+ ctx.restore();
+}
+function paintSet(){
+ const main=ctx;ctx=backdrop.getContext('2d');
+ rect(0,0,2400,720,gradient(0,0,0,720,[[0,'#d9e3d8'],[.34,'#f2dbba'],[1,'#d3a783']]));
+ ellipse(1480,84,240,90,'#fff2d74d');
+ path([[0,290],[0,160],[68,102],[115,123],[167,67],[222,108],[281,87],[326,147],[390,90],[460,142],[541,101],[630,160],[702,112],[795,163],[870,102],[929,155],[1020,84],[1120,102],[1190,74],[1280,150],[1370,105],[1440,176],[1540,84],[1670,141],[1750,108],[1860,183],[1990,118],[2110,141],[2220,90],[2400,145],[2400,515],[0,515]],gradient(0,75,0,500,[[0,'#c39578'],[.4,'#c98468'],[1,'#b47759']]));
+ for(let i=0;i<95;i++){
+  let x=i*27,y=115+noise(i)*140;
+  path([[x,y],[x+18,y-35],[x+46,y+30],[x+24,500],[x-9,500]],i%3?'#bc7d6340':'#edb58c35');
+  line([[x+20,y+25],[x+5,y+115],[x+24,430]],'#81533f25',2);
+ }
+ carveFacade(35,190,285,316);carveFacade(535,124,345,382);carveFacade(1245,197,261,309);carveFacade(1800,163,330,343);
+ for(let x of [365,1000,1615,2240]){
+  rect(x,318,78,188,'#a26d55');path([[x,356],[x+39,325],[x+78,356],[x+78,506],[x,506]],'#a76e55');
+  ellipse(x+39,381,25,34,'#644636');rect(x+14,381,50,124,'#644636');rect(x+14,488,50,17,'#453b30');
+ }
+ rect(0,506,2400,214,gradient(0,506,0,720,[[0,'#d5ad87'],[1,'#e7c59b']]));
+ for(let row=0;row<7;row++){
+  const yy=508+row*row*5.8,ny=508+(row+1)*(row+1)*5.8;
+  line([[0,yy],[2400,yy]],'#92735966',1.3);
+  const size=75+row*27;
+  for(let col=-1;col<2400/size+1;col++){
+   let xx=col*size+(row%2?size/2:0);
+   line([[xx,yy],[xx+(xx-1100)*.019,ny]],'#94775c5c',1);
+   path([[xx+4,yy+3],[xx+size-3,yy+3],[xx+size-5,ny-4],[xx+5,ny-4]],`rgba(128,87,54,${noise(row*44+col)*.075})`);
+  }
+ }
+ for(let i=0;i<180;i++)ellipse(noise(i+45)*2400,510+noise(i+112)*209,noise(i+212)*3+.5,noise(i+32)+.5,'#71533c30');
+ // Low banks of sand soften the edge of the stone street.
+ for(let i=0;i<55;i++)ellipse(i*45,506+noise(i)*6,36+noise(i+81)*25,3+noise(i+25)*3,'#ddb187');
+ ctx=main;
+}
+// ctx is reassigned only while painting the cached scenery.
+function shadow(x,y,w,alpha=.2){ellipse(x+18,y+5,w,12,`rgba(68,41,24,${alpha})`,.06)}
+function jointLeg(hipX,hipY,footX,footY,bend,color,width){
+ let kneeX=(hipX+footX)/2+bend,kneeY=lerp(hipY,footY,.52);
+ line([[hipX,hipY],[kneeX,kneeY],[footX,footY-5]],color,width);
+ ellipse(kneeX,kneeY,width*.62,width*.65,color);
+ rounded(footX-7,footY-8,17,9,3,'#46372b');
+}
+function horse(x,y,time,running){
+ const speed=running?15:5.4,phase=time*speed,bob=Math.sin(phase*2)*(running?7:2.6);
+ ctx.save();ctx.translate(x,y+bob);shadow(0,-bob,112,running?.15:.22);
+ const p=phase;
+ for(let i=0;i<2;i++){
+  const hx=i?60:-58,ph=p+(i?Math.PI:0)+Math.PI;
+  jointLeg(hx,-83,hx+Math.sin(ph)*(running?44:16),-bob-2-Math.max(0,Math.cos(ph))*(running?22:10),running?Math.cos(ph)*21:10,'#76513a',12);
+ }
+ // Tail fans out with acceleration.
+ ctx.beginPath();ctx.moveTo(-82,-121);ctx.bezierCurveTo(-120,-133,-100,-55,-142-(running?18:0),-63+Math.sin(p)*10);ctx.bezierCurveTo(-112,-32,-85,-82,-76,-100);ctx.fillStyle='#473426';ctx.fill();
+ ellipse(-10,-110,84,44,gradient(-90,-145,70,-70,[[0,'#b58150'],[.45,'#97633f'],[1,'#734b34']]));
+ ellipse(-48,-107,35,37,'#a87347');
+ path([[36,-115],[55,-189],[78,-201],[102,-170],[70,-93]],gradient(50,-194,80,-85,[[0,'#a9794d'],[1,'#8b5937']]));
+ ctx.save();ctx.translate(78,-184);ctx.rotate(-.07+Math.sin(p)*.045);
+ path([[-5,-20],[22,-17],[42,7],[46,25],[31,33],[7,21],[-9,13]],'#ad7b4e');
+ ellipse(37,22,15,11,'#966b47');ellipse(40,23,3,2,'#473326');
+ path([[-3,-20],[-7,-43],[4,-39],[11,-19]],'#9b6d43');path([[14,-20],[18,-40],[25,-38],[25,-15]],'#b28253');
+ line([[-2,-37],[2,-22]],'#6f4a30',3);ellipse(19,-5,3.5,4,'#302a23');ellipse(20,-6,1,1,'#fff1ce');
+ line([[2,-13],[34,18]],'#423b30',3);line([[26,9],[27,30]],'#45362b',3);ellipse(28,15,5,5,'#c5a877');
+ ctx.restore();
+ path([[48,-179],[62,-207],[74,-205],[67,-192],[63,-174],[52,-142],[48,-115],[39,-106]],'#49382a');
+ for(let i=0;i<2;i++){
+  const hx=i?59:-58,ph=p+(i?Math.PI:0);
+  jointLeg(hx,-87,hx+Math.sin(ph)*(running?47:16),-bob-Math.max(0,Math.cos(ph))*(running?25:9),running?Math.cos(ph)*18:8,i?'#a07145':'#aa784a',13);
+ }
+ // Woven saddle blanket and travel saddle.
+ path([[-49,-149],[17,-151],[22,-115],[-50,-117]],'#b64e37');
+ line([[-43,-120],[19,-119]],'#e3bd83',3);line([[-40,-137],[15,-138]],'#daaa73',2);
+ for(let i=0;i<7;i++)path([[-37+i*8,-132],[-33+i*8,-127],[-37+i*8,-122],[-41+i*8,-127]],'#e3be8d');
+ ellipse(-15,-150,43,9,'#534030');rounded(-54,-162,76,13,5,'#6a4b31');
+ // Horse's rein stays attached after the guide loses his grip.
+ if(time>=3){let a=smooth(3,3.55,time);ctx.beginPath();ctx.moveTo(107,-169);ctx.bezierCurveTo(96,-100,52,-104,-42-a*64,-68+Math.sin(time*9)*14);ctx.strokeStyle='#594534';ctx.lineWidth=2.6;ctx.stroke()}
+ rider(-18,-159,time,bob);ctx.restore();
+}
+function face(x,y,time,turn){
+ ctx.save();ctx.translate(x,y);ctx.rotate(lerp(.03,-.14,turn));ctx.scale(lerp(1,-1,turn),1);
+ // Ear, jaw, nose and buzz-cut silhouette.
+ const skin=gradient(-18,-29,18,23,[[0,'#e8b38b'],[.65,'#d89c76'],[1,'#ac7456']]);
+ ctx.beginPath();ctx.moveTo(-15,-21);ctx.quadraticCurveTo(8,-36,20,-14);ctx.lineTo(22,-3);ctx.lineTo(29,5);ctx.lineTo(22,8);ctx.quadraticCurveTo(25,26,9,29);ctx.lineTo(-12,17);ctx.quadraticCurveTo(-23,0,-15,-21);ctx.fillStyle=skin;ctx.fill();
+ ellipse(-15,4,6,8,'#cb8e68');line([[-16,0],[-12,4],[-16,8]],'#98654c',1.2);
+ path([[-20,-5],[-22,-22],[-13,-32],[4,-34],[17,-25],[19,-14],[8,-19],[-5,-17],[-12,-7]],'#322d27');
+ for(let i=0;i<35;i++){let px=-17+noise(i)*30,py=-28+noise(i+22)*9;line([[px,py],[px+1.6,py-2]],'#736a573d',.7)}
+ const panic=smooth(3.2,6.3,time);
+ ctx.save();ctx.translate(10,-3);ctx.rotate(-panic*.17);ellipse(0,0,5.4,lerp(2,5.7,panic),'#f8ecdc');ellipse(1.9,-.1,2.1,lerp(2,3.8,panic),'#332f29');ctx.restore();
+ line([[3,-10-panic*4],[13,-12-panic*4],[18,-9-panic*4]],'#423126',2.4);
+ if(time>6.35&&time<9.25){let mouth=5+Math.sin(time*29)*2;ellipse(17,17,5,mouth,'#65352b');ellipse(17,15,4,1.1,'#fff0dc');ellipse(17,20,2.5,1.4,'#cb8470')}
+ else line([[11,18],[19,17],[23,15-panic]],'#7d4434',1.7);
+ line([[19,5],[17,10],[22,10]],'#ad7356',1);line([[0,19],[7,24]],'#bd8365',1);
+ if(panic>.4){ellipse(3,-13,2,1,'#f4c7a166');line([[1,7],[4,9]],'#bd816066',1)}
+ ctx.restore();
+}
+function rider(x,y,time,bob){
+ let turn=smooth(6,6.38,time),panic=smooth(3.2,5.6,time);
+ ctx.save();ctx.translate(x,y);ctx.rotate(Math.sin(time*(time>=3?15:5.4))*(time>=3?.035:.01));
+ // Far leg, fitted trousers, walking shoes and stirrup.
+ line([[8,8],[25,43],[34,90]],'#4d5855',20);rounded(22,83,32,13,5,'#3c382f');
+ line([[-5,4],[-11,45],[5,85]],'#68746a',23);line([[-12,27],[-9,49],[5,80]],'#8a928055',2);rounded(-2,80,35,14,4,'#645344');line([[0,96],[24,96]],'#ccb88f',3);
+ line([[15,1],[16,88],[3,94]],'#43382b',2);ellipse(12,94,11,5,'#bca982');
+ let lean=lerp(0,-.2,turn)+panic*.045;
+ ctx.save();ctx.translate(-1,-5);ctx.rotate(lean);
+ path([[-24,0],[-25,-57],[-10,-76],[15,-73],[29,-54],[25,-1]],gradient(-28,-50,28,-10,[[0,'#e7dbbd'],[.5,'#cfc3a7'],[1,'#a99e85']]));
+ line([[-5,-70],[-3,-9]],'#948b7133',1.5);line([[-24,-4],[25,-4]],'#79725d',5);
+ path([[-10,-74],[-7,-85],[10,-85],[15,-73],[5,-65]],'#d79d76');
+ path([[-15,-74],[-6,-79],[4,-68],[-3,-59]],'#eee2c5');path([[15,-76],[5,-68],[13,-59],[24,-70]],'#e0d1af');
+ // The shoulders and arms twist sharply to face the guide.
+ let handX=lerp(43,-55,turn),handY=lerp(-14,-25,turn);
+ line([[-21,-58],[lerp(-31,-43,turn),-29],[handX,handY]],'#d8c9a7',14);
+ line([[22,-57],[lerp(36,19,turn),-33],[lerp(53,-23,turn),lerp(-16,-38,turn)]],'#b7ac90',14);
+ ellipse(handX,handY,8,6,'#dca77f');ellipse(lerp(54,-25,turn),lerp(-15,-38,turn),7,5,'#d3a07b');
+ // A camera strap and small travel pouch keep his silhouette recognizable.
+ line([[20,-70],[-21,-5]],'#675c47',4);rounded(-30,-12,22,24,4,'#655640');rect(-27,-7,16,3,'#b3976f');
+ face(2,-106,time,turn);ctx.restore();ctx.restore();
+}
+function guide(x,y,time){
+ const stopped=time>=3,p=time*5.4,b=stopped?0:Math.sin(p*2)*2;
+ ctx.save();ctx.translate(x,y+b);shadow(0,-b,48,.22);
+ for(let i=0;i<2;i++){
+  const shift=stopped?(i?13:-11):Math.sin(p+i*Math.PI)*18;
+  line([[i?8:-8,-73],[shift,-37],[shift*1.25,-4]],i?'#6d624d':'#81755b',15);
+  rounded(shift*1.25-8,-5,25,9,4,'#4d4030');
+ }
+ path([[-23,-75],[-28,-136],[-16,-154],[18,-153],[28,-127],[23,-74]],gradient(-30,0,30,0,[[0,'#bca77e'],[.7,'#d3bc92'],[1,'#9d8967']]));
+ line([[-3,-141],[1,-80]],'#7f7258',2);rect(-25,-82,51,5,'#857452');
+ line([[22,-133],[36,-106],[29+(stopped?0:Math.sin(p)*2),-91]],'#b9a27b',14);ellipse(28,-92,6,7,'#a97652');
+ line([[-23,-132],[-42,-111],[-67,-124]],'#cbb187',14);ellipse(-69,-123,8,6,'#bc8b61');
+ path([[-12,-151],[-9,-165],[9,-165],[13,-151]],'#a67954');
+ ctx.save();ctx.translate(0,-180);ctx.rotate(stopped?-.06:0);
+ ellipse(0,0,22,29,'#b78257');ellipse(21,6,7,5,'#a7754d');ellipse(-16,6,5,7,'#aa7750');
+ path([[-13,5],[-9,21],[9,27],[22,13],[16,8],[5,14]],'#554436');
+ line([[8,-7],[18,-8]],'#44392d',2);ellipse(15,-1,stopped?3:2,stopped?4:2,'#302c26');
+ line([[12,15],[19,15]],'#362c24',2);
+ path([[-25,-10],[-28,-25],[-7,-33],[22,-25],[23,-11],[13,-14],[0,-12],[-9,-17]],'#ebe0c3');
+ path([[-23,-14],[-13,-9],[-13,48],[-29,36]],'#d7c7a4');line([[-22,-22],[17,-23]],'#a9553e',5);line([[-23,-28],[8,-29]],'#ae6044',2);
+ ctx.restore();
+ if(stopped&&time<5.8){let a=1-smooth(5,5.8,time);ctx.globalAlpha=a;ctx.font='bold 31px Georgia';ctx.fillStyle='#f8e8be';ctx.fillText('?',-10,-234);ctx.globalAlpha=1}
+ ctx.restore();
+}
+function rope(gx,hx,time){if(time>=3)return;ctx.beginPath();ctx.moveTo(gx-69,445);ctx.bezierCurveTo(gx-92,464,hx+85,455,hx+107,399);ctx.strokeStyle='#584534';ctx.lineWidth=2.6;ctx.stroke()}
+function dust(x,time){
+ const age=time-3;if(age<=0)return;
+ for(let i=0;i<50;i++){
+  let life=(age*.8+noise(i)*2)%1.6,progress=life/1.6,spread=noise(i+22);
+  let px=x-60-progress*(180+spread*140),py=565-progress*(15+noise(i+74)*58);
+  ctx.globalAlpha=(1-progress)*.2*smooth(3,3.6,time);
+  ellipse(px,py,7+progress*27+spread*9,5+progress*14,'#dfbe8e');
+ }ctx.globalAlpha=1;
+}
+function draw(time){
+ ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,1280,720);
+ const escape=smooth(3,3.8,time),travel=time<3?time*29:87+(time-3)*133-22*(1-Math.exp(-(time-3)*3));
+ const hx=703+travel,gx=time<3?888+time*29:975;
+ let zoom=smooth(6.38,6.56,time),scale=lerp(1,3.35,zoom);
+ // Camera follows the pony, then cuts into a tight portrait over its shoulder.
+ let cameraX=hx-lerp(703,700/scale,zoom),cameraY=lerp(0,277-180/scale,zoom);
+ ctx.save();ctx.beginPath();ctx.rect(0,42,1280,636);ctx.clip();
+ rect(0,0,1280,720,'#e4c09a');ctx.scale(scale,scale);ctx.translate(-cameraX,-cameraY);
+ let startX=Math.floor((cameraX-400)/2400)*2400;
+ for(let tile=startX;tile<cameraX+1280/scale+2400;tile+=2400)ctx.drawImage(backdrop,tile,0);
+ // Horizontal streaks subtly emphasize the sudden change of pace.
+ if(escape>0&&zoom<.9){ctx.globalAlpha=.1*escape;for(let i=0;i<11;i++){let yy=200+noise(i)*275,xx=cameraX+noise(i+45)*1280;line([[xx-35,yy],[xx+25,yy]],'#ffeed2',1.2)}ctx.globalAlpha=1}
+ guide(gx,568,time);rope(gx,hx,time);dust(hx,time);horse(hx,568,time,time>=3);
+ ctx.restore();
+ // Warm light bloom, vignette and subtle deterministic film texture.
+ let light=ctx.createRadialGradient(1010,65,10,1010,65,610);light.addColorStop(0,'#fff0c329');light.addColorStop(1,'#ffe5bc00');rect(0,42,1280,636,light);
+ let vignette=ctx.createRadialGradient(640,340,180,640,340,760);vignette.addColorStop(0,'#281b1000');vignette.addColorStop(1,'#281b103b');rect(0,42,1280,636,vignette);
+ for(let i=0;i<600;i++){ctx.globalAlpha=.025;rect(noise(i+Math.floor(time*6))*1280,42+noise(i+967)*636,1.5,1.5,i%2?'#fff3cd':'#2d2119')}ctx.globalAlpha=1;
+ rect(0,0,1280,42,'#1b1713');rect(0,678,1280,42,'#1b1713');
+ ctx.font='11px Georgia';ctx.fillStyle='#cfb89a';ctx.textAlign='left';ctx.fillText('PETRA, JORDAN',30,26);ctx.textAlign='right';ctx.fillText('A LITTLE DETOUR',1250,26);
+ if(time>=6.35){
+  let a=smooth(6.35,6.5,time);ctx.globalAlpha=a;
+  ctx.font='600 32px "Microsoft JhengHei", sans-serif';ctx.textAlign='center';
+  const text='欸你不跟上來嗎！',tw=ctx.measureText(text).width;
+  rounded(640-tw/2-25,606,tw+50,53,8,'#251b14bc');ctx.fillStyle='#fff2d6';ctx.fillText(text,640,643);ctx.globalAlpha=1;
+ }
+ ctx.textAlign='left';
+}
+
+// Native speech and hoof foley are optional; all visual storytelling is offline.
+function refreshVoices(){if(!('speechSynthesis' in window)){ $('voice-status').textContent='此瀏覽器不支援語音朗讀；對白以字幕呈現。';return}voiceList=speechSynthesis.getVoices();let found=voiceList.find(v=>/zh[-_]TW/i.test(v.lang));$('voice-status').textContent=found?'中文語音已就緒 · 空白鍵播放／暫停':'中文語音依瀏覽器聲音而定 · 對白附繁體字幕'}
+if('speechSynthesis' in window){speechSynthesis.onvoiceschanged=refreshVoices;refreshVoices()}
+function stopSpeech(){if('speechSynthesis' in window)speechSynthesis.cancel()}
+function speak(){
+ spoken=true;if(muted||!('speechSynthesis' in window))return;
+ const utterance=new SpeechSynthesisUtterance('欸！你不跟上來嗎！');
+ utterance.lang='zh-TW';utterance.rate=1.22;utterance.pitch=1.15;utterance.volume=1;
+ const suitable=voiceList.filter(v=>/^zh/i.test(v.lang));utterance.voice=suitable.find(v=>/zh[-_]TW/i.test(v.lang)&&/yun|male|hanhan|zhiwei/i.test(v.name))||suitable.find(v=>/zh[-_]TW/i.test(v.lang))||suitable[0]||null;
+ speechSynthesis.speak(utterance);
+}
+function initAudio(){try{if(!audio)audio=new(window.AudioContext||window.webkitAudioContext)();if(audio.state==='suspended')audio.resume().catch(()=>{})}catch{}}
+function hoof(fast){if(muted||!audio||audio.state!=='running')return;const now=audio.currentTime,osc=audio.createOscillator(),gain=audio.createGain();osc.type='triangle';osc.frequency.setValueAtTime(fast?180:135,now);osc.frequency.exponentialRampToValueAtTime(55,now+.07);gain.gain.setValueAtTime(.075,now);gain.gain.exponentialRampToValueAtTime(.001,now+.095);osc.connect(gain);gain.connect(audio.destination);osc.start();osc.stop(now+.11)}
+function update(){
+ $('time').textContent=t.toFixed(1).padStart(4,'0')+' / 10.0';$('timeline').value=t;
+ $('play').textContent=playing?'Ⅱ 暫停':t>=10?'▶ 再看一次':'▶ 播放';$('play').setAttribute('aria-label',playing?'暫停動畫':'播放動畫');
+ let c=t<3?0:t<6?1:2;
+ if(c!==chapter){chapter=c;document.querySelectorAll('.chapter').forEach((el,i)=>el.classList.toggle('active',i===c));$('description').textContent=['導遊牽著小馬，男子悠閒觀光。','小馬掙脫繩子向前奔跑，導遊空手愣在原地。','男子突然大幅回頭驚喊：欸你不跟上來嗎！'][c]}
+}
+function pause(){playing=false;stopSpeech();update()}
+function play(){if(t>=10){t=0;spoken=false}if(t>=6.35&&t<9.4)spoken=false;playing=true;last=performance.now();lastHoof=-1;$('start').hidden=true;initAudio();update()}
+function seek(value){stopSpeech();t=clamp(Number(value),0,10);spoken=t>=6.35;lastHoof=-1;last=performance.now();draw(t);update();$('start').hidden=t>0||playing}
+function loop(now){
+ if(playing){let prev=t;t=Math.min(10,t+(now-last)/1000);last=now;
+  if(!spoken&&t>=6.4&&t<9.4)speak();
+  let interval=t<3?.43:.17,beat=Math.floor(t/interval);if(beat!==lastHoof){hoof(t>=3);lastHoof=beat}
+  draw(t);update();if(t>=10){playing=false;stopSpeech();update()}
+ }requestAnimationFrame(loop);
+}
+$('start').onclick=play;$('play').onclick=()=>playing?pause():play();$('replay').onclick=()=>{pause();seek(0);play()};
+$('timeline').addEventListener('input',e=>{const value=e.target.value;pause();seek(value)});
+$('sound').onclick=()=>{muted=!muted;$('sound').textContent=muted?'聲音 關':'聲音 開';$('sound').setAttribute('aria-pressed',String(!muted));if(muted)stopSpeech();else initAudio()};
+$('fullscreen').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await $('screen').requestFullscreen()}catch{ $('voice-status').textContent='此瀏覽器無法切換全螢幕。'}};
+document.querySelectorAll('.chapter').forEach(el=>el.onclick=()=>{pause();seek(el.dataset.time)});
+document.addEventListener('keydown',e=>{if(e.code==='Space'&&!/INPUT|BUTTON/.test(e.target.tagName)){e.preventDefault();playing?pause():play()}});
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&playing)pause()});
+paintSet();draw(0);update();requestAnimationFrame(loop);
+</script>
+</body>
+</html>
