@@ -1,0 +1,452 @@
+[
+  {
+    "kp": 1,
+    "title": "訓練的三個問題",
+    "english": "Three questions behind training",
+    "file": "kp01-training-map.html",
+    "formulas": [
+      "\\mathcal L(\\boldsymbol w)=\\frac1n\\sum_{i=1}^n\\ell(h_{\\boldsymbol w}(x_i),y_i)",
+      "\\boldsymbol w^*=\\arg\\min_{\\boldsymbol w}\\mathcal L(\\boldsymbol w)"
+    ]
+  },
+  {
+    "kp": 1,
+    "title": "一階與二階：資訊與成本",
+    "english": "First and second order: information and cost",
+    "file": "kp01-first-second-order.html",
+    "formulas": [
+      "\\boldsymbol g=\\nabla\\mathcal L(\\boldsymbol w)",
+      "H\\Delta\\boldsymbol w=-\\boldsymbol g,\\quad H=\\nabla^2\\mathcal L"
+    ]
+  },
+  {
+    "kp": 2,
+    "title": "梯度下降：方向乘上步長",
+    "english": "Gradient descent: direction times step size",
+    "file": "kp02-gd-update.html",
+    "formulas": [
+      "\\min_{\\boldsymbol w}f(\\boldsymbol w)\\qquad\\text{(1)}",
+      "\\Delta\\boldsymbol w_k=-\\eta\\nabla f(\\boldsymbol w_k)\\quad\\text{(2),(4)}",
+      "\\boldsymbol w_{k+1}=\\boldsymbol w_k-\\eta\\nabla f(\\boldsymbol w_k)"
+    ]
+  },
+  {
+    "kp": 2,
+    "title": "L-smooth：步長為何重要",
+    "english": "L-smoothness explains safe steps",
+    "file": "kp02-smoothness.html",
+    "formulas": [
+      "\\|\\nabla f(u)-\\nabla f(v)\\|_2\\le L\\|u-v\\|_2",
+      "f(w-\\eta g)\\le f(w)-\\eta(1-L\\eta/2)\\|g\\|_2^2",
+      "\\eta=1/L\\quad\\Longrightarrow\\quad f(w^+)\\le f(w)-\\frac{\\|g\\|_2^2}{2L}\\quad\\text{(3)}"
+    ]
+  },
+  {
+    "kp": 2,
+    "title": "凸與非凸：能保證什麼？",
+    "english": "Convex and nonconvex guarantees",
+    "file": "kp02-convex-nonconvex.html",
+    "formulas": [
+      "\\nabla f(\\boldsymbol w)=0"
+    ]
+  },
+  {
+    "kp": 3,
+    "title": "什麼時候停止？四種訊號",
+    "english": "Four stopping signals",
+    "file": "kp03-stopping.html",
+    "formulas": [
+      "\\|\\nabla f(w_{k+1})\\|_2\\le\\epsilon",
+      "\\begin{aligned}|f(w_{k+1})-f(w_k)|&\\le\\epsilon_f\\\\\\|\\nabla f(w_{k+1})-\\nabla f(w_k)\\|_2&\\le\\epsilon_g\\end{aligned}"
+    ]
+  },
+  {
+    "kp": 3,
+    "title": "梯度為零，為何不是谷底？",
+    "english": "Zero gradient does not imply a minimum",
+    "file": "kp03-saddle.html",
+    "formulas": [
+      "f(x,y)=x^2-y^2,\\quad\\nabla f(0,0)=0",
+      "H=\\begin{pmatrix}2&0\\\\0&-2\\end{pmatrix}"
+    ]
+  },
+  {
+    "kp": 4,
+    "title": "線搜索：太大就減半",
+    "english": "Backtracking: halve an oversized step",
+    "file": "kp04-backtracking.html",
+    "formulas": [
+      "f(w-\\eta\\nabla f(w))<f(w)\\quad\\text{(5)}",
+      "\\eta\\leftarrow\\eta/2\\quad\\text{until accepted}",
+      "0<\\eta<1/L\\quad\\text{is sufficient (6)}"
+    ]
+  },
+  {
+    "kp": 4,
+    "title": "充分下降與精確線搜索",
+    "english": "Armijo and exact line search",
+    "file": "kp04-armijo-exact.html",
+    "formulas": [
+      "f(w+\\eta p)\\le f(w)+c\\eta\\nabla f(w)^\\top p",
+      "\\eta_k=\\arg\\min_{\\eta\\ge0}f(w_k-\\eta\\nabla f(w_k))\\quad\\text{(7)}"
+    ]
+  },
+  {
+    "kp": 5,
+    "title": "動量：把歷史方向帶進下一步",
+    "english": "Momentum carries past directions",
+    "file": "kp05-momentum.html",
+    "formulas": [
+      "\\Delta w_k=\\alpha\\Delta w_{k-1}-\\eta g_k\\quad\\text{(8)}",
+      "w_{k+1}=w_k+\\Delta w_k"
+    ]
+  },
+  {
+    "kp": 5,
+    "title": "動量的向量合成",
+    "english": "Vector addition behind momentum",
+    "file": "kp05-momentum-vectors.html",
+    "formulas": [
+      "\\alpha\\Delta w_{k-1}=(0.4,0.3),\\quad-\\eta g_k=(0.2,-0.3)",
+      "\\Delta w_k=(0.6,0)"
+    ]
+  },
+  {
+    "kp": 6,
+    "title": "前向：先保存中間計算",
+    "english": "Forward pass: save intermediate values",
+    "file": "kp06-forward.html",
+    "formulas": [
+      "a_i=\\sum_{\\ell=1}^m w_{i\\ell}z_\\ell+b_i\\quad\\text{(9)}",
+      "z_i=\\sigma_i(a_i)\\quad\\text{(10)}"
+    ]
+  },
+  {
+    "kp": 6,
+    "title": "δ 是什麼？權重梯度怎麼來？",
+    "english": "Delta and the weight gradient",
+    "file": "kp06-delta-gradient.html",
+    "formulas": [
+      "\\delta_i:=\\frac{\\partial e}{\\partial a_i}\\quad\\text{(12)}",
+      "\\frac{\\partial e}{\\partial w_{i\\ell}}=\\frac{\\partial e}{\\partial a_i}\\frac{\\partial a_i}{\\partial w_{i\\ell}}=\\delta_i z_\\ell\\quad\\text{(11)}",
+      "\\frac{\\partial e}{\\partial b_i}=\\delta_i"
+    ]
+  },
+  {
+    "kp": 6,
+    "title": "隱藏層：沿所有下游路徑加總",
+    "english": "Hidden-layer delta sums downstream paths",
+    "file": "kp06-hidden-recursion.html",
+    "formulas": [
+      "\\frac{\\partial a_j}{\\partial a_i}=w_{ji}\\sigma_i'(a_i)\\quad\\text{(14)}",
+      "\\delta_i=\\sigma_i'(a_i)\\sum_jw_{ji}\\delta_j\\quad\\text{(13),(15)}",
+      "\\frac{\\partial e}{\\partial w_{i\\ell}}=z_\\ell\\sigma_i'(a_i)\\sum_jw_{ji}\\delta_j\\quad\\text{(16)}"
+    ]
+  },
+  {
+    "kp": 6,
+    "title": "完整回傳：算完，再更新",
+    "english": "Complete backprop: compute, then update",
+    "file": "kp06-backprop-example.html",
+    "formulas": [
+      "h=\\max(0,ux)=0.5,\\quad\\hat y=vh=1,\\quad e=\\tfrac12(\\hat y-y)^2=0.5",
+      "\\frac{\\partial e}{\\partial v}=1\\times0.5=0.5,\\qquad\\frac{\\partial e}{\\partial u}=2\\times1=2",
+      "w^+_{i\\ell}=w_{i\\ell}-\\eta\\delta_i z_\\ell\\quad\\text{(17)–(19)}"
+    ]
+  },
+  {
+    "kp": 7,
+    "title": "SGD：用一筆估計全體",
+    "english": "SGD estimates the full gradient",
+    "file": "kp07-sgd-unbiased.html",
+    "formulas": [
+      "f(w)=\\frac1n\\sum_{i=1}^nf_i(w),\\quad\\nabla f(w)=\\frac1n\\sum_i\\nabla f_i(w)\\quad\\text{(20),(21)}",
+      "w_{k+1}=w_k-\\eta_k\\nabla f_{i_k}(w_k)\\quad\\text{(22)}",
+      "\\mathbb E[\\nabla f_{i_k}(w_k)\\mid w_k]=\\nabla f(w_k)"
+    ]
+  },
+  {
+    "kp": 7,
+    "title": "學習率排程：大步到小步",
+    "english": "Learning-rate schedules",
+    "file": "kp07-schedule.html",
+    "formulas": [
+      "\\eta_k=\\eta_0",
+      "\\eta_k=\\frac{\\eta_0}{k+1}",
+      "\\eta_k=\\frac{\\eta_0}{\\sqrt{k+1}}"
+    ]
+  },
+  {
+    "kp": 8,
+    "title": "Batch 與 Epoch：一小批與一整輪",
+    "english": "Batch and epoch",
+    "file": "kp08-batch-epoch.html",
+    "formulas": [
+      "\\bigcup_{j=1}^{M}\\mathcal B_j=\\mathcal D,\\quad\\mathcal B_i\\cap\\mathcal B_j=\\varnothing\\quad(i\\ne j)\\quad\\text{(23),(24)}",
+      "M=\\left\\lceil\\frac nb\\right\\rceil"
+    ]
+  },
+  {
+    "kp": 8,
+    "title": "Mini-batch：平均一小批梯度",
+    "english": "Mini-batch gradient averaging",
+    "file": "kp08-batch-update.html",
+    "formulas": [
+      "g_k=\\frac1{|\\mathcal B_k|}\\sum_{i\\in\\mathcal B_k}\\nabla f_i(w_k)",
+      "w_{k+1}=w_k-\\eta_k g_k\\quad\\text{(25)}",
+      "g_k=\\nabla f(w_k)+e_k\\quad\\text{(26)}"
+    ]
+  },
+  {
+    "kp": 8,
+    "title": "抽樣方差：為何大批次更穩？",
+    "english": "Sampling variance and batch size",
+    "file": "kp08-batch-variance.html",
+    "formulas": [
+      "S^2=\\frac1{n-1}\\sum_{i=1}^n\\|\\nabla f_i(w)-\\nabla f(w)\\|_2^2",
+      "\\begin{aligned}\\mathbb E\\|e\\|_2^2&=(1-b/n)S^2/b\\quad\\text{without replacement (29)}\\\\\\mathbb E\\|e\\|_2^2&=\\frac{n-1}{n}\\frac{S^2}{b}\\quad\\text{with replacement (30)}\\end{aligned}",
+      "O(1/t+\\|e_t\\|^2),\\quad O((1-\\mu/L)^t+\\|e_t\\|^2)"
+    ]
+  },
+  {
+    "kp": 9,
+    "title": "全梯度：凸平滑下的收斂界",
+    "english": "Full-gradient convergence under convexity",
+    "file": "kp09-gd-rate.html",
+    "formulas": [
+      "f(w_{t+1})-f^*\\le\\frac{2L\\|w_0-w^*\\|_2^2}{t+1}\\quad\\text{(31)}",
+      "f(w_t)-f^*=O(1/t)\\longrightarrow0"
+    ]
+  },
+  {
+    "kp": 9,
+    "title": "SGD：先說清楚衡量什麼",
+    "english": "SGD rates need a stated metric",
+    "file": "kp09-sgd-rate.html",
+    "formulas": [
+      "\\mathcal G_T:=\\frac{\\sum_{k<T}\\eta_k\\mathbb E\\|\\nabla f(w_k)\\|^2}{\\sum_{k<T}\\eta_k}",
+      "\\begin{aligned}\\eta_k\\propto1/(k+1)&:\\ O(1/\\log T)\\\\\\eta_k\\propto1/\\sqrt{k+1}&:\\ O(\\log T/\\sqrt T)\\\\\\eta_k=\\eta&:\\ O(1/(\\eta T)+\\eta)\\end{aligned}",
+      "\\eta_k\\propto1/(\\mu(k+1)):\\ O(1/T)\\quad\\text{(35)}"
+    ]
+  },
+  {
+    "kp": 9,
+    "title": "噪聲地板：上界不是下限",
+    "english": "Noise floor: an upper bound is not a lower bound",
+    "file": "kp09-noise-floor.html",
+    "formulas": [
+      "w_{k+1}=(1-\\eta)w_k-\\eta\\xi_k,\\quad\\mathbb E\\xi_k^2=\\sigma^2",
+      "\\lim_{k\\to\\infty}\\mathbb E f(w_k)=\\frac{\\eta\\sigma^2}{2(2-\\eta)}",
+      "\\mathbb E[f(w_t)-f^*]\\le C(1-\\mu\\eta)^t+C'\\eta"
+    ]
+  },
+  {
+    "kp": 9,
+    "title": "SGD 上界：從一步下降到加總",
+    "english": "Deriving an averaged stationarity bound",
+    "file": "kp09-weighted-bound.html",
+    "formulas": [
+      "\\mathbb E[g_k\\mid w_k]=\\nabla f(w_k),\\quad\\mathbb E[\\|g_k\\|^2\\mid w_k]\\le\\beta^2",
+      "\\mathbb E f(w_{k+1})\\le\\mathbb E f(w_k)-\\eta_k\\mathbb E\\|\\nabla f(w_k)\\|^2+\\tfrac L2\\eta_k^2\\beta^2",
+      "\\mathcal G_T\\le\\frac{2(f(w_0)-f_{\\inf})+L\\beta^2\\sum_{k<T}\\eta_k^2}{2\\sum_{k<T}\\eta_k}"
+    ]
+  },
+  {
+    "kp": 10,
+    "title": "AdaGrad：每個維度一把尺",
+    "english": "AdaGrad uses a separate scale per coordinate",
+    "file": "kp10-adagrad.html",
+    "formulas": [
+      "g_{k,j}=\\partial_j f_{i_k}(w_k),\\quad r_{k,j}=\\sum_{\\tau=0}^k g_{\\tau,j}^2\\quad\\text{(38)}",
+      "w_{k+1,j}=w_{k,j}-\\frac{\\eta_k}{\\sqrt{\\varepsilon+r_{k,j}}}g_{k,j}\\quad\\text{(39)}",
+      "G_{jj}=\\sqrt{\\varepsilon+r_{k,j}},\\quad w_{k+1}=w_k-\\eta_kG^{-1}g_k\\quad\\text{(37)}"
+    ]
+  },
+  {
+    "kp": 10,
+    "title": "AdaGrad 的記憶：只加不減",
+    "english": "AdaGrad never forgets",
+    "file": "kp10-adagrad-history.html",
+    "formulas": [
+      "r_t=4t,\\quad\\eta_{\\mathrm{eff},t}=\\frac{\\eta}{\\sqrt{\\varepsilon+4t}}"
+    ]
+  },
+  {
+    "kp": 11,
+    "title": "RMSProp：記住近期，忘掉遠期",
+    "english": "RMSProp emphasizes recent gradients",
+    "file": "kp11-rmsprop.html",
+    "formulas": [
+      "v_{t,j}=\\beta_2v_{t-1,j}+(1-\\beta_2)g_{t,j}^2\\quad\\text{(40)}",
+      "w_{t,j}=w_{t-1,j}-\\frac{\\eta g_{t,j}}{\\sqrt{v_{t,j}}+\\varepsilon}\\quad\\text{(41)}"
+    ]
+  },
+  {
+    "kp": 11,
+    "title": "Adam：方向記憶加逐維步幅",
+    "english": "Adam combines direction and scale",
+    "file": "kp11-adam.html",
+    "formulas": [
+      "m_t=\\beta_1m_{t-1}+(1-\\beta_1)g_t\\quad\\text{(42)}",
+      "v_t=\\beta_2v_{t-1}+(1-\\beta_2)(g_t\\odot g_t)\\quad\\text{(43)}",
+      "w_t=w_{t-1}-\\eta\\frac{\\hat m_t}{\\sqrt{\\hat v_t}+\\varepsilon}\\quad\\text{(46)}"
+    ]
+  },
+  {
+    "kp": 11,
+    "title": "偏差修正：補回從零開始的低估",
+    "english": "Bias correction for zero initialization",
+    "file": "kp11-adam-bias.html",
+    "formulas": [
+      "\\hat m_t=\\frac{m_t}{1-\\beta_1^t},\\quad\\hat v_t=\\frac{v_t}{1-\\beta_2^t}\\quad\\text{(44),(45)}",
+      "\\hat m_1=2,\\quad\\hat v_1=4"
+    ]
+  },
+  {
+    "kp": 12,
+    "title": "同樣低的點，不同寬度的谷",
+    "english": "Equal minima, different neighborhood widths",
+    "file": "kp12-flat-sharp.html",
+    "formulas": [
+      "\\Delta_{\\rho}(w)=\\max_{\\|\\epsilon\\|\\le\\rho}[\\mathcal L(w+\\epsilon)-\\mathcal L(w)]"
+    ]
+  },
+  {
+    "kp": 12,
+    "title": "平坦與泛化：動機不是保證",
+    "english": "Flatness motivates, but does not guarantee",
+    "file": "kp12-flat-generalization.html",
+    "formulas": []
+  },
+  {
+    "kp": 13,
+    "title": "SAM：先找附近最壞，再降低它",
+    "english": "SAM minimizes the worst nearby loss",
+    "file": "kp13-sam-objective.html",
+    "formulas": [
+      "\\mathcal L_{\\mathrm{SAM}}(w)=\\max_{\\|\\epsilon\\|_p\\le\\rho}\\mathcal L(w+\\epsilon)\\quad\\text{(48)}",
+      "\\min_w\\{\\mathcal L_{\\mathrm{SAM}}(w)+\\lambda\\|w\\|_2^2\\}\\quad\\text{(47),(49)}"
+    ]
+  },
+  {
+    "kp": 13,
+    "title": "SAM 損失 = 原損失 + 銳度",
+    "english": "SAM loss equals loss plus sharpness",
+    "file": "kp13-sam-sharpness.html",
+    "formulas": [
+      "\\mathcal L_{\\mathrm{SAM}}(w)=\\mathcal L(w)+\\max_{\\|\\epsilon\\|_p\\le\\rho}[\\mathcal L(w+\\epsilon)-\\mathcal L(w)]\\quad\\text{(50)}"
+    ]
+  },
+  {
+    "kp": 13,
+    "title": "一階近似：往上坡推一小步",
+    "english": "First-order adversarial perturbation",
+    "file": "kp13-sam-perturbation.html",
+    "formulas": [
+      "\\mathcal L(w+\\epsilon)\\approx\\mathcal L(w)+g^\\top\\epsilon",
+      "\\hat\\epsilon=\\rho\\frac g{\\|g\\|_2}\\quad(p=2)\\quad\\text{(52)}",
+      "\\|g\\|_2=5,\\quad\\hat\\epsilon=(0.06,0.08)"
+    ]
+  },
+  {
+    "kp": 13,
+    "title": "一般範數與兩次反傳",
+    "english": "Dual norms and the two-pass update",
+    "file": "kp13-sam-dual-update.html",
+    "formulas": [
+      "\\hat\\epsilon=\\rho\\frac{\\operatorname{sign}(g)\\odot|g|^{q-1}}{\\|g\\|_q^{q-1}}\\quad\\text{(51)}",
+      "g_{\\mathrm{SAM}}\\approx\\nabla\\mathcal L(w+\\operatorname{stopgrad}(\\hat\\epsilon))\\quad\\text{(53)}",
+      "w^+=w-\\eta g_{\\mathrm{SAM}}"
+    ]
+  },
+  {
+    "kp": 14,
+    "title": "ESAM：只擾動一部分權重",
+    "english": "ESAM stochastic weight perturbation",
+    "file": "kp14-esam-swp.html",
+    "formulas": [
+      "m_j\\sim\\mathrm{Bernoulli}(\\beta)",
+      "\\tilde\\epsilon=\\frac1\\beta m\\odot\\hat\\epsilon\\quad\\text{(54)}",
+      "\\mathbb E_m[\\tilde\\epsilon_j\\mid\\hat\\epsilon]=\\hat\\epsilon_j"
+    ]
+  },
+  {
+    "kp": 14,
+    "title": "SDS：挑損失上升較多的樣本",
+    "english": "Select sharpness-sensitive samples",
+    "file": "kp14-esam-sds.html",
+    "formulas": [
+      "\\Delta\\ell_i=\\ell(w+\\tilde\\epsilon;x_i,y_i)-\\ell(w;x_i,y_i)",
+      "\\mathcal B^+=\\{i\\in\\mathcal B:\\Delta\\ell_i>\\alpha\\},\\quad\\mathcal B^-=\\mathcal B\\setminus\\mathcal B^+\\quad\\text{(55)}",
+      "g^+=\\frac1{|\\mathcal B^+|}\\sum_{i\\in\\mathcal B^+}\\nabla\\ell(w+\\tilde\\epsilon;x_i,y_i)"
+    ]
+  },
+  {
+    "kp": 14,
+    "title": "ASAM：讓鄰域跟著權重尺度",
+    "english": "ASAM adapts the neighborhood scale",
+    "file": "kp14-asam.html",
+    "formulas": [
+      "\\|T_w^{-1}\\epsilon\\|_p\\le\\rho",
+      "T_{Aw}^{-1}A=T_w^{-1}\\quad\\text{(56)}",
+      "\\max_{\\|T_w^{-1}\\epsilon\\|_p\\le\\rho}[\\mathcal L(w+\\epsilon)-\\mathcal L(w)]\\quad\\text{(57)}"
+    ]
+  },
+  {
+    "kp": 15,
+    "title": "過參數化：訓得動的理論",
+    "english": "Overparameterization and optimization",
+    "file": "kp15-overparameterization.html",
+    "formulas": [
+      "h(x)=v^\\top\\sigma(Wx),\\quad\\mathcal L(W)=\\frac1{2n}\\sum_i(y_i-h(x_i))^2",
+      "\\sigma(z)=z^2,\\quad k\\ge2d"
+    ]
+  },
+  {
+    "kp": 15,
+    "title": "命題 4：局部谷底與鞍點",
+    "english": "Proposition 4: minima and saddles",
+    "file": "kp15-landscape-theorem.html",
+    "formulas": [
+      "\\operatorname{vec}(U)^\\top\\nabla^2\\mathcal L(W_s)\\operatorname{vec}(U)<0",
+      "d\\le n\\le c d^2\\quad\\text{with additional data assumptions}"
+    ]
+  },
+  {
+    "kp": 15,
+    "title": "命題 5：深網收斂與條件",
+    "english": "Proposition 5: deep-network convergence",
+    "file": "kp15-deep-convergence.html",
+    "formulas": [
+      "\\|x_i\\|_2=1,\\quad (x_i)_d=1/\\sqrt2,\\quad\\|x_i-x_j\\|_2\\ge\\delta>0",
+      "\\begin{aligned}T_{\\mathrm{GD}}&=\\Theta(P(n,l)\\log(1/\\epsilon)/\\delta^2)\\quad\\text{(58)}\\\\T_{\\mathrm{SGD}}&=\\Theta(P(n,l)\\log(1/\\epsilon)\\log^2m/(\\delta^2b))\\quad\\text{(59)}\\end{aligned}"
+    ]
+  },
+  {
+    "kp": 15,
+    "title": "深網定理：寬度、步長、高機率",
+    "english": "Width, step size and high probability",
+    "file": "kp15-deep-width-steps.html",
+    "formulas": [
+      "m\\ge\\Omega(P(n,l,\\delta^{-1})d),\\quad\\eta=\\Theta\\!\\left(\\frac{d\\delta}{P(n,l)m}\\right)",
+      "\\begin{aligned}m&\\ge\\Omega(P(n,l,\\delta^{-1})d/b)\\\\\\eta&=\\Theta\\!\\left(\\frac{bd\\delta}{P(n,l)m\\log^2m}\\right)\\end{aligned}",
+      "\\Pr(\\mathcal L_{\\mathrm{train}}<\\epsilon)\\ge1-\\exp[-\\Omega(\\log^2m)]"
+    ]
+  },
+  {
+    "kp": 16,
+    "title": "延伸理論：三個研究方向",
+    "english": "Three directions beyond the core theorems",
+    "file": "kp16-research-map.html",
+    "formulas": []
+  },
+  {
+    "kp": 16,
+    "title": "全章收網：算梯度、走一步、驗結果",
+    "english": "Compute gradients, update, then evaluate",
+    "file": "kp16-chapter-summary.html",
+    "formulas": [
+      "\\mathcal L_{\\mathrm{train}}\\ne\\mathcal L_{\\mathrm{test}}"
+    ]
+  }
+]

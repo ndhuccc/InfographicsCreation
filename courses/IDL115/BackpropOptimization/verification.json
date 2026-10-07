@@ -1,0 +1,2235 @@
+{
+  "results": [
+    {
+      "file": "kp01-first-second-order.html",
+      "checks": [
+        {
+          "mode": "initial",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 1
+        },
+        {
+          "mode": "min",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 2
+        },
+        {
+          "mode": "max",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 3
+        },
+        {
+          "mode": "step",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 4
+        },
+        {
+          "mode": "reset",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 5
+        }
+      ]
+    },
+    {
+      "file": "kp01-training-map.html",
+      "checks": [
+        {
+          "mode": "initial",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 1
+        },
+        {
+          "mode": "min",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 2
+        },
+        {
+          "mode": "max",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 3
+        },
+        {
+          "mode": "step",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 4
+        },
+        {
+          "mode": "reset",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 5
+        }
+      ]
+    },
+    {
+      "file": "kp02-convex-nonconvex.html",
+      "checks": [
+        {
+          "mode": "initial",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 1
+        },
+        {
+          "mode": "min",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 2
+        },
+        {
+          "mode": "max",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 3
+        },
+        {
+          "mode": "step",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 4
+        },
+        {
+          "mode": "reset",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 5
+        }
+      ]
+    },
+    {
+      "file": "kp02-gd-update.html",
+      "checks": [
+        {
+          "mode": "initial",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 1
+        },
+        {
+          "mode": "min",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 2
+        },
+        {
+          "mode": "max",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 3
+        },
+        {
+          "mode": "step",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 4
+        },
+        {
+          "mode": "reset",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 5
+        }
+      ]
+    },
+    {
+      "file": "kp02-smoothness.html",
+      "checks": [
+        {
+          "mode": "initial",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 1
+        },
+        {
+          "mode": "min",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 2
+        },
+        {
+          "mode": "max",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 3
+        },
+        {
+          "mode": "step",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 4
+        },
+        {
+          "mode": "reset",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 5
+        }
+      ]
+    },
+    {
+      "file": "kp03-saddle.html",
+      "checks": [
+        {
+          "mode": "initial",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 1
+        },
+        {
+          "mode": "min",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 2
+        },
+        {
+          "mode": "max",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 3
+        },
+        {
+          "mode": "step",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 4
+        },
+        {
+          "mode": "reset",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 5
+        }
+      ]
+    },
+    {
+      "file": "kp03-stopping.html",
+      "checks": [
+        {
+          "mode": "initial",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 1
+        },
+        {
+          "mode": "min",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 2
+        },
+        {
+          "mode": "max",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 3
+        },
+        {
+          "mode": "step",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 4
+        },
+        {
+          "mode": "reset",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 5
+        }
+      ]
+    },
+    {
+      "file": "kp04-armijo-exact.html",
+      "checks": [
+        {
+          "mode": "initial",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 1
+        },
+        {
+          "mode": "min",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 2
+        },
+        {
+          "mode": "max",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 3
+        },
+        {
+          "mode": "step",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 4
+        },
+        {
+          "mode": "reset",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 5
+        }
+      ]
+    },
+    {
+      "file": "kp04-backtracking.html",
+      "checks": [
+        {
+          "mode": "initial",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 1
+        },
+        {
+          "mode": "min",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 2
+        },
+        {
+          "mode": "max",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 3
+        },
+        {
+          "mode": "step",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 4
+        },
+        {
+          "mode": "reset",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 5
+        }
+      ]
+    },
+    {
+      "file": "kp05-momentum-vectors.html",
+      "checks": [
+        {
+          "mode": "initial",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 1
+        },
+        {
+          "mode": "min",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 2
+        },
+        {
+          "mode": "max",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 3
+        },
+        {
+          "mode": "step",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 4
+        },
+        {
+          "mode": "reset",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 5
+        }
+      ]
+    },
+    {
+      "file": "kp05-momentum.html",
+      "checks": [
+        {
+          "mode": "initial",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 1
+        },
+        {
+          "mode": "min",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 2
+        },
+        {
+          "mode": "max",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 3
+        },
+        {
+          "mode": "step",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 4
+        },
+        {
+          "mode": "reset",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 5
+        }
+      ]
+    },
+    {
+      "file": "kp06-backprop-example.html",
+      "checks": [
+        {
+          "mode": "initial",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 1
+        },
+        {
+          "mode": "min",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 2
+        },
+        {
+          "mode": "max",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 3
+        },
+        {
+          "mode": "step",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 4
+        },
+        {
+          "mode": "reset",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 5
+        }
+      ]
+    },
+    {
+      "file": "kp06-delta-gradient.html",
+      "checks": [
+        {
+          "mode": "initial",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 1
+        },
+        {
+          "mode": "min",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 2
+        },
+        {
+          "mode": "max",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 3
+        },
+        {
+          "mode": "step",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 4
+        },
+        {
+          "mode": "reset",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 5
+        }
+      ]
+    },
+    {
+      "file": "kp06-forward.html",
+      "checks": [
+        {
+          "mode": "initial",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 1
+        },
+        {
+          "mode": "min",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 2
+        },
+        {
+          "mode": "max",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 3
+        },
+        {
+          "mode": "step",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 4
+        },
+        {
+          "mode": "reset",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 5
+        }
+      ]
+    },
+    {
+      "file": "kp06-hidden-recursion.html",
+      "checks": [
+        {
+          "mode": "initial",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 1
+        },
+        {
+          "mode": "min",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 2
+        },
+        {
+          "mode": "max",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 3
+        },
+        {
+          "mode": "step",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 4
+        },
+        {
+          "mode": "reset",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 5
+        }
+      ]
+    },
+    {
+      "file": "kp07-schedule.html",
+      "checks": [
+        {
+          "mode": "initial",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 1
+        },
+        {
+          "mode": "min",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 2
+        },
+        {
+          "mode": "max",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 3
+        },
+        {
+          "mode": "step",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 4
+        },
+        {
+          "mode": "reset",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 5
+        }
+      ]
+    },
+    {
+      "file": "kp07-sgd-unbiased.html",
+      "checks": [
+        {
+          "mode": "initial",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 1
+        },
+        {
+          "mode": "min",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 2
+        },
+        {
+          "mode": "max",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 3
+        },
+        {
+          "mode": "step",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 4
+        },
+        {
+          "mode": "reset",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 5
+        }
+      ]
+    },
+    {
+      "file": "kp08-batch-epoch.html",
+      "checks": [
+        {
+          "mode": "initial",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 1
+        },
+        {
+          "mode": "min",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 2
+        },
+        {
+          "mode": "max",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 3
+        },
+        {
+          "mode": "step",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 4
+        },
+        {
+          "mode": "reset",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 5
+        }
+      ]
+    },
+    {
+      "file": "kp08-batch-update.html",
+      "checks": [
+        {
+          "mode": "initial",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 1
+        },
+        {
+          "mode": "min",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 2
+        },
+        {
+          "mode": "max",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 3
+        },
+        {
+          "mode": "step",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 4
+        },
+        {
+          "mode": "reset",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 5
+        }
+      ]
+    },
+    {
+      "file": "kp08-batch-variance.html",
+      "checks": [
+        {
+          "mode": "initial",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 1
+        },
+        {
+          "mode": "min",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 2
+        },
+        {
+          "mode": "max",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 3
+        },
+        {
+          "mode": "step",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 4
+        },
+        {
+          "mode": "reset",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 5
+        }
+      ]
+    },
+    {
+      "file": "kp09-gd-rate.html",
+      "checks": [
+        {
+          "mode": "initial",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 1
+        },
+        {
+          "mode": "min",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 2
+        },
+        {
+          "mode": "max",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 3
+        },
+        {
+          "mode": "step",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 4
+        },
+        {
+          "mode": "reset",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 5
+        }
+      ]
+    },
+    {
+      "file": "kp09-noise-floor.html",
+      "checks": [
+        {
+          "mode": "initial",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 1
+        },
+        {
+          "mode": "min",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 2
+        },
+        {
+          "mode": "max",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 3
+        },
+        {
+          "mode": "step",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 4
+        },
+        {
+          "mode": "reset",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 5
+        }
+      ]
+    },
+    {
+      "file": "kp09-sgd-rate.html",
+      "checks": [
+        {
+          "mode": "initial",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 1
+        },
+        {
+          "mode": "min",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 2
+        },
+        {
+          "mode": "max",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 3
+        },
+        {
+          "mode": "step",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 4
+        },
+        {
+          "mode": "reset",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 5
+        }
+      ]
+    },
+    {
+      "file": "kp09-weighted-bound.html",
+      "checks": [
+        {
+          "mode": "initial",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 1
+        },
+        {
+          "mode": "min",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 2
+        },
+        {
+          "mode": "max",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 3
+        },
+        {
+          "mode": "step",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 4
+        },
+        {
+          "mode": "reset",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 5
+        }
+      ]
+    },
+    {
+      "file": "kp10-adagrad-history.html",
+      "checks": [
+        {
+          "mode": "initial",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 1
+        },
+        {
+          "mode": "min",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 2
+        },
+        {
+          "mode": "max",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 3
+        },
+        {
+          "mode": "step",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 4
+        },
+        {
+          "mode": "reset",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 5
+        }
+      ]
+    },
+    {
+      "file": "kp10-adagrad.html",
+      "checks": [
+        {
+          "mode": "initial",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 1
+        },
+        {
+          "mode": "min",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 2
+        },
+        {
+          "mode": "max",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 3
+        },
+        {
+          "mode": "step",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 4
+        },
+        {
+          "mode": "reset",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 5
+        }
+      ]
+    },
+    {
+      "file": "kp11-adam-bias.html",
+      "checks": [
+        {
+          "mode": "initial",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 1
+        },
+        {
+          "mode": "min",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 2
+        },
+        {
+          "mode": "max",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 3
+        },
+        {
+          "mode": "step",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 4
+        },
+        {
+          "mode": "reset",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 5
+        }
+      ]
+    },
+    {
+      "file": "kp11-adam.html",
+      "checks": [
+        {
+          "mode": "initial",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 1
+        },
+        {
+          "mode": "min",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 2
+        },
+        {
+          "mode": "max",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 3
+        },
+        {
+          "mode": "step",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 4
+        },
+        {
+          "mode": "reset",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 5
+        }
+      ]
+    },
+    {
+      "file": "kp11-rmsprop.html",
+      "checks": [
+        {
+          "mode": "initial",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 1
+        },
+        {
+          "mode": "min",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 2
+        },
+        {
+          "mode": "max",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 3
+        },
+        {
+          "mode": "step",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 4
+        },
+        {
+          "mode": "reset",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 5
+        }
+      ]
+    },
+    {
+      "file": "kp12-flat-generalization.html",
+      "checks": [
+        {
+          "mode": "initial",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 1
+        },
+        {
+          "mode": "min",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 2
+        },
+        {
+          "mode": "max",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 3
+        },
+        {
+          "mode": "step",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 4
+        },
+        {
+          "mode": "reset",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 5
+        }
+      ]
+    },
+    {
+      "file": "kp12-flat-sharp.html",
+      "checks": [
+        {
+          "mode": "initial",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 1
+        },
+        {
+          "mode": "min",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 2
+        },
+        {
+          "mode": "max",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 3
+        },
+        {
+          "mode": "step",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 4
+        },
+        {
+          "mode": "reset",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 5
+        }
+      ]
+    },
+    {
+      "file": "kp13-sam-dual-update.html",
+      "checks": [
+        {
+          "mode": "initial",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 1
+        },
+        {
+          "mode": "min",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 2
+        },
+        {
+          "mode": "max",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 3
+        },
+        {
+          "mode": "step",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 4
+        },
+        {
+          "mode": "reset",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 5
+        }
+      ]
+    },
+    {
+      "file": "kp13-sam-objective.html",
+      "checks": [
+        {
+          "mode": "initial",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 1
+        },
+        {
+          "mode": "min",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 2
+        },
+        {
+          "mode": "max",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 3
+        },
+        {
+          "mode": "step",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 4
+        },
+        {
+          "mode": "reset",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 5
+        }
+      ]
+    },
+    {
+      "file": "kp13-sam-perturbation.html",
+      "checks": [
+        {
+          "mode": "initial",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 1
+        },
+        {
+          "mode": "min",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 2
+        },
+        {
+          "mode": "max",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 3
+        },
+        {
+          "mode": "step",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 4
+        },
+        {
+          "mode": "reset",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 5
+        }
+      ]
+    },
+    {
+      "file": "kp13-sam-sharpness.html",
+      "checks": [
+        {
+          "mode": "initial",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 1
+        },
+        {
+          "mode": "min",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 2
+        },
+        {
+          "mode": "max",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 3
+        },
+        {
+          "mode": "step",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 4
+        },
+        {
+          "mode": "reset",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 5
+        }
+      ]
+    },
+    {
+      "file": "kp14-asam.html",
+      "checks": [
+        {
+          "mode": "initial",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 1
+        },
+        {
+          "mode": "min",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 2
+        },
+        {
+          "mode": "max",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 3
+        },
+        {
+          "mode": "step",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 4
+        },
+        {
+          "mode": "reset",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 5
+        }
+      ]
+    },
+    {
+      "file": "kp14-esam-sds.html",
+      "checks": [
+        {
+          "mode": "initial",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 1
+        },
+        {
+          "mode": "min",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 2
+        },
+        {
+          "mode": "max",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 3
+        },
+        {
+          "mode": "step",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 4
+        },
+        {
+          "mode": "reset",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 5
+        }
+      ]
+    },
+    {
+      "file": "kp14-esam-swp.html",
+      "checks": [
+        {
+          "mode": "initial",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 1
+        },
+        {
+          "mode": "min",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 2
+        },
+        {
+          "mode": "max",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 3
+        },
+        {
+          "mode": "step",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 4
+        },
+        {
+          "mode": "reset",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 5
+        }
+      ]
+    },
+    {
+      "file": "kp15-deep-convergence.html",
+      "checks": [
+        {
+          "mode": "initial",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 1
+        },
+        {
+          "mode": "min",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 2
+        },
+        {
+          "mode": "max",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 3
+        },
+        {
+          "mode": "step",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 4
+        },
+        {
+          "mode": "reset",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 5
+        }
+      ]
+    },
+    {
+      "file": "kp15-deep-width-steps.html",
+      "checks": [
+        {
+          "mode": "initial",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 1
+        },
+        {
+          "mode": "min",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 2
+        },
+        {
+          "mode": "max",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 3
+        },
+        {
+          "mode": "step",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 4
+        },
+        {
+          "mode": "reset",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 5
+        }
+      ]
+    },
+    {
+      "file": "kp15-landscape-theorem.html",
+      "checks": [
+        {
+          "mode": "initial",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 1
+        },
+        {
+          "mode": "min",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 2
+        },
+        {
+          "mode": "max",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 3
+        },
+        {
+          "mode": "step",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 4
+        },
+        {
+          "mode": "reset",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 5
+        }
+      ]
+    },
+    {
+      "file": "kp15-overparameterization.html",
+      "checks": [
+        {
+          "mode": "initial",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 1
+        },
+        {
+          "mode": "min",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 2
+        },
+        {
+          "mode": "max",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 3
+        },
+        {
+          "mode": "step",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 4
+        },
+        {
+          "mode": "reset",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 5
+        }
+      ]
+    },
+    {
+      "file": "kp16-chapter-summary.html",
+      "checks": [
+        {
+          "mode": "initial",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 1
+        },
+        {
+          "mode": "min",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 2
+        },
+        {
+          "mode": "max",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 3
+        },
+        {
+          "mode": "step",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 4
+        },
+        {
+          "mode": "reset",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 5
+        }
+      ]
+    },
+    {
+      "file": "kp16-research-map.html",
+      "checks": [
+        {
+          "mode": "initial",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 1
+        },
+        {
+          "mode": "min",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 2
+        },
+        {
+          "mode": "max",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 3
+        },
+        {
+          "mode": "step",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 4
+        },
+        {
+          "mode": "reset",
+          "overlaps": [],
+          "clipped": [],
+          "textOverlaps": [],
+          "formulaErrors": 0,
+          "overflow": false,
+          "drawCount": 5
+        }
+      ]
+    }
+  ],
+  "responsive": [
+    {
+      "width": 1280,
+      "height": 720,
+      "scroll": 1280,
+      "stage": 1280,
+      "scale": "scale(0.8)"
+    },
+    {
+      "width": 960,
+      "height": 540,
+      "scroll": 960,
+      "stage": 960,
+      "scale": "scale(0.6)"
+    },
+    {
+      "width": 640,
+      "height": 360,
+      "scroll": 640,
+      "stage": 640,
+      "scale": "scale(0.4)"
+    },
+    {
+      "width": 375,
+      "height": 700,
+      "scroll": 375,
+      "stage": 375,
+      "scale": "scale(0.234375)"
+    }
+  ],
+  "errors": []
+}
