@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SGD 與 Mini-Batch：便宜的大概對｜SGD and Mini-Batch: Cheap and Approximately Right</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<style>
+:root{--bg:#e8edf0;--fg:#14232e;--mut:#5a6a75;--teal:#1b6f7f;--card:#ffffff;--line:#c5d2d9}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei","Heiti TC",sans-serif}
+.wrap{max-width:1680px;margin:0 auto;padding:14px 16px 24px}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:baseline;margin:2px 0 10px}
+.bar.t{font-size:17px;font-weight:700}
+.bar.t small{display:block;font-weight:400;color:var(--mut);font-size:12.5px}
+.stage{position:relative;width:100%;aspect-ratio:16/9;background:#edf1f3;border-radius:6px;overflow:hidden;box-shadow:0 2px 14px rgba(0,0,0,.16)}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+/* KaTeX 層：固定 1600x900 logical，與 canvas 同一座標系（SOP 18.5 問題A） */
+#math-layer{position:absolute;left:0;top:0;width:1600px;height:900px;transform-origin:top left;pointer-events:none;overflow:hidden}
+.formula{position:absolute;transform-origin:top left;line-height:1.25}
+.formula .katex-display{margin:0;padding:0}
+.controls{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;margin-top:10px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 16px}
+.controls label{font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px}
+.controls output{font-size:14px;min-width:52px;color:var(--teal);font-weight:700}
+button{font:inherit;font-size:14px;font-weight:700;border:0;border-radius:8px;padding:9px 18px;cursor:pointer;background:var(--teal);color:#fff}
+button.alt{background:#fff;color:var(--fg);border:1.5px solid var(--mut)}
+button.on{background:#e39b0b;color:#14232e}
+input[type=range]{width:150px;accent-color:var(--teal)}
+select{font:inherit;font-size:14px;font-weight:700;padding:7px 10px;border-radius:8px;border:1.5px solid var(--mut);background:#fff;color:var(--fg)}
+.hint{margin-top:8px;font-size:13px;color:var(--mut);line-height:1.7}
+.hint b{color:var(--fg)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="bar"><div class="t">SGD 與 Mini-Batch：便宜的大概對<small>SGD and Mini-Batch: Cheap and Approximately Right · IDL115 Ch.3 §4–4.1 · 16:9 互動式資訊圖表</small></div></div>
+<div class="stage" id="stage">
+<canvas id="c" width="3200" height="1800"></canvas>
+<div id="math-layer"></div>
+</div>
+<div class="controls" id="controls">
+<button id="s1" type="button" class="on">樣本 1</button>
+<button id="s2" type="button">樣本 2</button>
+<button id="s3" type="button">樣本 3</button>
+<button id="s4" type="button">樣本 4</button>
+<label>步長 η <input type="range" id="eta" min="0.05" max="0.5" step="0.05" value="0.2"><output id="etaV">0.20</output></label>
+<button id="btnSgd" type="button">SGD 走一步</button>
+<button id="btnFull" type="button" class="alt">全梯度走一步</button>
+<button id="btnReset" type="button" class="alt">重設</button>
+<label>batch 大小 b <select id="bsel"><option value="1">1</option><option value="8">8</option><option value="32" selected>32</option><option value="128">128</option><option value="1024">1024</option></select></label>
+</div>
+<div class="hint" id="hint"><b>操作：</b>點樣本按鈕選 i（y₁=2，y₂=1，y₃=8，y₄=5），調 η 後按「SGD 走一步」看偏斜更新，或按「全梯度走一步」用四筆平均方向；b 選單控制右側光譜標記。</div>
+</div>
+<script>
+/* ================= 共享繪圖系統（1600x900 logical，backing store 3200x1800） ================= */
+const stage=document.getElementById('stage'), cv=document.getElementById('c'), ctx=cv.getContext('2d');
+const S=2, W=1600, H=900;
+ctx.setTransform(S,0,0,S,0,0);
+const C={bg:'#EDF1F3',ink:'#14232E',mut:'#5A6A75',teal:'#1B6F7F',tealL:'#DCEBEF',tealM:'#A9CBD3',
+amb:'#E39B0B',ambL:'#FBEBC8',red:'#D64545',redL:'#F6DDD6',grn:'#1E8A49',grnL:'#DDF3E4',
+blu:'#2563EB',bluL:'#DBEAFE',org:'#EA580C',orgL:'#FDEBD7',pur:'#7C3AED',purL:'#EDE7FB',
+pan:'#FFFFFF',line:'#C5D2D9'};
+const FAM='"Noto Sans TC","PingFang TC","Microsoft JhengHei","Heiti TC","Segoe UI",sans-serif';
+const F=(s,w)=>`${w||400} ${s}px ${FAM}`;
+function T(s,x,y,o){o=o||{};ctx.font=F(o.size||15,o.w||400);ctx.fillStyle=o.c||C.ink;
+ctx.textAlign=o.a||'left';ctx.textBaseline=o.b||'alphabetic';ctx.fillText(s,x,y);
+return ctx.measureText(s).width;}
+/* 換行：先把字面 \n 正規化（SOP 18.5），再做中英混合斷詞 */
+function wrap(s,maxW,size,w){s=String(s).replace(/\\n/g,'\n');ctx.font=F(size,w);
+const out=[];for(const para of s.split('\n')){
+const toks=para.match(/[\x21-\x7E\u00A0-\u024F]+|\s+|[^\s]/gu)||[];let line='';
+for(const t of toks){if(/^\s+$/.test(t)&&line==='')continue;
+if(ctx.measureText(line+t).width>maxW&&line.trim()!==''){out.push(line.trimEnd());line=/^\s+$/.test(t)?'':t;}
+else line+=t;}
+if(line.trim()!=='')out.push(line.trimEnd());}
+return out;}
+function P(s,x,y,maxW,lh,size,w,c,a){const ls=wrap(s,maxW,size,w);
+ls.forEach((l,i)=>T(l,x,y+i*lh,{size:size,w:w,c:c,a:a}));return ls.length;}
+/* 置中段落專用：cx 必須是容器的真正中心 x（SOP 18.5 問題B/I：勿用 wrap(...,'center') 配左緣 x） */
+function wrapCenter(s,cx,y,maxW,lh,size,w,c){const ls=wrap(s,maxW,size,w);
+ls.forEach((l,i)=>T(l,cx,y+i*lh,{size:size,w:w,c:c,a:'center'}));return ls.length;}
+function rr(x,y,w,h,r){ctx.beginPath();ctx.roundRect(x,y,w,h,r);}
+function panel(x,y,w,h,zh,en){rr(x,y,w,h,10);ctx.fillStyle=C.pan;ctx.fill();
+ctx.strokeStyle=C.line;ctx.lineWidth=1.5;ctx.stroke();
+const tw=T(zh,x+18,y+30,{size:17,w:700});T(en,x+18+tw+10,y+30,{size:11.5,c:C.mut});}
+function chip(x,y,w,h,txt,bg,fg,size){rr(x,y,w,h,h/2);ctx.fillStyle=bg;ctx.fill();
+T(txt,x+w/2,y+h/2+(size||12)*0.35,{size:size||12,w:700,c:fg||'#fff',a:'center'});}
+function arrow(x1,y1,x2,y2,col,lw,hs){hs=hs||8;ctx.strokeStyle=col;ctx.fillStyle=col;
+ctx.lineWidth=lw||2.5;ctx.lineCap='round';const a=Math.atan2(y2-y1,x2-x1);
+ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2-Math.cos(a)*hs*0.55,y2-Math.sin(a)*hs*0.55);ctx.stroke();
+ctx.beginPath();ctx.moveTo(x2,y2);ctx.lineTo(x2-hs*Math.cos(a-0.42),y2-hs*Math.sin(a-0.42));
+ctx.lineTo(x2-hs*Math.cos(a+0.42),y2-hs*Math.sin(a+0.42));ctx.closePath();ctx.fill();}
+function dot(x,y,r,fill,stroke,lw){ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);
+ctx.fillStyle=fill;ctx.fill();if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw||2;ctx.stroke();}}
+function strip(x,y,w,h,zh,en,bg,fg){rr(x,y,w,h,8);ctx.fillStyle=bg||C.tealL;ctx.fill();
+wrapCenter(zh,x+w/2,y+26,w-40,24,15,700,fg||C.ink);
+wrapCenter(en,x+w/2,y+52,w-40,20,12,400,C.mut);}
+/* ================= KaTeX hybrid（SOP 4.3；LaTeX 一律用 String.raw 單反斜線，勿雙重跳脫） ================= */
+const mathLayer=document.getElementById('math-layer');
+function addFormula(o){let el=document.getElementById('fx-'+o.id);
+if(!el){el=document.createElement('div');el.className='formula';el.id='fx-'+o.id;mathLayer.appendChild(el);}
+el.style.left=o.x+'px';el.style.top=o.y+'px';el.style.width=(o.w||600)+'px';
+el.style.textAlign=o.align||'center';el.style.fontSize=(o.fontSize||28)+'px';
+el.style.color=o.color||C.ink;
+try{katex.render(o.tex,el,{displayMode:true,throwOnError:false});}catch(e){el.textContent='[公式渲染失敗]';}
+return el;}
+function syncMathLayer(){const r=stage.getBoundingClientRect();
+mathLayer.style.transform=`scale(${r.width/W},${r.height/H})`;}
+new ResizeObserver(syncMathLayer).observe(stage);
+window.addEventListener('resize',syncMathLayer);
+window.addEventListener('load',syncMathLayer);
+/* ================= 頁首（每頁改標題） ================= */
+function header(zh,en,tag,tagEn){
+T(zh,40,60,{size:40,w:900});
+T(en,40,90,{size:19,w:500,c:C.teal});
+if(tag){const tw=ctx.measureText(tag).width;
+rr(1560-tw-56,30,tw+56,52,26);ctx.fillStyle=C.teal;ctx.fill();
+T(tag,1560-28,52,{size:15,w:700,c:'#fff',a:'center'});
+if(tagEn)T(tagEn,1560-28,70,{size:10,c:'#CFE6EB',a:'center'});}
+}
+/* ================= 以下為頁面內容 ================= */
+const state={w:0,sample:1,eta:0.2,b:32};
+const Y=[2,1,8,5], YMEAN=4, SUB=['₁','₂','₃','₄'];
+function rng(seed){return function(){seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+const R=rng(11), CLOUD=[];
+for(let i=0;i<42;i++)CLOUD.push([72+R()*246,182+R()*58]);
+
+function drawLeft(){
+  /* --- A 區：資料點雲 --- */
+  T('資料點雲：只抽一筆',60,166,{size:13,w:700});
+  for(let i=0;i<CLOUD.length;i++){
+    const p=CLOUD[i];
+    if(i===state.sample-1){dot(p[0],p[1],7,C.red,'#fff',2);dot(p[0],p[1],11,'rgba(214,69,69,0.25)');}
+    else dot(p[0],p[1],4.5,'#9AA7B0');
+  }
+  T('n 個灰點：只抽 1 點算梯度',60,258,{size:12,c:C.mut});
+  /* --- B 區：多支灰箭頭合成粗藍箭頭 --- */
+  T('全梯度：把 n 支箭頭平均',345,166,{size:13,w:700});
+  for(let i=0;i<4;i++)arrow(365,182+i*14,428,198+(i-1.5)*6,'#9AA7B0',2,6);
+  T('+',442,206,{size:18,w:700,c:C.mut,a:'center'});
+  arrow(458,200,540,200,C.blu,9,12);
+  T('平均 → 全梯度：方向穩',345,258,{size:12,c:C.mut});
+  /* --- C 區：單支偏斜紅箭頭 + 真正方向虛線 --- */
+  T('SGD：只看一筆，方向偏斜',565,166,{size:13,w:700});
+  ctx.save();ctx.setLineDash([7,6]);arrow(635,240,662,178,C.mut,2.5,7);ctx.restore();
+  arrow(635,240,706,190,C.red,5,10);
+  dot(635,240,4,C.ink);
+  T('虛線=真正方向；紅=單筆梯度',560,258,{size:12,c:C.mut});
+  /* --- demo 讀出 --- */
+  T('互動 demo：fᵢ(w)＝½(w−yᵢ)²，y₁=2，y₂=1，y₃=8，y₄=5',60,398,{size:13,w:700,c:C.mut});
+  const w=state.w, eta=state.eta;
+  const sgdNext=w-eta*(w-Y[state.sample-1]), fullNext=w-eta*(w-YMEAN);
+  T('目前 w ＝ '+w.toFixed(2),60,420,{size:15,w:700});
+  T('抽中樣本 i ＝ '+state.sample+'（y'+SUB[state.sample-1]+' ＝ '+Y[state.sample-1]+'）',60,442,{size:15});
+  T('SGD 下一步：'+sgdNext.toFixed(2)+'；全梯度：'+fullNext.toFixed(2),60,464,{size:15,c:C.teal,w:700});
+  /* --- w 數線 --- */
+  T('w 數線（預覽下一步）',470,398,{size:13,w:700});
+  const X=v=>470+(Math.max(-1,Math.min(7,v))+1)/8*300;
+  ctx.strokeStyle=C.mut;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(470,452);ctx.lineTo(770,452);ctx.stroke();
+  ctx.fillStyle=C.mut;
+  for(let v=-1;v<=7;v+=2){T(String(v),X(v),470,{size:10.5,c:C.mut,a:'center'});}
+  dot(X(w),452,6,C.blu,'#fff',2);
+  dot(X(sgdNext),436,6,C.red,'#fff',2);
+  ctx.fillStyle=C.teal;ctx.beginPath();
+  ctx.moveTo(X(fullNext),456);ctx.lineTo(X(fullNext)-6,468);ctx.lineTo(X(fullNext)+6,468);ctx.closePath();ctx.fill();
+  T('● 目前w　◆ SGD下一步　▲ 全梯度下一步',470,488,{size:11,c:C.mut});
+}
+
+function drawRight(){
+  T('一個 epoch：把資料切成 batch，逐批用完',870,166,{size:13,w:700});
+  rr(870,180,630,112,10);ctx.fillStyle=C.tealL;ctx.fill();ctx.strokeStyle=C.teal;ctx.lineWidth=1.5;ctx.stroke();
+  rr(892,204,168,58,8);ctx.fillStyle=C.teal;ctx.fill();
+  T('B₁',976,240,{size:20,w:800,c:'#fff',a:'center'});
+  rr(1080,204,168,58,8);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle=C.line;ctx.lineWidth=1.5;ctx.stroke();
+  T('B₂',1164,240,{size:20,w:800,a:'center'});
+  rr(1268,204,168,58,8);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle=C.line;ctx.lineWidth=1.5;ctx.stroke();
+  T('B₃',1352,240,{size:20,w:800,a:'center'});
+  arrow(1060,233,1080,233,C.mut,2.5,7);
+  arrow(1248,233,1268,233,C.mut,2.5,7);
+  chip(892,266,74,20,'進行中',C.teal,'#fff',11);
+  chip(1268,266,56,20,'last',C.grn,'#fff',11);
+  chip(870,298,52,24,'定義',C.teal,'#fff',13);
+  T('一個 epoch ＝ 所有 batch 各用過一次（每筆資料恰用一次）',932,316,{size:14});
+  /* --- b 光譜 --- */
+  T('b 光譜：雜訊 ∝ σ²/b，成本 ∝ b',870,408,{size:13,w:700});
+  ctx.fillStyle=C.red;ctx.fillRect(870,420,217,20);
+  ctx.fillStyle=C.blu;ctx.fillRect(1087,420,216,20);
+  ctx.fillStyle=C.grn;ctx.fillRect(1303,420,217,20);
+  rr(870,420,650,20,10);ctx.strokeStyle=C.line;ctx.lineWidth=1.5;ctx.stroke();
+  const mx=870+650*Math.log2(state.b)/10;
+  ctx.fillStyle=C.ink;ctx.beginPath();
+  ctx.moveTo(mx-8,404);ctx.lineTo(mx+8,404);ctx.lineTo(mx,418);ctx.closePath();ctx.fill();
+  ctx.strokeStyle=C.ink;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(mx,418);ctx.lineTo(mx,422);ctx.stroke();
+  T('b=1 太吵',870,458,{size:12,c:C.red,w:700});
+  T('mini-batch 折衷',1195,458,{size:12,c:C.blu,w:700,a:'center'});
+  T('b=n 穩但貴',1520,458,{size:12,c:C.grn,w:700,a:'right'});
+  T('梯度雜訊 ∝ σ²/b：b＝'+state.b+' 時為單樣本的 '+(state.b===1?'1 倍':'1/'+state.b),870,482,{size:13.5});
+  T('每步成本 ∝ b：算 '+state.b+' 筆梯度',870,504,{size:13.5,c:C.mut});
+}
+
+function drawCompare(){
+  const cols=[
+    {x:40,w:493,zh:'全梯度',en:'Full-batch',lines:['每步看全部 n 筆資料','方向準確、穩定下降','每步成本 O(n)：資料大時太貴'],chipT:'穩但貴',cbg:C.ambL,cfg:C.ink},
+    {x:553,w:493,zh:'SGD',en:'Single sample',lines:['每步只看 1 筆','梯度估計雜訊大、路徑抖','每步成本 O(1)：便宜'],chipT:'快但吵',cbg:C.redL,cfg:C.red},
+    {x:1066,w:494,zh:'Mini-batch',en:'b samples',lines:['每步看 b 筆（1 ＜ b ＜ n）','實務最常用：b 調速度與穩定','b 大較穩、b 小較快'],chipT:'折衷首選',cbg:C.tealL,cfg:C.teal}
+  ];
+  for(const c of cols){
+    rr(c.x,530,c.w,196,10);ctx.fillStyle=C.pan;ctx.fill();ctx.strokeStyle=C.line;ctx.lineWidth=1.5;ctx.stroke();
+    const tw=T(c.zh,c.x+18,568,{size:17,w:700});T(c.en,c.x+18+tw+8,568,{size:11.5,c:C.mut});
+    ctx.strokeStyle=C.line;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(c.x+18,584);ctx.lineTo(c.x+c.w-18,584);ctx.stroke();
+    c.lines.forEach((l,i)=>T(l,c.x+18,614+i*26,{size:15}));
+    chip(c.x+18,682,96,26,c.chipT,c.cbg,c.cfg,13);
+  }
+  rr(60,742,1480,52,8);ctx.fillStyle=C.ambL;ctx.fill();
+  wrapCenter('步長排程 η：1/k、1/√k 遞減 → 長期誤差 → 0；固定 η 方便、但長期停在 O(η) 鄰域（詳見收斂率頁）',800,768,1440,22,13,400,C.ink);
+}
+
+function draw(){
+  ctx.fillStyle=C.bg;ctx.fillRect(0,0,W,H);
+  header('SGD 與 Mini-Batch：便宜的大概對','SGD and Mini-Batch: Cheap and Approximately Right','IDL115','Ch.3 §4–4.1');
+  panel(40,110,760,400,'SGD：每次只抽一筆','SGD: one sample per step');
+  drawLeft();
+  panel(820,110,740,400,'Mini-Batch：切疊與 Epoch','Mini-batch: batches and epochs');
+  drawRight();
+  drawCompare();
+  strip(40,828,1520,56,'反直覺：文獻口中的 SGD 多半是 mini-batch；貴的正確不如便宜的大概對','In practice "SGD" usually means mini-batch; cheap and approximately right beats expensive and exact');
+}
+function initFormulas(){
+  addFormula({id:'sgd-obj',tex:String.raw`\underset{\boldsymbol{w}}{\operatorname{minimize}}\ \frac{1}{n}\sum_{i=1}^{n} f_i(\boldsymbol{w})`,x:60,y:270,w:680,fontSize:19});
+  addFormula({id:'sgd-upd',tex:String.raw`\boldsymbol{w}^{(k+1)}:=\boldsymbol{w}^{(k)}-\eta^{(k)}\nabla f_i(\boldsymbol{w}^{(k)})`,x:60,y:338,w:680,fontSize:21});
+  addFormula({id:'mb-upd',tex:String.raw`\boldsymbol{w}^{(k+1)}:=\boldsymbol{w}^{(k)}-\eta^{(k)}\frac{1}{b}\sum_{i\in\mathcal{B}_{k'}}\nabla f_i(\boldsymbol{w}^{(k)})`,x:850,y:328,w:690,fontSize:24});
+}
+document.addEventListener('DOMContentLoaded',()=>{
+  initFormulas();syncMathLayer();draw();
+  for(let i=1;i<=4;i++){
+    document.getElementById('s'+i).addEventListener('click',()=>{
+      state.sample=i;
+      for(let j=1;j<=4;j++)document.getElementById('s'+j).classList.toggle('on',j===i);
+      draw();
+    });
+  }
+  const eta=document.getElementById('eta'), etaV=document.getElementById('etaV');
+  eta.addEventListener('input',()=>{state.eta=parseFloat(eta.value);etaV.textContent=state.eta.toFixed(2);draw();});
+  document.getElementById('btnSgd').addEventListener('click',()=>{
+    state.w=state.w-state.eta*(state.w-Y[state.sample-1]);draw();});
+  document.getElementById('btnFull').addEventListener('click',()=>{
+    state.w=state.w-state.eta*(state.w-YMEAN);draw();});
+  document.getElementById('btnReset').addEventListener('click',()=>{
+    state.w=0;state.sample=1;
+    for(let j=1;j<=4;j++)document.getElementById('s'+j).classList.toggle('on',j===1);
+    draw();});
+  const bsel=document.getElementById('bsel');
+  bsel.addEventListener('change',()=>{state.b=parseInt(bsel.value,10);draw();});
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AdaGrad：逐維度自適應學習率｜AdaGrad: Per-Dimension Adaptive Learning Rates</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<style>
+:root{--bg:#e8edf0;--fg:#14232e;--mut:#5a6a75;--teal:#1b6f7f;--card:#ffffff;--line:#c5d2d9}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei","Heiti TC",sans-serif}
+.wrap{max-width:1680px;margin:0 auto;padding:14px 16px 24px}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:baseline;margin:2px 0 10px}
+.bar.t{font-size:17px;font-weight:700}
+.bar.t small{display:block;font-weight:400;color:var(--mut);font-size:12.5px}
+.stage{position:relative;width:100%;aspect-ratio:16/9;background:#edf1f3;border-radius:6px;overflow:hidden;box-shadow:0 2px 14px rgba(0,0,0,.16)}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+/* KaTeX 層：固定 1600x900 logical，與 canvas 同一座標系（SOP 18.5 問題A） */
+#math-layer{position:absolute;left:0;top:0;width:1600px;height:900px;transform-origin:top left;pointer-events:none;overflow:hidden}
+.formula{position:absolute;transform-origin:top left;line-height:1.25}
+.formula .katex-display{margin:0;padding:0}
+.controls{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;margin-top:10px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 16px}
+.controls label{font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px}
+.controls output{font-size:14px;min-width:52px;color:var(--teal);font-weight:700}
+button{font:inherit;font-size:14px;font-weight:700;border:0;border-radius:8px;padding:9px 18px;cursor:pointer;background:var(--teal);color:#fff}
+button.alt{background:#fff;color:var(--fg);border:1.5px solid var(--mut)}
+button.on{background:#e39b0b;color:#14232e}
+input[type=range]{width:220px;accent-color:var(--teal)}
+.hint{margin-top:8px;font-size:13px;color:var(--mut);line-height:1.7}
+.hint b{color:var(--fg)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="bar"><div class="t">AdaGrad：逐維度自適應學習率<small>AdaGrad: Per-Dimension Adaptive Learning Rates · IDL115 Ch.3 §5.1 · 16:9 互動式資訊圖表</small></div></div>
+<div class="stage" id="stage">
+<canvas id="c" width="3200" height="1800"></canvas>
+<div id="math-layer"></div>
+</div>
+<div class="controls" id="controls">
+<label>迭代 k <input type="range" id="k" min="0" max="300" step="5" value="60"><output id="kV">60</output></label>
+</div>
+<div class="hint" id="hint"><b>操作：</b>拖動迭代 k，看累積器階梯長高、有效步長曲線變化。注意左（紅）活躍維度步長急速縮小，右（綠）冷門維度維持高位。η＝0.1、ε＝1e-8 固定。</div>
+</div>
+<script>
+/* ================= 共享繪圖系統（1600x900 logical，backing store 3200x1800） ================= */
+const stage=document.getElementById('stage'), cv=document.getElementById('c'), ctx=cv.getContext('2d');
+const S=2, W=1600, H=900;
+ctx.setTransform(S,0,0,S,0,0);
+const C={bg:'#EDF1F3',ink:'#14232E',mut:'#5A6A75',teal:'#1B6F7F',tealL:'#DCEBEF',tealM:'#A9CBD3',
+amb:'#E39B0B',ambL:'#FBEBC8',red:'#D64545',redL:'#F6DDD6',grn:'#1E8A49',grnL:'#DDF3E4',
+blu:'#2563EB',bluL:'#DBEAFE',org:'#EA580C',orgL:'#FDEBD7',pur:'#7C3AED',purL:'#EDE7FB',
+pan:'#FFFFFF',line:'#C5D2D9'};
+const FAM='"Noto Sans TC","PingFang TC","Microsoft JhengHei","Heiti TC","Segoe UI",sans-serif';
+const F=(s,w)=>`${w||400} ${s}px ${FAM}`;
+function T(s,x,y,o){o=o||{};ctx.font=F(o.size||15,o.w||400);ctx.fillStyle=o.c||C.ink;
+ctx.textAlign=o.a||'left';ctx.textBaseline=o.b||'alphabetic';ctx.fillText(s,x,y);
+return ctx.measureText(s).width;}
+/* 換行：先把字面 \n 正規化（SOP 18.5），再做中英混合斷詞 */
+function wrap(s,maxW,size,w){s=String(s).replace(/\\n/g,'\n');ctx.font=F(size,w);
+const out=[];for(const para of s.split('\n')){
+const toks=para.match(/[\x21-\x7E\u00A0-\u024F]+|\s+|[^\s]/gu)||[];let line='';
+for(const t of toks){if(/^\s+$/.test(t)&&line==='')continue;
+if(ctx.measureText(line+t).width>maxW&&line.trim()!==''){out.push(line.trimEnd());line=/^\s+$/.test(t)?'':t;}
+else line+=t;}
+if(line.trim()!=='')out.push(line.trimEnd());}
+return out;}
+function P(s,x,y,maxW,lh,size,w,c,a){const ls=wrap(s,maxW,size,w);
+ls.forEach((l,i)=>T(l,x,y+i*lh,{size:size,w:w,c:c,a:a}));return ls.length;}
+/* 置中段落專用：cx 必須是容器的真正中心 x（SOP 18.5 問題B/I：勿用 wrap(...,'center') 配左緣 x） */
+function wrapCenter(s,cx,y,maxW,lh,size,w,c){const ls=wrap(s,maxW,size,w);
+ls.forEach((l,i)=>T(l,cx,y+i*lh,{size:size,w:w,c:c,a:'center'}));return ls.length;}
+function rr(x,y,w,h,r){ctx.beginPath();ctx.roundRect(x,y,w,h,r);}
+function panel(x,y,w,h,zh,en){rr(x,y,w,h,10);ctx.fillStyle=C.pan;ctx.fill();
+ctx.strokeStyle=C.line;ctx.lineWidth=1.5;ctx.stroke();
+const tw=T(zh,x+18,y+30,{size:17,w:700});T(en,x+18+tw+10,y+30,{size:11.5,c:C.mut});}
+function chip(x,y,w,h,txt,bg,fg,size){rr(x,y,w,h,h/2);ctx.fillStyle=bg;ctx.fill();
+T(txt,x+w/2,y+h/2+(size||12)*0.35,{size:size||12,w:700,c:fg||'#fff',a:'center'});}
+function arrow(x1,y1,x2,y2,col,lw,hs){hs=hs||8;ctx.strokeStyle=col;ctx.fillStyle=col;
+ctx.lineWidth=lw||2.5;ctx.lineCap='round';const a=Math.atan2(y2-y1,x2-x1);
+ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2-Math.cos(a)*hs*0.55,y2-Math.sin(a)*hs*0.55);ctx.stroke();
+ctx.beginPath();ctx.moveTo(x2,y2);ctx.lineTo(x2-hs*Math.cos(a-0.42),y2-hs*Math.sin(a-0.42));
+ctx.lineTo(x2-hs*Math.cos(a+0.42),y2-hs*Math.sin(a+0.42));ctx.closePath();ctx.fill();}
+function dot(x,y,r,fill,stroke,lw){ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);
+ctx.fillStyle=fill;ctx.fill();if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw||2;ctx.stroke();}}
+function strip(x,y,w,h,zh,en,bg,fg){rr(x,y,w,h,8);ctx.fillStyle=bg||C.tealL;ctx.fill();
+wrapCenter(zh,x+w/2,y+26,w-40,24,15,700,fg||C.ink);
+wrapCenter(en,x+w/2,y+52,w-40,20,12,400,C.mut);}
+/* ================= KaTeX hybrid（SOP 4.3；LaTeX 一律用 String.raw 單反斜線，勿雙重跳脫） ================= */
+const mathLayer=document.getElementById('math-layer');
+function addFormula(o){let el=document.getElementById('fx-'+o.id);
+if(!el){el=document.createElement('div');el.className='formula';el.id='fx-'+o.id;mathLayer.appendChild(el);}
+el.style.left=o.x+'px';el.style.top=o.y+'px';el.style.width=(o.w||600)+'px';
+el.style.textAlign=o.align||'center';el.style.fontSize=(o.fontSize||28)+'px';
+el.style.color=o.color||C.ink;
+try{katex.render(o.tex,el,{displayMode:true,throwOnError:false});}catch(e){el.textContent='[公式渲染失敗]';}
+return el;}
+function syncMathLayer(){const r=stage.getBoundingClientRect();
+mathLayer.style.transform=`scale(${r.width/W},${r.height/H})`;}
+new ResizeObserver(syncMathLayer).observe(stage);
+window.addEventListener('resize',syncMathLayer);
+window.addEventListener('load',syncMathLayer);
+/* ================= 頁首（每頁改標題） ================= */
+function header(zh,en,tag,tagEn){
+T(zh,40,60,{size:40,w:900});
+T(en,40,90,{size:19,w:500,c:C.teal});
+if(tag){const tw=ctx.measureText(tag).width;
+rr(1560-tw-56,30,tw+56,52,26);ctx.fillStyle=C.teal;ctx.fill();
+T(tag,1560-28,52,{size:15,w:700,c:'#fff',a:'center'});
+if(tagEn)T(tagEn,1560-28,70,{size:10,c:'#CFE6EB',a:'center'});}
+}
+/* ================= 以下為頁面內容 ================= */
+const state={k:60};
+const EPS=1e-8, ETA=0.1, GA=1.0, GQ=0.05;
+const acc=(kp,g)=>kp*g*g;
+const Geff=(kp,g)=>Math.sqrt(EPS+acc(kp,g));
+const etaEff=(kp,g)=>kp<=0?ETA/Math.sqrt(EPS):ETA/Geff(kp,g);
+
+/* 單一維度面板：x0 為面板左緣，g 為該維度固定梯度大小，col 為主色 */
+function drawDimPanel(x0,g,col,colL,footZh){
+  const k=state.k, X0=x0+60, X1=x0+680;
+  /* --- 區塊1：|∇| 柱狀 --- */
+  T('|∇|：梯度大小（示意固定值）',x0+40,332,{size:13,w:700});
+  ctx.strokeStyle=C.line;ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(X0,415);ctx.lineTo(X1,415);ctx.stroke();
+  const bh=Math.max(3,g*66);
+  ctx.fillStyle=col;ctx.fillRect(x0+300,415-bh,120,bh);
+  T('g ＝ '+g.toFixed(2),x0+360,415-bh-10,{size:13,w:700,a:'center'});
+  /* --- 區塊2：累積器 Σ(∇²) 階梯 --- */
+  T('累積器 Σ(∇²)：只增不減',x0+40,462,{size:13,w:700});
+  ctx.strokeStyle=C.ink;ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(X0,572);ctx.lineTo(X0,478);ctx.lineTo(X1,478);ctx.stroke();
+  const Yp=s=>572-(k>0?s/k:0)*94;
+  ctx.strokeStyle=col;ctx.lineWidth=2.5;ctx.beginPath();
+  const step=5, n=Math.max(1,Math.round(k/step));
+  for(let i=0;i<=n;i++){
+    const kp=Math.min(k,i*step), x=X0+(k>0?kp/k:0)*(X1-X0), y=Yp(acc(kp,g));
+    if(i===0)ctx.moveTo(X0,y);else{ctx.lineTo(x,Yp(acc((i-1)*step,g)));ctx.lineTo(x,y);}
+  }
+  ctx.stroke();
+  T('0',X0,590,{size:11,c:C.mut,a:'center'});
+  T('k ＝ '+k,X1,590,{size:11,c:C.mut,a:'right'});
+  T('Σ(∇²)',X0-8,486,{size:11,c:C.mut,a:'right'});
+  /* --- 區塊3：有效步長 η/√G（對數軸） --- */
+  T('有效步長 η/√G（對數軸）',x0+40,612,{size:13,w:700});
+  ctx.strokeStyle=C.ink;ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(X0,712);ctx.lineTo(X0,618);ctx.lineTo(X1,618);ctx.stroke();
+  const Yl=v=>712-(Math.log10(Math.max(1e-3,v))+3)/3.5*94;
+  ctx.fillStyle=C.mut;
+  for(const tv of [0.001,0.01,0.1,1]){T(String(tv),X0-8,Yl(tv)+4,{size:11,c:C.mut,a:'right'});}
+  T('0',X0,730,{size:11,c:C.mut,a:'center'});
+  T('k ＝ '+k,X1,730,{size:11,c:C.mut,a:'right'});
+  ctx.strokeStyle=col;ctx.lineWidth=2.5;ctx.beginPath();
+  let started=false;
+  for(let kp=1;kp<=Math.max(1,k);kp++){
+    const x=X0+(kp/Math.max(1,k))*(X1-X0), y=Yl(etaEff(kp,g));
+    if(!started){ctx.moveTo(x,y);started=true;}else ctx.lineTo(x,y);
+  }
+  ctx.stroke();
+  /* --- 數值讀出 --- */
+  const G=Geff(k,g), ee=etaEff(k,g);
+  T('累積器 G ＝ '+G.toFixed(2)+'，有效步長 η/G ＝ '+(ee>=10?ee.toFixed(1):ee.toFixed(4)),x0+40,756,{size:14,w:700,c:col});
+  /* --- 優缺點 --- */
+  T(footZh,x0+40,792,{size:13,c:C.mut});
+}
+
+function draw(){
+  ctx.fillStyle=C.bg;ctx.fillRect(0,0,W,H);
+  header('AdaGrad：逐維度自適應學習率','AdaGrad: Per-Dimension Adaptive Learning Rates','IDL115','Ch.3 §5.1');
+  /* --- 頂部公式列 --- */
+  T('(37) 自適應更新',40,124,{size:12.5,w:700,c:C.mut});
+  T('(38) 累積器 G',545,124,{size:12.5,w:700,c:C.mut});
+  T('(39) 逐維度寫法',1045,124,{size:12.5,w:700,c:C.mut});
+  wrapCenter('動機：一個學習率管不了所有維度 —— 活躍維度要勒韁繩，冷門維度要放行',800,222,1200,22,14,400,C.ink);
+  /* --- 左右面板 --- */
+  panel(40,270,740,540,'活躍維度','Active dimension');
+  drawDimPanel(40,GA,C.red,C.redL,'優點：稀疏特徵友好，罕見維度拿較大步長');
+  panel(820,270,740,540,'冷門維度','Quiet dimension');
+  drawDimPanel(820,GQ,C.grn,C.grnL,'隱憂：累積和只增不減，晚期全部步長 → 0（→ RMSProp）');
+  strip(40,828,1520,56,'反直覺：被更新愈勤的參數，後期愈走不動；誰跑得兇誰被勒韁','The more a parameter updates, the smaller its later steps become');
+}
+function initFormulas(){
+  addFormula({id:'ag37',tex:String.raw`\boldsymbol{w}^{(k+1)}:=\boldsymbol{w}^{(k)}-\eta^{(k)}\boldsymbol{G}^{-1}\nabla f_i(\boldsymbol{w}^{(k)})`,x:40,y:132,w:500,fontSize:20});
+  addFormula({id:'ag38',tex:String.raw`\boldsymbol{G}(j,j):=\sqrt{\varepsilon+\sum_{\tau=0}^{k}(\nabla_j f_{i_{\tau}}(\boldsymbol{w}^{(\tau)}))^2}`,x:545,y:132,w:490,fontSize:19});
+  addFormula({id:'ag39',tex:String.raw`w_j^{(k+1)}:=w_j^{(k)}-\frac{\eta^{(k)}}{\sqrt{\varepsilon+\sum_{\tau=0}^{k}(\nabla_j f_{i_{\tau}})^2}}\nabla_j f`,x:1045,y:132,w:475,fontSize:18});
+}
+document.addEventListener('DOMContentLoaded',()=>{
+  initFormulas();syncMathLayer();draw();
+  const kk=document.getElementById('k'), kV=document.getElementById('kV');
+  kk.addEventListener('input',()=>{state.k=parseInt(kk.value,10);kV.textContent=String(state.k);draw();});
+});
+</script>
+</body>
+</html>
