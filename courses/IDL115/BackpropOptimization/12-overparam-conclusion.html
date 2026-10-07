@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>過參數化收斂與全章總結｜Overparameterized Convergence and Chapter Summary</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<style>
+:root{--bg:#e8edf0;--fg:#14232e;--mut:#5a6a75;--teal:#1b6f7f;--card:#ffffff;--line:#c5d2d9}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei","Heiti TC",sans-serif}
+.wrap{max-width:1680px;margin:0 auto;padding:14px 16px 24px}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:baseline;margin:2px 0 10px}
+.bar.t{font-size:17px;font-weight:700}
+.bar.t small{display:block;font-weight:400;color:var(--mut);font-size:12.5px}
+.stage{position:relative;width:100%;aspect-ratio:16/9;background:#edf1f3;border-radius:6px;overflow:hidden;box-shadow:0 2px 14px rgba(0,0,0,.16)}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+/* KaTeX 層：固定 1600x900 logical，與 canvas 同一座標系（SOP 18.5 問題A） */
+#math-layer{position:absolute;left:0;top:0;width:1600px;height:900px;transform-origin:top left;pointer-events:none;overflow:hidden}
+.formula{position:absolute;transform-origin:top left;line-height:1.25}
+.controls{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;margin-top:10px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 16px}
+.controls label{font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px}
+.controls output{font-size:14px;min-width:52px;color:var(--teal);font-weight:700}
+button{font:inherit;font-size:14px;font-weight:700;border:0;border-radius:8px;padding:9px 18px;cursor:pointer;background:var(--teal);color:#fff}
+button.alt{background:#fff;color:var(--fg);border:1.5px solid var(--mut)}
+button.on{background:#e39b0b;color:#14232e}
+input[type=range]{width:150px;accent-color:var(--teal)}
+.hint{margin-top:8px;font-size:13px;color:var(--mut);line-height:1.7}
+.hint b{color:var(--fg)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="bar"><div class="t">過參數化收斂與全章總結<small>Overparameterized Convergence and Chapter Summary · 16:9 互動式資訊圖表</small></div></div>
+<div class="stage" id="stage">
+<canvas id="c" width="3200" height="1800"></canvas>
+<div id="math-layer"></div>
+</div>
+<div class="controls" id="controls">
+<button id="c0" type="button" class="on">導論</button>
+<button id="c1" type="button">梯度下降</button>
+<button id="c2" type="button">線搜索</button>
+<button id="c3" type="button">動量</button>
+<button id="c4" type="button">反向傳播</button>
+<button id="c5" type="button">SGD</button>
+<button id="c6" type="button">自適應</button>
+<button id="c7" type="button">SAM</button>
+</div>
+<div class="hint" id="hint"><b>操作：</b>點按鈕切換章節，圖上對應節點會以粗框高亮。<b>本節一句話：</b>優化是訓練的引擎：三步驟中的第三步。</div>
+</div>
+<script>
+/* ================= 共享繪圖系統（1600x900 logical，backing store 3200x1800） ================= */
+const stage=document.getElementById('stage'), cv=document.getElementById('c'), ctx=cv.getContext('2d');
+const S=2, W=1600, H=900;
+ctx.setTransform(S,0,0,S,0,0);
+const C={bg:'#EDF1F3',ink:'#14232E',mut:'#5A6A75',teal:'#1B6F7F',tealL:'#DCEBEF',tealM:'#A9CBD3',
+amb:'#E39B0B',ambL:'#FBEBC8',red:'#D64545',redL:'#F6DDD6',grn:'#1E8A49',grnL:'#DDF3E4',
+blu:'#2563EB',bluL:'#DBEAFE',org:'#EA580C',orgL:'#FDEBD7',pur:'#7C3AED',purL:'#EDE7FB',
+pan:'#FFFFFF',line:'#C5D2D9'};
+const FAM='"Noto Sans TC","PingFang TC","Microsoft JhengHei","Heiti TC","Segoe UI",sans-serif';
+const F=(s,w)=>`${w||400} ${s}px ${FAM}`;
+function T(s,x,y,o){o=o||{};ctx.font=F(o.size||15,o.w||400);ctx.fillStyle=o.c||C.ink;
+ctx.textAlign=o.a||'left';ctx.textBaseline=o.b||'alphabetic';ctx.fillText(s,x,y);
+return ctx.measureText(s).width;}
+/* 換行：先把字面 \n 正規化（SOP 18.5），再做中英混合斷詞 */
+function wrap(s,maxW,size,w){s=String(s).replace(/\\n/g,'\n');ctx.font=F(size,w);
+const out=[];for(const para of s.split('\n')){
+const toks=para.match(/[\x21-\x7E\u00A0-\u024F]+|\s+|[^\s]/gu)||[];let line='';
+for(const t of toks){if(/^\s+$/.test(t)&&line==='')continue;
+if(ctx.measureText(line+t).width>maxW&&line.trim()!==''){out.push(line.trimEnd());line=/^\s+$/.test(t)?'':t;}
+else line+=t;}
+if(line.trim()!=='')out.push(line.trimEnd());}
+return out;}
+function P(s,x,y,maxW,lh,size,w,c,a){const ls=wrap(s,maxW,size,w);
+ls.forEach((l,i)=>T(l,x,y+i*lh,{size:size,w:w,c:c,a:a}));return ls.length;}
+/* 置中段落專用：cx 必須是容器的真正中心 x（SOP 18.5 問題B/I：勿用 wrap(...,'center') 配左緣 x） */
+function wrapCenter(s,cx,y,maxW,lh,size,w,c){const ls=wrap(s,maxW,size,w);
+ls.forEach((l,i)=>T(l,cx,y+i*lh,{size:size,w:w,c:c,a:'center'}));return ls.length;}
+function rr(x,y,w,h,r){ctx.beginPath();ctx.roundRect(x,y,w,h,r);}
+function panel(x,y,w,h,zh,en){rr(x,y,w,h,10);ctx.fillStyle=C.pan;ctx.fill();
+ctx.strokeStyle=C.line;ctx.lineWidth=1.5;ctx.stroke();
+const tw=T(zh,x+18,y+30,{size:17,w:700});T(en,x+18+tw+10,y+30,{size:11.5,c:C.mut});}
+function chip(x,y,w,h,txt,bg,fg,size){rr(x,y,w,h,h/2);ctx.fillStyle=bg;ctx.fill();
+T(txt,x+w/2,y+h/2+(size||12)*0.35,{size:size||12,w:700,c:fg||'#fff',a:'center'});}
+function arrow(x1,y1,x2,y2,col,lw,hs){hs=hs||8;ctx.strokeStyle=col;ctx.fillStyle=col;
+ctx.lineWidth=lw||2.5;ctx.lineCap='round';const a=Math.atan2(y2-y1,x2-x1);
+ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2-Math.cos(a)*hs*0.55,y2-Math.sin(a)*hs*0.55);ctx.stroke();
+ctx.beginPath();ctx.moveTo(x2,y2);ctx.lineTo(x2-hs*Math.cos(a-0.42),y2-hs*Math.sin(a-0.42));
+ctx.lineTo(x2-hs*Math.cos(a+0.42),y2-hs*Math.sin(a+0.42));ctx.closePath();ctx.fill();}
+function dot(x,y,r,fill,stroke,lw){ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);
+ctx.fillStyle=fill;ctx.fill();if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw||2;ctx.stroke();}}
+function strip(x,y,w,h,zh,en,bg,fg){rr(x,y,w,h,8);ctx.fillStyle=bg||C.tealL;ctx.fill();
+wrapCenter(zh,x+w/2,y+26,w-40,24,15,700,fg||C.ink);
+wrapCenter(en,x+w/2,y+52,w-40,20,12,400,C.mut);}
+/* ================= KaTeX hybrid（SOP 4.3；LaTeX 一律用 String.raw 單反斜線，勿雙重跳脫） ================= */
+const mathLayer=document.getElementById('math-layer');
+function addFormula(o){let el=document.getElementById('fx-'+o.id);
+if(!el){el=document.createElement('div');el.className='formula';el.id='fx-'+o.id;mathLayer.appendChild(el);}
+el.style.left=o.x+'px';el.style.top=o.y+'px';el.style.width=(o.w||600)+'px';
+el.style.textAlign=o.align||'center';el.style.fontSize=(o.fontSize||28)+'px';
+el.style.color=o.color||C.ink;
+try{katex.render(o.tex,el,{displayMode:true,throwOnError:false});}catch(e){el.textContent='[公式渲染失敗]';}
+return el;}
+function syncMathLayer(){const r=stage.getBoundingClientRect();
+mathLayer.style.transform=`scale(${r.width/W},${r.height/H})`;}
+new ResizeObserver(syncMathLayer).observe(stage);
+window.addEventListener('resize',syncMathLayer);
+window.addEventListener('load',syncMathLayer);
+/* ================= 頁首（每頁改標題） ================= */
+function header(zh,en,tag,tagEn){
+T(zh,40,60,{size:40,w:900});
+T(en,40,90,{size:19,w:500,c:C.teal});
+if(tag){const tw=ctx.measureText(tag).width;
+rr(1560-tw-56,30,tw+56,52,26);ctx.fillStyle=C.teal;ctx.fill();
+T(tag,1560-28,52,{size:15,w:700,c:'#fff',a:'center'});
+if(tagEn)T(tagEn,1560-28,70,{size:10,c:'#CFE6EB',a:'center'});}
+}
+/* ================= 以下為頁面內容 ================= */
+const state={chap:0};
+const CH=[
+ {zh:'導論',en:'Introduction',sec:'§1',line:'優化是訓練的引擎：三步驟中的第三步。'},
+ {zh:'梯度下降',en:'Gradient Descent',sec:'§2',line:'沿負梯度走一步；η 是關鍵，太大發散、太小太慢。'},
+ {zh:'線搜索',en:'Line Search',sec:'§2.2–2.3',line:'步長太大就對半砍，保證每一步都下降。'},
+ {zh:'動量',en:'Momentum',sec:'§2.4',line:'加慣性：側向震盪互相抵消，前進方向加速。'},
+ {zh:'反向傳播',en:'Backpropagation',sec:'§3',line:'鏈式法則逐層回傳誤差：本章核心，梯度才算得出來。'},
+ {zh:'SGD',en:'Stochastic Gradient Descent',sec:'§4',line:'一筆太吵、全批太慢，mini-batch 折衷最實用。'},
+ {zh:'自適應',en:'Adaptive Methods',sec:'§5',line:'AdaGrad → RMSProp → Adam：逐維度自動調步長。'},
+ {zh:'SAM',en:'Sharpness-Aware Minimization',sec:'§6',line:'先 ascent 到最慘鄰居，再下山：換一個更平坦的解。'}
+];
+
+function drawLeft(){
+  panel(40,110,740,560,'古典 vs 過參數化地形','Classical vs overparameterized landscape');
+  /* 古典地形：深淺不一的谷 */
+  T('古典地形',70,170,{size:14,w:700});
+  const g1=x=>Math.exp(-Math.pow((x-220)/55,2))+1.35*Math.exp(-Math.pow((x-500)/65,2))+0.8*Math.exp(-Math.pow((x-680)/45,2));
+  ctx.strokeStyle=C.ink;ctx.lineWidth=3;ctx.lineCap='round';ctx.beginPath();
+  for(let x=70;x<=750;x+=6){const y=185+70*g1(x);if(x===70)ctx.moveTo(x,y);else ctx.lineTo(x,y);}
+  ctx.stroke();
+  dot(220,185+70*g1(220),7,C.org,'#fff',2);
+  T('假坑 local min',220,222,{size:12,c:C.org,a:'center'});
+  dot(500,185+70*g1(500),7,C.grn,'#fff',2);
+  T('全域 global min',500,306,{size:12,c:C.grn,a:'center'});
+  T('初始化不對，會卡在假坑',70,322,{size:12.5,c:C.mut});
+  /* 過參數化地形：等高谷 */
+  T('過參數化地形',70,350,{size:14,w:700});
+  const g2=x=>[180,360,540,700].reduce((s,c)=>s+Math.exp(-Math.pow((x-c)/50,2)),0);
+  ctx.strokeStyle=C.ink;ctx.lineWidth=3;ctx.beginPath();
+  for(let x=70;x<=750;x+=6){const y=375+80*g2(x);if(x===70)ctx.moveTo(x,y);else ctx.lineTo(x,y);}
+  ctx.stroke();
+  ctx.setLineDash([8,6]);ctx.strokeStyle=C.blu;ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(70,455);ctx.lineTo(750,455);ctx.stroke();ctx.setLineDash([]);
+  T('全域級（訓練損失可到 0）',748,440,{size:12,c:C.blu,a:'right'});
+  [180,360,540,700].forEach(cx=>dot(cx,375+80*g2(cx),6,C.grn,'#fff',2));
+  T('幾乎所有局部解都夠好',70,494,{size:12.5,w:700,c:C.grn});
+  /* Prop 4 / Prop 5 */
+  T('Prop 4（三項保證）',70,530,{size:14,w:700});
+  T('① 無 spurious local minima：所有局部極小都是全域極小',95,552,{size:13});
+  T('② 鞍點具嚴格負曲率逃逸方向，一階方法可以逃離',95,572,{size:13});
+  T('③ 零訓練損失可達',95,592,{size:13});
+  T('Prop 5（多項式時間收斂）',70,624,{size:14,w:700});
+  P('寬度 m 夠大、資料分離時，GD / SGD 在多項式時間內把訓練損失壓到任意小。',95,646,640,24,13,400);
+}
+
+function drawRight(){
+  panel(800,110,760,560,'全章地圖','Chapter map — 點下方按鈕看各節一句話');
+  const cx0=820,cw=168,chh=50,gx=16,gy=14;
+  const chipXY=i=>{const col=i%4,row=(i/4)|0;return [cx0+col*(cw+gx),175+row*(chh+gy)];};
+  /* S 形流程箭頭 */
+  const lc='#9DB4BE';
+  [[0,1],[1,2],[2,3]].forEach(pr=>{const a=chipXY(pr[0]),b=chipXY(pr[1]);
+    arrow(a[0]+cw+3,a[1]+chh/2,b[0]-3,b[1]+chh/2,lc,2,7);});
+  {const a=chipXY(3),b=chipXY(7);arrow(a[0]+cw/2,a[1]+chh+3,b[0]+cw/2,b[1]-3,lc,2,7);}
+  [[7,6],[6,5],[5,4]].forEach(pr=>{const a=chipXY(pr[0]),b=chipXY(pr[1]);
+    arrow(a[0]-3,a[1]+chh/2,b[0]+cw+3,b[1]+chh/2,lc,2,7);});
+  /* 8 個節點 */
+  CH.forEach((c,i)=>{
+    const p=chipXY(i),sel=i===state.chap;
+    rr(p[0],p[1],cw,chh,12);
+    ctx.fillStyle=sel?C.tealL:'#fff';ctx.fill();
+    ctx.strokeStyle=sel?C.teal:C.line;ctx.lineWidth=sel?4:1.5;ctx.stroke();
+    T(c.zh,p[0]+cw/2,p[1]+22,{size:14.5,w:700,c:sel?C.teal:C.ink,a:'center'});
+    T(c.en,p[0]+cw/2,p[1]+40,{size:10,c:C.mut,a:'center'});
+  });
+  /* 當前章節卡片 */
+  rr(830,330,700,240,12);ctx.fillStyle='#fff';ctx.fill();
+  ctx.strokeStyle=C.teal;ctx.lineWidth=2;ctx.stroke();
+  T(CH[state.chap].sec+' · '+CH[state.chap].en,860,372,{size:13,c:C.mut});
+  T(CH[state.chap].zh,860,412,{size:26,w:900,c:C.teal});
+  T(CH[state.chap].en,860,438,{size:14,c:C.mut});
+  P(CH[state.chap].line,860,478,640,32,16.5,400);
+  T('點下方按鈕切換章節',860,548,{size:12.5,c:C.mut});
+}
+
+function draw(){
+  ctx.fillStyle=C.bg;ctx.fillRect(0,0,W,H);
+  header('過參數化收斂與全章總結','Overparameterized Convergence and Chapter Summary','IDL115','Ch.3 §7–8');
+  drawLeft();drawRight();
+  panel(40,690,1520,120,'重點提醒','Caveats — 別把保證讀過頭');
+  T('Prop 4 / 5 保證的是「訓練損失」可以任意小。',70,738,{size:15});
+  T('零訓練損失 ≠ 測試泛化好——還記得 SAM 嗎？平坦的解才走得遠。',70,766,{size:15});
+  T('能把模型訓成功 ≠ 已經懂泛化：理論仍在追趕實務。',70,794,{size:15});
+  strip(40,828,1520,56,'全章一句話：backprop 讓深網能算梯度，一階方法撐起大規模訓練；找平坦解、懂收斂界','Backprop makes deep nets trainable; first-order methods scale; seek flat minima, know the rates');
+}
+
+document.addEventListener('DOMContentLoaded',()=>{
+  syncMathLayer();draw();
+  const btns=[];for(let i=0;i<8;i++)btns.push(document.getElementById('c'+i));
+  const hint=document.getElementById('hint');
+  function setChap(i){
+    state.chap=i;
+    btns.forEach((b,j)=>b.classList.toggle('on',j===i));
+    hint.innerHTML='<b>操作：</b>點按鈕切換章節，圖上對應節點會以粗框高亮。<b>本節一句話：</b>'+CH[i].line;
+    draw();
+  }
+  btns.forEach((b,i)=>b.addEventListener('click',()=>setChap(i)));
+});
+</script>
+</body>
+</html>

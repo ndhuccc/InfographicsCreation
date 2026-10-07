@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SAM：先走到最慘鄰居再下山｜SAM: Ascend to the Worst Neighbor, Then Descend</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<style>
+:root{--bg:#e8edf0;--fg:#14232e;--mut:#5a6a75;--teal:#1b6f7f;--card:#ffffff;--line:#c5d2d9}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei","Heiti TC",sans-serif}
+.wrap{max-width:1680px;margin:0 auto;padding:14px 16px 24px}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:baseline;margin:2px 0 10px}
+.bar.t{font-size:17px;font-weight:700}
+.bar.t small{display:block;font-weight:400;color:var(--mut);font-size:12.5px}
+.stage{position:relative;width:100%;aspect-ratio:16/9;background:#edf1f3;border-radius:6px;overflow:hidden;box-shadow:0 2px 14px rgba(0,0,0,.16)}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+/* KaTeX 層：固定 1600x900 logical，與 canvas 同一座標系（SOP 18.5 問題A） */
+#math-layer{position:absolute;left:0;top:0;width:1600px;height:900px;transform-origin:top left;pointer-events:none;overflow:hidden}
+.formula{position:absolute;transform-origin:top left;line-height:1.25}
+.controls{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;margin-top:10px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 16px}
+.controls label{font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px}
+.controls output{font-size:14px;min-width:52px;color:var(--teal);font-weight:700}
+button{font:inherit;font-size:14px;font-weight:700;border:0;border-radius:8px;padding:9px 18px;cursor:pointer;background:var(--teal);color:#fff}
+button.alt{background:#fff;color:var(--fg);border:1.5px solid var(--mut)}
+button.on{background:#e39b0b;color:#14232e}
+input[type=range]{width:150px;accent-color:var(--teal)}
+.hint{margin-top:8px;font-size:13px;color:var(--mut);line-height:1.7}
+.hint b{color:var(--fg)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="bar"><div class="t">SAM：先走到最慘鄰居再下山<small>SAM: Ascend to the Worst Neighbor, Then Descend · 16:9 互動式資訊圖表</small></div></div>
+<div class="stage" id="stage">
+<canvas id="c" width="3200" height="1800"></canvas>
+<div id="math-layer"></div>
+</div>
+<div class="controls" id="controls">
+<button id="tab0" type="button" class="on">動機</button>
+<button id="tab1" type="button">Vanilla SAM</button>
+<button id="tab2" type="button">高效變體</button>
+<span id="samSliders" style="display:none">
+<label>ρ（鄰域半徑） <input type="range" id="sRho" min="0.02" max="0.3" step="0.02" value="0.1"><output id="sRhov">0.10</output></label>
+<label>梯度 x 分量 <input type="range" id="sGx" min="-5" max="5" step="1" value="3"><output id="sGxv">3</output></label>
+<label>梯度 y 分量 <input type="range" id="sGy" min="-5" max="5" step="1" value="4"><output id="sGyv">4</output></label>
+</span>
+</div>
+<div class="hint" id="hint"><b>操作：</b>切換三個頁籤。Vanilla SAM 頁可拖動 ρ 與梯度分量，觀察最慘鄰居（紅點）永遠落在半徑 ρ 的橘色圓上，且擾動長度恆等於 ρ。</div>
+</div>
+<script>
+/* ================= 共享繪圖系統（1600x900 logical，backing store 3200x1800） ================= */
+const stage=document.getElementById('stage'), cv=document.getElementById('c'), ctx=cv.getContext('2d');
+const S=2, W=1600, H=900;
+ctx.setTransform(S,0,0,S,0,0);
+const C={bg:'#EDF1F3',ink:'#14232E',mut:'#5A6A75',teal:'#1B6F7F',tealL:'#DCEBEF',tealM:'#A9CBD3',
+amb:'#E39B0B',ambL:'#FBEBC8',red:'#D64545',redL:'#F6DDD6',grn:'#1E8A49',grnL:'#DDF3E4',
+blu:'#2563EB',bluL:'#DBEAFE',org:'#EA580C',orgL:'#FDEBD7',pur:'#7C3AED',purL:'#EDE7FB',
+pan:'#FFFFFF',line:'#C5D2D9'};
+const FAM='"Noto Sans TC","PingFang TC","Microsoft JhengHei","Heiti TC","Segoe UI",sans-serif';
+const F=(s,w)=>`${w||400} ${s}px ${FAM}`;
+function T(s,x,y,o){o=o||{};ctx.font=F(o.size||15,o.w||400);ctx.fillStyle=o.c||C.ink;
+ctx.textAlign=o.a||'left';ctx.textBaseline=o.b||'alphabetic';ctx.fillText(s,x,y);
+return ctx.measureText(s).width;}
+/* 換行：先把字面 \n 正規化（SOP 18.5），再做中英混合斷詞 */
+function wrap(s,maxW,size,w){s=String(s).replace(/\\n/g,'\n');ctx.font=F(size,w);
+const out=[];for(const para of s.split('\n')){
+const toks=para.match(/[\x21-\x7E\u00A0-\u024F]+|\s+|[^\s]/gu)||[];let line='';
+for(const t of toks){if(/^\s+$/.test(t)&&line==='')continue;
+if(ctx.measureText(line+t).width>maxW&&line.trim()!==''){out.push(line.trimEnd());line=/^\s+$/.test(t)?'':t;}
+else line+=t;}
+if(line.trim()!=='')out.push(line.trimEnd());}
+return out;}
+function P(s,x,y,maxW,lh,size,w,c,a){const ls=wrap(s,maxW,size,w);
+ls.forEach((l,i)=>T(l,x,y+i*lh,{size:size,w:w,c:c,a:a}));return ls.length;}
+/* 置中段落專用：cx 必須是容器的真正中心 x（SOP 18.5 問題B/I：勿用 wrap(...,'center') 配左緣 x） */
+function wrapCenter(s,cx,y,maxW,lh,size,w,c){const ls=wrap(s,maxW,size,w);
+ls.forEach((l,i)=>T(l,cx,y+i*lh,{size:size,w:w,c:c,a:'center'}));return ls.length;}
+function rr(x,y,w,h,r){ctx.beginPath();ctx.roundRect(x,y,w,h,r);}
+function panel(x,y,w,h,zh,en){rr(x,y,w,h,10);ctx.fillStyle=C.pan;ctx.fill();
+ctx.strokeStyle=C.line;ctx.lineWidth=1.5;ctx.stroke();
+const tw=T(zh,x+18,y+30,{size:17,w:700});T(en,x+18+tw+10,y+30,{size:11.5,c:C.mut});}
+function chip(x,y,w,h,txt,bg,fg,size){rr(x,y,w,h,h/2);ctx.fillStyle=bg;ctx.fill();
+T(txt,x+w/2,y+h/2+(size||12)*0.35,{size:size||12,w:700,c:fg||'#fff',a:'center'});}
+function arrow(x1,y1,x2,y2,col,lw,hs){hs=hs||8;ctx.strokeStyle=col;ctx.fillStyle=col;
+ctx.lineWidth=lw||2.5;ctx.lineCap='round';const a=Math.atan2(y2-y1,x2-x1);
+ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2-Math.cos(a)*hs*0.55,y2-Math.sin(a)*hs*0.55);ctx.stroke();
+ctx.beginPath();ctx.moveTo(x2,y2);ctx.lineTo(x2-hs*Math.cos(a-0.42),y2-hs*Math.sin(a-0.42));
+ctx.lineTo(x2-hs*Math.cos(a+0.42),y2-hs*Math.sin(a+0.42));ctx.closePath();ctx.fill();}
+function dot(x,y,r,fill,stroke,lw){ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);
+ctx.fillStyle=fill;ctx.fill();if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw||2;ctx.stroke();}}
+function strip(x,y,w,h,zh,en,bg,fg){rr(x,y,w,h,8);ctx.fillStyle=bg||C.tealL;ctx.fill();
+wrapCenter(zh,x+w/2,y+26,w-40,24,15,700,fg||C.ink);
+wrapCenter(en,x+w/2,y+52,w-40,20,12,400,C.mut);}
+/* ================= KaTeX hybrid（SOP 4.3；LaTeX 一律用 String.raw 單反斜線，勿雙重跳脫） ================= */
+const mathLayer=document.getElementById('math-layer');
+function addFormula(o){let el=document.getElementById('fx-'+o.id);
+if(!el){el=document.createElement('div');el.className='formula';el.id='fx-'+o.id;mathLayer.appendChild(el);}
+el.style.left=o.x+'px';el.style.top=o.y+'px';el.style.width=(o.w||600)+'px';
+el.style.textAlign=o.align||'center';el.style.fontSize=(o.fontSize||28)+'px';
+el.style.color=o.color||C.ink;
+try{katex.render(o.tex,el,{displayMode:true,throwOnError:false});}catch(e){el.textContent='[公式渲染失敗]';}
+return el;}
+function syncMathLayer(){const r=stage.getBoundingClientRect();
+mathLayer.style.transform=`scale(${r.width/W},${r.height/H})`;}
+new ResizeObserver(syncMathLayer).observe(stage);
+window.addEventListener('resize',syncMathLayer);
+window.addEventListener('load',syncMathLayer);
+/* ================= 頁首（每頁改標題） ================= */
+function header(zh,en,tag,tagEn){
+T(zh,40,60,{size:40,w:900});
+T(en,40,90,{size:19,w:500,c:C.teal});
+if(tag){const tw=ctx.measureText(tag).width;
+rr(1560-tw-56,30,tw+56,52,26);ctx.fillStyle=C.teal;ctx.fill();
+T(tag,1560-28,52,{size:15,w:700,c:'#fff',a:'center'});
+if(tagEn)T(tagEn,1560-28,70,{size:10,c:'#CFE6EB',a:'center'});}
+}
+/* ================= 以下為頁面內容 ================= */
+const state={tab:0,rho:0.1,gx:3,gy:4};
+const ALLF=['f49','f52','f53','f54','f55','f57','vRead1','vRead2','vRead3'];
+function showF(ids){ALLF.forEach(id=>{const el=document.getElementById('fx-'+id);
+  if(el)el.style.display=ids.indexOf(id)>=0?'block':'none';});}
+
+function drawMotivation(){
+  showF([]);
+  ctx.strokeStyle=C.line;ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(800,140);ctx.lineTo(800,720);ctx.stroke();
+  /* 左：尖銳針谷 */
+  T('尖銳針谷',415,158,{size:18,w:700,c:C.red,a:'center'});
+  T('Sharp valley',415,180,{size:12.5,c:C.mut,a:'center'});
+  ctx.strokeStyle=C.red;ctx.lineWidth=4;ctx.lineCap='round';ctx.beginPath();
+  for(let x=235;x<=595;x+=4){const dx=x-415;const y=690-0.008*dx*dx;
+    if(x===235)ctx.moveTo(x,y);else ctx.lineTo(x,y);}
+  ctx.stroke();
+  dot(415,690,8,C.blu,'#fff',2.5);
+  T('w*',415,714,{size:13,w:700,c:C.blu,a:'center'});
+  arrow(415,664,535,664,C.org,3,9);
+  T('Δw',475,656,{size:13,w:700,c:C.org,a:'center'});
+  arrow(535,690,535,578,C.org,3.5,10);
+  T('ΔL 爆炸',556,640,{size:15,w:700,c:C.org});
+  /* 右：平坦寬碗 */
+  T('平坦寬碗',1195,158,{size:18,w:700,c:C.grn,a:'center'});
+  T('Flat wide bowl',1195,180,{size:12.5,c:C.mut,a:'center'});
+  ctx.strokeStyle=C.grn;ctx.lineWidth=4;ctx.beginPath();
+  for(let x=865;x<=1525;x+=4){const dx=x-1195;const y=690-0.0008*dx*dx;
+    if(x===865)ctx.moveTo(x,y);else ctx.lineTo(x,y);}
+  ctx.stroke();
+  dot(1195,690,8,C.blu,'#fff',2.5);
+  T('w*',1195,714,{size:13,w:700,c:C.blu,a:'center'});
+  arrow(1195,664,1315,664,C.org,3,9);
+  T('Δw',1255,656,{size:13,w:700,c:C.org,a:'center'});
+  arrow(1315,690,1315,679,C.org,3.5,10);
+  T('ΔL ≈ 0',1336,692,{size:14,w:700,c:C.grn});
+  ctx.setLineDash([8,6]);ctx.strokeStyle=C.grn;ctx.lineWidth=2;
+  ctx.beginPath();ctx.ellipse(1195,690,190,46,0,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
+  T('平坦鄰域',1010,742,{size:13,c:C.grn});
+  wrapCenter('同訓練損失 ≠ 同測試命運：平坦極小值更好（有經驗支持、仍在辯論）',800,764,1400,26,16,700);
+  wrapCenter('SAM 的動機：懲罰鄰域內的最大損失，而不只看當前點',800,794,1400,22,15,400,C.mut);
+}
+
+function drawVanilla(){
+  showF(['f49','f52','f53','vRead1','vRead2','vRead3']);
+  const rho=state.rho,gx=state.gx,gy=state.gy;
+  const gn=Math.hypot(gx,gy);
+  T('(49)',1245,160,{size:13,c:C.mut});
+  /* ---- 左：損失地景 ---- */
+  T('損失地景：左密（尖銳）右疏（平坦）',60,232,{size:15,w:700});
+  ctx.strokeStyle='#D8A7A7';ctx.lineWidth=1.5;
+  [[40,26],[70,46],[100,66],[130,86]].forEach(e=>{ctx.beginPath();ctx.ellipse(300,520,e[0],e[1],0,0,Math.PI*2);ctx.stroke();});
+  ctx.strokeStyle='#A9CDB4';
+  [[60,40],[115,80],[170,115]].forEach(e=>{ctx.beginPath();ctx.ellipse(620,520,e[0],e[1],0,0,Math.PI*2);ctx.stroke();});
+  dot(300,520,5,C.red);dot(620,520,5,C.grn);
+  T('尖銳',300,668,{size:12.5,c:C.red,a:'center'});
+  T('平坦',620,668,{size:12.5,c:C.grn,a:'center'});
+  const wx=400,wy=450,px=rho*600;
+  ctx.setLineDash([7,6]);ctx.strokeStyle=C.org;ctx.lineWidth=2.5;
+  ctx.beginPath();ctx.arc(wx,wy,px,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
+  T('ρ',wx+px*0.72,wy-px*0.72,{size:13,w:700,c:C.org});
+  dot(wx,wy,8,C.blu,'#fff',2.5);
+  T('w',wx-18,wy-14,{size:13,w:700,c:C.blu});
+  if(gn>1e-9){
+    const ex=rho*gx/gn,ey=rho*gy/gn;
+    const rx=wx+ex*600,ry=wy+ey*600;
+    arrow(wx,wy,rx,ry,C.red,3.5,10);
+    T('① ascent',(wx+rx)/2-70,(wy+ry)/2+40,{size:13,w:700,c:C.red});
+    dot(rx,ry,8,C.red,'#fff',2.5);
+    T('w+ε*',rx+14,ry+4,{size:13,w:700,c:C.red});
+    const nx=rx-(gx/gn)*120,ny=ry-(gy/gn)*120;
+    arrow(rx,ry,nx,ny,C.blu,3.5,10);
+    T('② descend',(rx+nx)/2-128,(ry+ny)/2+22,{size:13,w:700,c:C.blu});
+    dot(nx,ny,8,C.grn,'#fff',2.5);
+    T('新 w',nx-64,ny-20,{size:13,w:700,c:C.grn});
+    ctx.setLineDash([7,6]);ctx.strokeStyle=C.grn;ctx.lineWidth=2;
+    ctx.beginPath();ctx.ellipse(nx,ny,110,52,0,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
+    T('更平坦',nx+116,ny+68,{size:12.5,c:C.grn,a:'center'});
+  }else{
+    T('梯度為零：ε* = 0，此步不擾動',wx-110,wy+44,{size:13,c:C.mut});
+  }
+  dot(70,722,7,C.blu);T('w（當前）',86,728,{size:13});
+  dot(220,722,7,C.red);T('w+ε*（最慘鄰居）',236,728,{size:13});
+  dot(440,722,7,C.grn);T('新 w（更平坦處）',456,728,{size:13});
+  ctx.setLineDash([6,5]);ctx.strokeStyle=C.org;ctx.lineWidth=2;
+  ctx.beginPath();ctx.arc(648,722,9,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
+  T('鄰域半徑 ρ',664,728,{size:13});
+  /* ---- 右：擾動向量的即時計算 ---- */
+  T('擾動向量的即時計算',820,232,{size:15,w:700});
+  const ox=1180,oy=390;
+  ctx.strokeStyle=C.line;ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(ox-200,oy);ctx.lineTo(ox+200,oy);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(ox,oy-140);ctx.lineTo(ox,oy+140);ctx.stroke();
+  T('x',ox+206,oy+4,{size:12.5,c:C.mut});
+  T('y',ox+8,oy-144,{size:12.5,c:C.mut});
+  ctx.setLineDash([7,6]);ctx.strokeStyle=C.org;ctx.lineWidth=2.5;
+  ctx.beginPath();ctx.arc(ox,oy,rho*600,0,Math.PI*2);ctx.stroke();ctx.setLineDash([]);
+  T('ρ',ox+rho*600*0.72,oy-rho*600*0.72,{size:13,w:700,c:C.org});
+  if(gn>1e-9){
+    const ux=gx/gn,uy=gy/gn;
+    arrow(ox,oy,ox+ux*150,oy+uy*150,C.pur,3,9);
+    T('梯度方向',ox+ux*150+10,oy+uy*150+4,{size:12.5,c:C.pur});
+    arrow(ox,oy,ox+ux*rho*600,oy+uy*rho*600,C.red,4,11);
+    dot(ox+ux*rho*600,oy+uy*rho*600,8,C.red,'#fff',2.5);
+    T('ε*',ox+ux*rho*600+12,oy+uy*rho*600-8,{size:13,w:700,c:C.red});
+  }else{
+    T('梯度為零：ε* = 0',ox-70,oy+34,{size:13,c:C.mut});
+  }
+  const exn=gn>1e-9?rho*gx/gn:0, eyn=gn>1e-9?rho*gy/gn:0;
+  addFormula({id:'vRead1',tex:'\\|\\nabla\\mathcal{L}\\|_2='+gn.toFixed(2),x:810,y:560,w:400,fontSize:19});
+  addFormula({id:'vRead2',tex:'\\boldsymbol{\\epsilon}^*=('+exn.toFixed(2)+',\\,'+eyn.toFixed(2)+')',x:810,y:590,w:400,fontSize:19});
+  addFormula({id:'vRead3',tex:'\\|\\boldsymbol{\\epsilon}^*\\|_2='+Math.hypot(exn,eyn).toFixed(2)+'=\\rho',x:810,y:620,w:400,fontSize:19});
+  T('(52)',1540,668,{size:12,c:C.mut,a:'right'});
+  T('(53)',1540,716,{size:12,c:C.mut,a:'right'});
+  T('更新用梯度：在 w+ε* 處再算一次梯度才更新',820,764,{size:12.5,c:C.mut});
+}
+
+function drawVariants(){
+  showF(['f54','f55','f57']);
+  /* 卡片 1：SWP */
+  panel(40,110,496,700,'SWP 隨機子集擾動','Stochastic Weight Perturbation');
+  T('(54)',512,162,{size:12,c:C.mut,a:'right'});
+  T('遮罩：每座標以機率 β 被選中（藍色參與擾動）',60,268,{size:13.5,w:700});
+  const pat=[1,0,1,0,0,1,0,1,1,0, 0,1,0,1,1,0,0,1,0,1, 1,1,0,0,1,0,1,0,1,0, 0,0,1,1,0,1,0,1,0,1];
+  for(let r=0;r<4;r++)for(let c=0;c<10;c++){
+    const x=60+c*44,y=288+r*44;
+    ctx.fillStyle=pat[r*10+c]?C.blu:'#D5DDE1';ctx.fillRect(x,y,38,38);
+    if(pat[r*10+c]){ctx.strokeStyle='#1E40AF';ctx.lineWidth=2;ctx.strokeRect(x,y,38,38);}
+  }
+  P('關鍵：期望無偏。每個座標以機率 β 被選中做擾動，再乘回 1/β 還原尺度。',60,500,440,26,14,400);
+  P('效果：只對隨機子集算擾動，省下大量梯度計算。',60,590,440,26,14,700,C.teal);
+  /* 卡片 2：SDS */
+  panel(552,110,496,700,'SDS 銳度敏感樣本','Sharpness-Sensitive Data Selection');
+  T('(55)',1020,162,{size:12,c:C.mut,a:'right'});
+  T('一個 mini-batch：只有深紅樣本做 SAM 更新',572,268,{size:13.5,w:700});
+  const hot=[[1,0],[3,1],[0,2],[4,2],[2,3],[5,3]];
+  const isHot=(c,r)=>hot.some(h=>h[0]===c&&h[1]===r);
+  for(let r=0;r<4;r++)for(let c=0;c<6;c++){
+    const x=620+c*72,y=310+r*52;
+    if(isHot(c,r))dot(x,y,13,C.red,'#7A1F1F',2.5);
+    else dot(x,y,11,'#D9CFCF');
+  }
+  dot(600,506,11,C.red);T('深紅：被選中的樣本',620,512,{size:13.5});
+  dot(600,540,11,'#D9CFCF');T('淺色：一般樣本，用普通梯度',620,546,{size:13.5});
+  P('關鍵：只對「擾動後損失明顯上升」的樣本付 2 倍反傳代價；其餘用普通梯度。',572,584,440,26,14,400);
+  T('篩選條件：擾動前後損失差超過 α',572,676,{size:13,c:C.mut});
+  /* 卡片 3：ASAM */
+  panel(1064,110,496,700,'ASAM 尺度不變','Adaptive SAM · scale-invariant');
+  T('(57)',1532,162,{size:12,c:C.mut,a:'right'});
+  T('vanilla SAM',1094,280,{size:14,w:700,c:C.red});
+  ctx.fillStyle=C.redL;ctx.fillRect(1110,310,56,140);
+  ctx.strokeStyle=C.red;ctx.lineWidth=2;ctx.strokeRect(1110,310,56,140);
+  ctx.fillStyle=C.redL;ctx.fillRect(1200,380,56,70);
+  ctx.strokeStyle=C.red;ctx.lineWidth=2;ctx.strokeRect(1200,380,56,70);
+  T('縮放前',1138,472,{size:12,c:C.mut,a:'center'});
+  T('縮放後',1228,472,{size:12,c:C.mut,a:'center'});
+  T('測得的銳度變了！',1175,512,{size:13,w:700,c:C.red,a:'center'});
+  ctx.strokeStyle=C.line;ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(1300,270);ctx.lineTo(1300,520);ctx.stroke();
+  T('ASAM',1390,280,{size:14,w:700,c:C.grn});
+  ctx.fillStyle=C.grnL;ctx.fillRect(1330,310,56,140);
+  ctx.strokeStyle=C.grn;ctx.lineWidth=2;ctx.strokeRect(1330,310,56,140);
+  ctx.fillStyle=C.grnL;ctx.fillRect(1420,310,56,140);
+  ctx.strokeStyle=C.grn;ctx.lineWidth=2;ctx.strokeRect(1420,310,56,140);
+  T('縮放前',1358,472,{size:12,c:C.mut,a:'center'});
+  T('縮放後',1448,472,{size:12,c:C.mut,a:'center'});
+  T('自適應約束下不變',1403,512,{size:13,w:700,c:C.grn,a:'center'});
+  P('關鍵：鄰域約束改成隨參數尺度自適應的形式，銳度定義不再被重新參數化愚弄。',1084,584,440,26,14,400);
+  P('效果：參數縮放前後，測得的銳度一致。',1084,674,440,26,14,700,C.teal);
+}
+
+function draw(){
+  ctx.fillStyle=C.bg;ctx.fillRect(0,0,W,H);
+  header('SAM：先走到最慘鄰居再下山','SAM: Ascend to the Worst Neighbor, Then Descend','IDL115','Ch.3 §6–6.3');
+  if(state.tab===0)drawMotivation();
+  else if(state.tab===1)drawVanilla();
+  else drawVariants();
+  strip(40,828,1520,56,'反直覺：ascent 看起來把訓練損失變差，目的是換更平坦的解；代價約 2 倍反傳','Ascent looks like hurting training loss, but buys flatness; cost ≈ 2× backprop');
+}
+
+function initFormulas(){
+  addFormula({id:'f49',tex:String.raw`\underset{\boldsymbol{w}}{\operatorname{minimize}}\ \underset{\boldsymbol{\epsilon}:\|\boldsymbol{\epsilon}\|_p\leq\rho}{\operatorname{maximize}}\ \mathcal{L}(\boldsymbol{w}+\boldsymbol{\epsilon})`,x:40,y:116,w:1180,fontSize:22});
+  addFormula({id:'f52',tex:String.raw`\boldsymbol{\epsilon}^{*}(\boldsymbol{w})=\rho\,\frac{\nabla_{\boldsymbol{w}}\mathcal{L}(\boldsymbol{w})}{\|\nabla_{\boldsymbol{w}}\mathcal{L}(\boldsymbol{w})\|_2}`,x:810,y:648,w:740,fontSize:20});
+  addFormula({id:'f53',tex:String.raw`\nabla_{\boldsymbol{w}}\mathcal{L}(\boldsymbol{w}+\boldsymbol{\epsilon}^{*}(\boldsymbol{w}))`,x:810,y:696,w:740,fontSize:20});
+  addFormula({id:'f54',tex:String.raw`\widehat{\boldsymbol{\epsilon}}(\boldsymbol{w})\approx\frac{1}{\beta}\boldsymbol{m}^{\top}\boldsymbol{\epsilon}^{*}(\boldsymbol{w})`,x:50,y:170,w:460,fontSize:20});
+  addFormula({id:'f55',tex:String.raw`\mathcal{B}^{+}:=\{(x_i,y_i)\in\mathcal{B}\mid \mathcal{L}(\boldsymbol{w}+\boldsymbol{\epsilon}^{*})-\mathcal{L}(\boldsymbol{w})>\alpha\}`,x:562,y:170,w:460,fontSize:17});
+  addFormula({id:'f57',tex:String.raw`\underset{\boldsymbol{\epsilon}:\|T_{\boldsymbol{w}}^{-1}\boldsymbol{\epsilon}\|_p\leq\rho}{\operatorname{maximize}}\ \mathcal{L}(\boldsymbol{w}+\boldsymbol{\epsilon})-\mathcal{L}(\boldsymbol{w})`,x:1074,y:170,w:460,fontSize:18});
+}
+
+document.addEventListener('DOMContentLoaded',()=>{
+  initFormulas();syncMathLayer();
+  const tabs=[document.getElementById('tab0'),document.getElementById('tab1'),document.getElementById('tab2')];
+  const sliders=document.getElementById('samSliders');
+  function setTab(i){
+    state.tab=i;
+    tabs.forEach((b,j)=>b.classList.toggle('on',j===i));
+    sliders.style.display=i===1?'':'none';
+    draw();
+  }
+  tabs.forEach((b,i)=>b.addEventListener('click',()=>setTab(i)));
+  const sRho=document.getElementById('sRho'),sGx=document.getElementById('sGx'),sGy=document.getElementById('sGy');
+  function upd(){
+    state.rho=+sRho.value;state.gx=+sGx.value;state.gy=+sGy.value;
+    document.getElementById('sRhov').textContent=state.rho.toFixed(2);
+    document.getElementById('sGxv').textContent=String(state.gx);
+    document.getElementById('sGyv').textContent=String(state.gy);
+    draw();
+  }
+  [sRho,sGx,sGy].forEach(s=>s.addEventListener('input',upd));
+  setTab(0);upd();
+});
+</script>
+</body>
+</html>
