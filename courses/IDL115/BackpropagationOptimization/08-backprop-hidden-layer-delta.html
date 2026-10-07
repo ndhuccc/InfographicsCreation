@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>kp6 反向傳播 ② 隱藏層的 δ 遞推 · Backpropagation (2/3)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.19.0/dist/katex.min.js"></script>
+<style>
+html,body{margin:0;height:100%;background:#0b1630;overflow:hidden}
+body{display:flex;align-items:center;justify-content:center;font-family:"Noto Sans TC","Noto Sans CJK TC","PingFang TC","Microsoft JhengHei",sans-serif}
+.stage{position:relative;width:min(100vw,177.7778vh);height:min(56.25vw,100vh);aspect-ratio:16/9;background:#f3f6fb;overflow:hidden}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block;outline:none}
+canvas:focus-visible{outline:3px solid #2459d6;outline-offset:-3px}
+#math-layer{position:absolute;left:0;top:0;width:1600px;height:900px;transform-origin:top left;pointer-events:none}
+.formula{position:absolute;white-space:nowrap;line-height:1.25}
+.formula .katex-display{margin:0}
+.formula .katex{font-size:1em}
+.formula.left .katex-display,.formula.left .katex-display>.katex{text-align:left}
+.formula.right .katex-display,.formula.right .katex-display>.katex{text-align:right}
+.formula.center .katex-display,.formula.center .katex-display>.katex{text-align:center}
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+<canvas id="canvas" width="1600" height="900" tabindex="0" role="img" aria-label="kp6 反向傳播 ② 隱藏層的 δ 遞推 · Backpropagation (2/3)"></canvas>
+<div id="math-layer"></div>
+</div>
+<script>
+'use strict';
+/* ===== InfographicsCreation shared runtime (Canvas 1600x900 + KaTeX math layer) ===== */
+const W = 1600, H = 900;
+const P = { paper:'#f3f6fb', grid:'#dfe7f2', ink:'#0f2347', muted:'#475b7d', faint:'#8ea3c3', line:'#c7d4e8',
+  blue:'#2459d6', blueS:'#dde8fd', red:'#d3342a', redS:'#fde3df', green:'#12935a', greenS:'#d7f2e4',
+  amber:'#d9760a', amberS:'#fdebcd', violet:'#6a43dc', violetS:'#e7dffb', white:'#ffffff', navy:'#0f2347' };
+const FZ = '"Noto Sans TC","Noto Sans CJK TC","PingFang TC","Microsoft JhengHei",sans-serif';
+const canvas = document.getElementById('canvas'), ctx = canvas.getContext('2d');
+const stage = document.getElementById('stage'), mathLayer = document.getElementById('math-layer');
+const AUD = { on: !!window.__AUDIT_ON, text: [], bad: [] };
+
+/* ---------- font loading for canvas text ---------- */
+const seenChars = new Set(); let pendingChars = '', fontTimer = null;
+function noteChars(s){
+  for (const ch of s){ if (!seenChars.has(ch)){ seenChars.add(ch); pendingChars += ch; } }
+  if (pendingChars && !fontTimer && document.fonts && document.fonts.load){
+    fontTimer = setTimeout(() => {
+      const txt = pendingChars; pendingChars = ''; fontTimer = null;
+      Promise.all([400,500,600,700,800,900].map(w => document.fonts.load(w + ' 16px "Noto Sans TC"', txt).catch(()=>0)))
+        .then(() => requestDraw());
+    }, 40);
+  }
+}
+/* ---------- text ---------- */
+function T(s, x, y, o){
+  o = o || {}; s = String(s); noteChars(s);
+  const size = o.size || 18, weight = o.weight || 500, align = o.align || 'left';
+  if (/[\^_]\{/.test(s)) return Tsup(s, x, y, o, size, weight, align);
+  ctx.font = (o.italic ? 'italic ' : '') + weight + ' ' + size + 'px ' + FZ;
+  ctx.fillStyle = o.color || P.ink; ctx.textAlign = align; ctx.textBaseline = 'middle';
+  ctx.fillText(s, x, y);
+  const w = ctx.measureText(s).width;
+  if (AUD.on){
+    const x0 = align === 'center' ? x - w/2 : align === 'right' ? x - w : x;
+    AUD.text.push({ x0, y0: y - size*0.6, x1: x0 + w, y1: y + size*0.6, s, ok: !!o.ok, maxW: o.maxW });
+    if (/\\n/.test(s)) AUD.bad.push('literal \\n in text: ' + s);
+  }
+  return w;
+}
+function Tsup(s, x, y, o, size, weight, align){
+  const parts = [], re = /([\^_])\{([^}]*)\}/g; let last = 0, m, total = 0;
+  while ((m = re.exec(s))){ if (m.index > last) parts.push([s.slice(last, m.index), 0]); parts.push([m[2], m[1] === '^' ? 1 : 2]); last = re.lastIndex; }
+  if (last < s.length) parts.push([s.slice(last), 0]);
+  parts.forEach(p => { p.sz = p[1] ? size * 0.68 : size; ctx.font = weight + ' ' + p.sz + 'px ' + FZ; p.w = ctx.measureText(p[0]).width; total += p.w; });
+  let cx = align === 'center' ? x - total/2 : align === 'right' ? x - total : x;
+  ctx.fillStyle = o.color || P.ink; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  parts.forEach(p => { ctx.font = weight + ' ' + p.sz + 'px ' + FZ; ctx.fillText(p[0], cx, y + (p[1] === 1 ? -size * 0.34 : p[1] === 2 ? size * 0.2 : 0)); cx += p.w; });
+  if (AUD.on){ const x0 = align === 'center' ? x - total/2 : align === 'right' ? x - total : x; AUD.text.push({ x0, y0: y - size*0.75, x1: x0 + total, y1: y + size*0.6, s, ok: !!o.ok, maxW: o.maxW }); }
+  return total;
+}
+const CJK = /[\u2E80-\u9FFF\uF900-\uFAFF\uFF00-\uFFEF\u3000-\u303F\u2014\u2026]/;
+const CLOSERS = '，。、；：！？）」』》…—,.;:!?)';
+function tokenize(s){
+  const out = []; let buf = '';
+  for (const ch of s){
+    if (CJK.test(ch)){
+      if (buf){ out.push(buf); buf = ''; }
+      if (CLOSERS.indexOf(ch) >= 0 && out.length) out[out.length-1] += ch; else out.push(ch);
+    } else if (ch === ' '){ buf += ch; out.push(buf); buf = ''; } else buf += ch;
+  }
+  if (buf) out.push(buf); return out;
+}
+function wrapLines(s, maxW, size, weight){
+  ctx.font = weight + ' ' + size + 'px ' + FZ;
+  const lines = []; let cur = '';
+  for (const t of tokenize(s)){
+    const test = cur + t;
+    if (cur && ctx.measureText(test).width > maxW){ lines.push(cur.trimEnd()); cur = t.trimStart(); } else cur = test;
+  }
+  if (cur) lines.push(cur.trimEnd()); return lines;
+}
+/* wrap(text, x, y, maxWidth, lineHeight, fontSize, color, weight, align) -> number of lines.
+   textAlign=left: x is the left edge; center: x is the visual centre; right: x is the right edge. */
+function wrap(t, x, y, maxW, lh, size, color, weight, align){
+  t = String(t).replace(/\\n/g, '\n'); size = size || 18; weight = weight || 500; align = align || 'left';
+  let n = 0;
+  for (const para of t.split('\n')){
+    for (const l of wrapLines(para, maxW, size, weight)){ T(l, x, y + n*lh, { size, weight, color, align, maxW }); n++; }
+  }
+  return n;
+}
+function wrapCenter(t, cx, y, maxW, lh, size, color, weight){ return wrap(t, cx, y, maxW, lh, size, color, weight, 'center'); }
+function textWidth(s, size, weight){ ctx.font = (weight||500) + ' ' + size + 'px ' + FZ; return ctx.measureText(String(s)).width; }
+
+/* ---------- shapes ---------- */
+function rr(x, y, w, h, r){
+  ctx.beginPath(); ctx.moveTo(x+r, y); ctx.arcTo(x+w, y, x+w, y+h, r); ctx.arcTo(x+w, y+h, x, y+h, r);
+  ctx.arcTo(x, y+h, x, y, r); ctx.arcTo(x, y, x+w, y, r); ctx.closePath();
+}
+function panel(x, y, w, h, o){
+  o = o || {}; rr(x, y, w, h, o.r == null ? 16 : o.r);
+  ctx.fillStyle = o.fill || '#fff'; ctx.fill();
+  if (o.lw !== 0){ ctx.strokeStyle = o.stroke || P.line; ctx.lineWidth = o.lw || 1.6; ctx.stroke(); }
+}
+function arrow(x1, y1, x2, y2, color, lw, hs){
+  lw = lw || 3; hs = hs || 11; const a = Math.atan2(y2-y1, x2-x1);
+  ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = lw; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2 - Math.cos(a)*hs*0.6, y2 - Math.sin(a)*hs*0.6); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - hs*Math.cos(a-0.45), y2 - hs*Math.sin(a-0.45));
+  ctx.lineTo(x2 - hs*Math.cos(a+0.45), y2 - hs*Math.sin(a+0.45)); ctx.closePath(); ctx.fill();
+}
+function dot(x, y, r, fill, stroke, lw){
+  ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2);
+  if (fill){ ctx.fillStyle = fill; ctx.fill(); }
+  if (stroke){ ctx.strokeStyle = stroke; ctx.lineWidth = lw || 1.5; ctx.stroke(); }
+}
+function line(x1, y1, x2, y2, color, lw, dash){
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.strokeStyle = color; ctx.lineWidth = lw || 1.5;
+  ctx.setLineDash(dash || []); ctx.stroke(); ctx.setLineDash([]);
+}
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const ease = t => t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t + 2, 2) / 2;
+
+/* ---------- page chrome ---------- */
+function chrome(m){
+  ctx.fillStyle = P.paper; ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = P.grid; ctx.lineWidth = 1; ctx.beginPath();
+  for (let x = 0; x <= W; x += 40){ ctx.moveTo(x + .5, 0); ctx.lineTo(x + .5, H); }
+  for (let y = 0; y <= H; y += 40){ ctx.moveTo(0, y + .5); ctx.lineTo(W, y + .5); }
+  ctx.stroke();
+  const cw = textWidth(m.tag, 15.5, 700) + 30;
+  rr(40, 24, cw, 28, 14); ctx.strokeStyle = P.blue; ctx.lineWidth = 1.6; ctx.stroke();
+  T(m.tag, 40 + cw/2, 38.5, { size: 15.5, weight: 700, color: P.blue, align: 'center' });
+  T(m.zh, 40, 82, { size: 42, weight: 900, color: P.ink });
+  T(m.en, 42, 119, { size: 22, weight: 500, color: P.blue });
+  T('IDL 115 · Chapter 3 — Backpropagation & Optimization in Deep Neural Networks', 40, 886, { size: 13.5, weight: 400, color: P.muted });
+  T(m.foot, W - 40, 886, { size: 13.5, weight: 600, color: P.muted, align: 'right' });
+}
+
+/* ---------- KaTeX math layer (shares the 1600x900 logical coordinate system) ---------- */
+const MATH = {};
+function placeFormula(m){
+  const o = m.o, el = m.el;
+  el.style.fontSize = (o.size || 28) + 'px'; el.style.color = o.color || P.ink; el.style.width = o.width + 'px';
+  el.className = 'formula ' + (o.align || 'center');
+  const left = o.align === 'left' ? o.x : o.align === 'right' ? o.x - o.width : o.x - o.width/2;
+  el.style.left = left + 'px'; el.style.top = o.y + 'px';
+  el.style.transform = 'translate(' + (o.offsetX || 0) + 'px,' + ((o.offsetY || 0) - 0) + 'px) translateY(-50%)';
+}
+function addFormula(o){
+  const el = document.createElement('div'); mathLayer.appendChild(el);
+  const m = MATH[o.id] = { el, o: Object.assign({ align:'center', size:28, width:600 }, o), tex: null };
+  placeFormula(m); setFormula(o.id, o.tex); return m;
+}
+function setFormula(id, tex, patch){
+  const m = MATH[id]; if (!m) return;
+  if (patch){ Object.assign(m.o, patch); placeFormula(m); }
+  if (m.tex !== tex){
+    m.tex = tex;
+    if (window.katex) window.katex.render(tex, m.el, { displayMode: true, throwOnError: false });
+    else { m.el.textContent = ''; AUD.bad.push('KaTeX not loaded'); }
+  }
+}
+function showFormula(id, on){ const m = MATH[id]; if (m) m.el.style.visibility = on ? 'visible' : 'hidden'; }
+function syncMathLayer(){
+  const r = stage.getBoundingClientRect();
+  mathLayer.style.transform = 'scale(' + (r.width / W) + ',' + (r.height / H) + ')';
+}
+
+/* ---------- canvas widgets (slider / segmented / button) ---------- */
+const UI = { items: [], focus: -1, drag: null, hover: -1 };
+function sliderVal(it, t){
+  let v = it.log ? Math.pow(10, lerp(Math.log10(it.min), Math.log10(it.max), t)) : lerp(it.min, it.max, t);
+  if (it.step) v = Math.round(v / it.step) * it.step;
+  return clamp(+v.toFixed(6), it.min, it.max);
+}
+function sliderT(it){ return it.log ? (Math.log10(it.value) - Math.log10(it.min)) / (Math.log10(it.max) - Math.log10(it.min)) : (it.value - it.min) / (it.max - it.min); }
+function slider(o){ const it = Object.assign({ type:'slider', color:P.blue, fmt: v => String(v), value: o.min, visible: true }, o); UI.items.push(it); return it; }
+function seg(o){ const it = Object.assign({ type:'seg', color:P.blue, h:42, visible: true }, o); UI.items.push(it); return it; }
+function button(o){ const it = Object.assign({ type:'button', color:P.navy, h:42, visible: true }, o); UI.items.push(it); return it; }
+function isVis(it){ return typeof it.visible === 'function' ? it.visible() : it.visible; }
+function uiHit(it, px, py){
+  if (it.type === 'slider') return px >= it.x - 14 && px <= it.x + it.w + 14 && py >= it.y - 8 && py <= it.y + 46;
+  return px >= it.x && px <= it.x + it.w && py >= it.y && py <= it.y + it.h;
+}
+function uiDraw(){
+  UI.items.forEach((it, idx) => {
+    if (!isVis(it)) return;
+    const focus = UI.focus === idx;
+    if (it.type === 'slider'){
+      T(it.label, it.x, it.y + 6, { size: 16, weight: 700, color: P.ink });
+      T(it.fmt(it.value), it.x + it.w, it.y + 6, { size: 16, weight: 800, color: it.color, align: 'right' });
+      const ty = it.y + 34, t = sliderT(it);
+      rr(it.x, ty - 3, it.w, 6, 3); ctx.fillStyle = '#d5dfef'; ctx.fill();
+      rr(it.x, ty - 3, it.w * t, 6, 3); ctx.fillStyle = it.color; ctx.fill();
+      dot(it.x + it.w * t, ty, 11, '#fff', it.color, 3.2);
+      if (focus){ dot(it.x + it.w * t, ty, 17, null, P.ink, 2); }
+    } else if (it.type === 'seg'){
+      const n = it.options.length, bw = it.w / n;
+      panel(it.x, it.y, it.w, it.h, { r: 10, fill: '#eef3fb', stroke: P.line, lw: 1.4 });
+      it.options.forEach((op, i) => {
+        const on = op.id === it.value, bx = it.x + i * bw;
+        if (on){ rr(bx + 3, it.y + 3, bw - 6, it.h - 6, 8); ctx.fillStyle = op.color || it.color; ctx.fill(); }
+        T(op.label, bx + bw/2, it.y + it.h/2, { size: it.fs || 16, weight: 800, color: on ? '#fff' : P.muted, align: 'center', maxW: bw - 8 });
+      });
+      if (focus){ rr(it.x - 3, it.y - 3, it.w + 6, it.h + 6, 12); ctx.strokeStyle = P.ink; ctx.lineWidth = 2; ctx.stroke(); }
+    } else if (it.type === 'button'){
+      const dis = typeof it.disabled === 'function' ? it.disabled() : it.disabled;
+      rr(it.x, it.y, it.w, it.h, 10);
+      ctx.fillStyle = dis ? '#dfe6f2' : (it.ghost ? '#fff' : it.color); ctx.fill();
+      ctx.strokeStyle = dis ? P.line : it.color; ctx.lineWidth = 1.8; ctx.stroke();
+      T(typeof it.text === 'function' ? it.text() : it.text, it.x + it.w/2, it.y + it.h/2, { size: it.fs || 16, weight: 800, align: 'center', color: dis ? P.faint : (it.ghost ? it.color : '#fff'), maxW: it.w - 8 });
+      if (focus){ rr(it.x - 3, it.y - 3, it.w + 6, it.h + 6, 12); ctx.strokeStyle = P.ink; ctx.lineWidth = 2; ctx.stroke(); }
+    }
+  });
+}
+function uiSet(id, v){ const it = UI.items.find(i => i.id === id); if (!it) return; it.value = v; if (it.onChange) it.onChange(v); requestDraw(); }
+function uiPoint(e){ const r = canvas.getBoundingClientRect(); return [(e.clientX - r.left) * W / r.width, (e.clientY - r.top) * H / r.height]; }
+canvas.addEventListener('pointerdown', e => {
+  const [px, py] = uiPoint(e);
+  for (let i = UI.items.length - 1; i >= 0; i--){
+    const it = UI.items[i]; if (!isVis(it) || !uiHit(it, px, py)) continue;
+    UI.focus = i; canvas.focus();
+    if (it.type === 'slider'){ UI.drag = it; canvas.setPointerCapture(e.pointerId); const v = sliderVal(it, clamp((px - it.x) / it.w, 0, 1)); if (v !== it.value){ it.value = v; it.onChange && it.onChange(v); } }
+    else if (it.type === 'seg'){ const k = clamp(Math.floor((px - it.x) / (it.w / it.options.length)), 0, it.options.length - 1); const v = it.options[k].id; if (v !== it.value){ it.value = v; it.onChange && it.onChange(v); } }
+    else if (it.type === 'button'){ const dis = typeof it.disabled === 'function' ? it.disabled() : it.disabled; if (!dis && it.onClick) it.onClick(); }
+    requestDraw(); return;
+  }
+});
+canvas.addEventListener('pointermove', e => {
+  const [px, py] = uiPoint(e);
+  if (UI.drag){ const it = UI.drag, v = sliderVal(it, clamp((px - it.x) / it.w, 0, 1)); if (v !== it.value){ it.value = v; it.onChange && it.onChange(v); requestDraw(); } return; }
+  let over = false; UI.items.forEach(it => { if (isVis(it) && uiHit(it, px, py)) over = true; });
+  canvas.style.cursor = over ? 'pointer' : 'default';
+});
+canvas.addEventListener('pointerup', () => { UI.drag = null; });
+canvas.addEventListener('keydown', e => {
+  const vis = UI.items.map((it, i) => i).filter(i => isVis(UI.items[i]));
+  if (!vis.length) return;
+  if (e.key === 'Tab'){
+    const cur = vis.indexOf(UI.focus); let nxt = cur + (e.shiftKey ? -1 : 1);
+    if (cur === -1) nxt = e.shiftKey ? vis.length - 1 : 0;
+    if (nxt < 0 || nxt >= vis.length){ UI.focus = -1; requestDraw(); return; }
+    UI.focus = vis[nxt]; e.preventDefault(); requestDraw(); return;
+  }
+  const it = UI.items[UI.focus]; if (!it) return;
+  if (it.type === 'slider' && (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === 'ArrowUp')){
+    const dir = (e.key === 'ArrowRight' || e.key === 'ArrowUp') ? 1 : -1, t = sliderT(it);
+    const step = it.step ? (it.log ? 0 : it.step) : (it.max - it.min) / 50;
+    let v = it.log ? sliderVal(it, clamp(t + dir * 0.05, 0, 1)) : clamp(+(it.value + dir * step).toFixed(6), it.min, it.max);
+    it.value = v; it.onChange && it.onChange(v); e.preventDefault(); requestDraw();
+  } else if (it.type === 'seg' && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')){
+    const k = it.options.findIndex(o => o.id === it.value), n = it.options.length;
+    it.value = it.options[(k + (e.key === 'ArrowRight' ? 1 : n - 1)) % n].id; it.onChange && it.onChange(it.value); e.preventDefault(); requestDraw();
+  } else if (it.type === 'button' && (e.key === 'Enter' || e.key === ' ')){ it.onClick && it.onClick(); e.preventDefault(); requestDraw(); }
+});
+canvas.addEventListener('blur', () => { UI.focus = -1; requestDraw(); });
+
+/* ---------- render loop ---------- */
+let drawFn = null, pending = false, animating = false;
+function setAnimating(b){ animating = b; if (b) requestDraw(); }
+function requestDraw(){ if (pending) return; pending = true; requestAnimationFrame(render); }
+function fitCanvas(){
+  const r = stage.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const s = clamp(r.width * dpr / W, 1, 2.4), w = Math.round(W * s), h = Math.round(H * s);
+  if (canvas.width !== w || canvas.height !== h){ canvas.width = w; canvas.height = h; }
+  return s;
+}
+function render(now){
+  pending = false; const s = fitCanvas(); ctx.setTransform(s, 0, 0, s, 0, 0);
+  AUD.text.length = 0; AUD.bad.length = 0;
+  ctx.clearRect(0, 0, W, H); drawFn(now || performance.now()); uiDraw();
+  if (animating) requestDraw();
+}
+function start(fn, ariaLabel){
+  drawFn = fn; if (ariaLabel) canvas.setAttribute('aria-label', ariaLabel);
+  syncMathLayer(); new ResizeObserver(() => { syncMathLayer(); requestDraw(); }).observe(stage);
+  window.addEventListener('resize', () => { syncMathLayer(); requestDraw(); });
+  requestDraw(); window.__ready = true;
+}
+
+/* ---------- audit hooks (used by the automated browser render audit) ---------- */
+window.__ui = { set: uiSet, items: UI.items };
+window.__audit = function(){
+  const issues = [], M = 4, boxes = AUD.text;
+  AUD.bad.forEach(b => issues.push('BAD: ' + b));
+  boxes.forEach(b => {
+    if (b.x0 < M || b.x1 > W - M || b.y0 < M || b.y1 > H - M) issues.push('OUT-OF-CANVAS: "' + b.s + '"');
+    if (b.maxW && (b.x1 - b.x0) > b.maxW + 2) issues.push('WIDER-THAN-MAXW: "' + b.s + '" (' + Math.round(b.x1 - b.x0) + '>' + Math.round(b.maxW) + ')');
+  });
+  for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++){
+    const a = boxes[i], b = boxes[j]; if (a.ok || b.ok) continue;
+    const ox = Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0), oy = Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0);
+    if (ox > 3 && oy > 5) issues.push('TEXT-OVERLAP: "' + a.s + '" x "' + b.s + '"');
+  }
+  const sr = stage.getBoundingClientRect(), sc = sr.width / W, fr = [];
+  Object.keys(MATH).forEach(id => {
+    const m = MATH[id]; if (m.el.style.visibility === 'hidden') return;
+    const h = m.el.querySelector('.katex-html'); if (!h){ issues.push('FORMULA-NOT-RENDERED: ' + id); return; }
+    const r = h.getBoundingClientRect(), box = { id, x0: (r.left - sr.left) / sc, x1: (r.right - sr.left) / sc, y0: (r.top - sr.top) / sc, y1: (r.bottom - sr.top) / sc };
+    fr.push(box);
+    if (box.x0 < M || box.x1 > W - M || box.y0 < M || box.y1 > H - M) issues.push('FORMULA-OUT-OF-CANVAS: ' + id);
+    const allow = m.o.width, cx = m.o.align === 'left' ? m.o.x : m.o.align === 'right' ? m.o.x - allow : m.o.x - allow/2;
+    if (box.x0 < cx - 2 || box.x1 > cx + allow + 2) issues.push('FORMULA-OVERFLOW-WIDTH: ' + id + ' (' + Math.round(box.x1 - box.x0) + ' > ' + allow + ')');
+    if (/\\\\[A-Za-z]/.test(m.tex) && m.tex.indexOf('\\\\') !== -1) issues.push('SUSPECT-DOUBLE-BACKSLASH: ' + id);
+    const txt = h.textContent || '';
+    ['hatp', 'frac', 'cdot', 'approx', 'theta', 'sigma', 'boldsymbol', 'nabla', 'partial'].forEach(w => { if (txt.indexOf(w) >= 0) issues.push('RAW-TEX-VISIBLE(' + w + '): ' + id); });
+    boxes.forEach(b => {
+      const ox = Math.min(box.x1, b.x1) - Math.max(box.x0, b.x0), oy = Math.min(box.y1, b.y1) - Math.max(box.y0, b.y0);
+      if (!b.ok && ox > 3 && oy > 5) issues.push('FORMULA-TEXT-OVERLAP: ' + id + ' x "' + b.s + '"');
+    });
+  });
+  for (let i = 0; i < fr.length; i++) for (let j = i + 1; j < fr.length; j++){
+    const a = fr[i], b = fr[j], ox = Math.min(a.x1, b.x1) - Math.max(a.x0, b.x0), oy = Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0);
+    if (ox > 3 && oy > 3) issues.push('FORMULA-OVERLAP: ' + a.id + ' x ' + b.id);
+  }
+  return { issues, formulas: fr.map(f => ({ id: f.id, nx: +(f.x0 / W).toFixed(4), ny: +(f.y0 / H).toFixed(4), nw: +((f.x1 - f.x0) / W).toFixed(4) })), nText: boxes.length };
+};
+
+</script>
+<script>
+(function boot(){
+  if (!window.katex && !window.__katexWait){ window.__katexWait = 0; }
+  if (!window.katex && window.__katexWait++ < 60){ return setTimeout(boot, 100); }
+  if (!window.katex) console.warn('KaTeX failed to load');
+/* shared helpers for the backpropagation pages */
+const SIG = {
+  sq:   { label: 'a²',   f: a => a * a,           d: a => 2 * a },
+  tanh: { label: 'tanh', f: a => Math.tanh(a),    d: a => 1 - Math.tanh(a) * Math.tanh(a) },
+  relu: { label: 'ReLU', f: a => Math.max(0, a),  d: a => a > 0 ? 1 : 0 }
+};
+function f2(v, n){ n = n == null ? 2 : n; const s = v.toFixed(n); return /^-0\.?0*$/.test(s) ? s.slice(1) : s; }
+const signCol = v => v >= 0 ? P.blue : P.red;
+function lockedSlot(x, y, w, h, msg){
+  rr(x, y, w, h, 12); ctx.setLineDash([7, 5]); ctx.strokeStyle = P.faint; ctx.lineWidth = 1.6; ctx.stroke(); ctx.setLineDash([]);
+  T(msg, x + w/2, y + h/2, { size: 16, weight: 600, color: P.faint, align: 'center', maxW: w - 20 });
+}
+
+/* ===== shared helpers for all course pages (Deriv panel, plots, sims) ===== */
+function mulberry(a){ return function(){ a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function gauss(r){ let u = 0; while (!u) u = r(); const v = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); }
+function f2(v, n){ n = n == null ? 2 : n; const s = v.toFixed(n); return /^-0\.?0*$/.test(s) ? s.slice(1) : s; }
+const LPG = { x: 40, y: 150, w: 600, h: 710 }, RPG = { x: 660, y: 150, w: 900, h: 710 };
+
+/* plot box helper */
+function mkP(x, y, w, h, xr, yr, o){ o = o || {};
+  const p = { x, y, w, h, xr, yr, o };
+  p.X = v => x + (v - xr[0]) / (xr[1] - xr[0]) * w;
+  p.Y = o.logY ? (v => y + h - (Math.log10(Math.max(v, 1e-300)) - Math.log10(yr[0])) / (Math.log10(yr[1]) - Math.log10(yr[0])) * h) : (v => y + h - (v - yr[0]) / (yr[1] - yr[0]) * h);
+  return p; }
+function pframe(p, o){ o = o || {};
+  if (o.fill !== false){ rr(p.x - 6, p.y - 6, p.w + 12, p.h + 12, 8); ctx.fillStyle = '#f6f9ff'; ctx.fill(); }
+  (o.xticks || []).forEach(t => { const v = Array.isArray(t) ? t[0] : t, lab = Array.isArray(t) ? t[1] : String(t);
+    if (o.grid) line(p.X(v), p.y, p.X(v), p.y + p.h, '#e1e8f3', 1); T(lab, p.X(v), p.y + p.h + 15, { size: 12.5, weight: 600, color: P.muted, align: 'center' }); });
+  (o.yticks || []).forEach(t => { const v = Array.isArray(t) ? t[0] : t, lab = Array.isArray(t) ? t[1] : String(t);
+    if (o.grid !== false) line(p.x, p.Y(v), p.x + p.w, p.Y(v), '#e1e8f3', 1); T(lab, p.x - 8, p.Y(v), { size: 12.5, weight: 600, color: P.muted, align: 'right' }); });
+  line(p.x, p.y + p.h, p.x + p.w, p.y + p.h, P.faint, 1.5); line(p.x, p.y, p.x, p.y + p.h, P.faint, 1.5);
+  if (o.xl) T(o.xl, p.x + p.w, p.y + p.h + 32, { size: 13, weight: 700, color: P.muted, align: 'right' });
+  if (o.yl) T(o.yl, p.x, p.y - 14, { size: 13, weight: 700, color: P.muted });
+}
+function pcurve(p, pts, color, lw, dash, upto){ if (pts.length < 2) return; ctx.save(); ctx.beginPath(); ctx.rect(p.x - 1, p.y - 1, p.w + 2, p.h + 2); ctx.clip();
+  ctx.beginPath(); const n = upto == null ? pts.length - 1 : Math.min(pts.length - 1, upto);
+  for (let i = 0; i <= n; i++){ const q = pts[i]; i ? ctx.lineTo(p.X(q[0]), p.Y(q[1])) : ctx.moveTo(p.X(q[0]), p.Y(q[1])); }
+  ctx.strokeStyle = color; ctx.lineWidth = lw || 2.6; ctx.lineJoin = 'round'; ctx.setLineDash(dash || []); ctx.stroke(); ctx.setLineDash([]); ctx.restore(); }
+function pfn(p, fn, x0, x1, color, lw, dash, N){ const pts = []; N = N || 240; for (let i = 0; i <= N; i++){ const x = x0 + (x1 - x0) * i / N; pts.push([x, fn(x)]); } pcurve(p, pts, color, lw, dash); }
+function pdot(p, x, y, r, fill, stroke){ dot(p.X(x), p.Y(y), r, fill, stroke || '#fff', 2); }
+/* elliptical contours of 0.5*(a x^2 + b y^2) */
+function ellipses(p, a, b, levels, cx, cy){ ctx.save(); ctx.beginPath(); ctx.rect(p.x, p.y, p.w, p.h); ctx.clip();
+  levels.forEach((c, i) => { const rx = Math.sqrt(2 * c / a), ry = Math.sqrt(2 * c / b); ctx.beginPath(); ctx.ellipse(p.X(cx || 0), p.Y(cy || 0), rx * p.w / (p.xr[1] - p.xr[0]), ry * p.h / (p.yr[1] - p.yr[0]), 0, 0, Math.PI * 2);
+    ctx.strokeStyle = i < 2 ? '#7fa0ea' : '#b4c8f2'; ctx.lineWidth = 1.3; ctx.stroke(); }); ctx.restore(); }
+function badge(x, y, text, bg, fg, size){ size = size || 14; const w = textWidth(text, size, 800) + 22; rr(x, y - 13, w, 26, 13); ctx.fillStyle = bg; ctx.fill(); T(text, x + w / 2, y, { size, weight: 800, color: fg, align: 'center' }); return w; }
+function card(x, y, w, h, o){ o = o || {}; rr(x, y, w, h, o.r || 12); ctx.fillStyle = o.fill || '#fafcff'; ctx.fill(); ctx.strokeStyle = o.stroke || P.line; ctx.lineWidth = o.lw || 1.5; ctx.stroke(); }
+
+/* stepwise derivation panel: scenes = [{tab, formulas:[{tex,h,size}], note:[zh,en], draw?}] */
+function Deriv(o){
+  const D = { step: 1, o }, gap = o.gap == null ? 12 : o.gap, n = o.scenes.length;
+  const top = o.y + 124, noteH = o.noteH || 92, noteTop = o.y + o.h - 24 - noteH, areaBottom = noteTop - 14;
+  seg({ id: o.id, x: o.x + 24, y: o.y + 62, w: o.w - 48, h: 44, value: 1, fs: n > 3 ? 14 : 15, color: P.blue,
+    options: o.scenes.map((s, i) => ({ id: i + 1, label: s.tab })), onChange: v => { D.step = v; sync(); } });
+  o.scenes.forEach((s, i) => {
+    const total = s.formulas.reduce((q, f) => q + f.h, 0) + Math.max(0, s.formulas.length - 1) * gap;
+    let cy = top + ((areaBottom - top) - total) / 2;
+    s.formulas.forEach((f, j) => { f.id = 'd' + o.id + '_' + i + '_' + j; addFormula({ id: f.id, tex: f.tex, x: o.x + o.w / 2, y: cy + f.h / 2, width: o.w - 72, size: f.size || 26 }); cy += f.h + gap; });
+  });
+  function sync(){ o.scenes.forEach((s, i) => s.formulas.forEach(f => showFormula(f.id, i + 1 === D.step))); }
+  sync();
+  D.draw = function(){
+    panel(o.x, o.y, o.w, o.h);
+    T(o.title[0], o.x + 24, o.y + 28, { size: 23, weight: 800, maxW: o.w - 48 });
+    const s = o.scenes[D.step - 1];
+    card(o.x + 24, top - 6, o.w - 48, areaBottom - top + 12, { fill: '#f3f7ff', stroke: P.blue, lw: 2 });
+    if (s.draw) s.draw({ x: o.x + 24, y: top - 6, w: o.w - 48, h: areaBottom - top + 12 });
+    const k = wrap(s.note[0], o.x + 28, noteTop + 10, o.w - 56, 21, 15.5, P.ink, 700);
+    wrap(s.note[1], o.x + 28, noteTop + 10 + k * 21 + 6, o.w - 56, 18, 13.5, P.muted, 500);
+  };
+  D.set = v => uiSet(o.id, v);
+  return D;
+}
+
+/* generic contour lines by marching squares */
+function contourLines(p, f, levels, color, lw, nx, ny){
+  nx = nx || 110; ny = ny || 70; const gx = [], gy = [], V = [];
+  for (let i = 0; i <= nx; i++) gx.push(p.xr[0] + (p.xr[1] - p.xr[0]) * i / nx);
+  for (let j = 0; j <= ny; j++) gy.push(p.yr[0] + (p.yr[1] - p.yr[0]) * j / ny);
+  for (let i = 0; i <= nx; i++){ V.push([]); for (let j = 0; j <= ny; j++) V[i].push(f(gx[i], gy[j])); }
+  ctx.save(); ctx.beginPath(); ctx.rect(p.x, p.y, p.w, p.h); ctx.clip(); ctx.lineWidth = lw || 1.3; ctx.lineCap = 'round';
+  levels.forEach((lv, li) => {
+    ctx.strokeStyle = typeof color === 'function' ? color(lv, li) : (color || '#9db8ee'); ctx.beginPath();
+    for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++){
+      const v = [V[i][j], V[i + 1][j], V[i + 1][j + 1], V[i][j + 1]], xs = [gx[i], gx[i + 1], gx[i + 1], gx[i]], ys = [gy[j], gy[j], gy[j + 1], gy[j + 1]], pts = [];
+      for (let e = 0; e < 4; e++){ const a = e, b = (e + 1) % 4; if ((v[a] - lv) * (v[b] - lv) < 0){ const t = (lv - v[a]) / (v[b] - v[a]); pts.push([xs[a] + (xs[b] - xs[a]) * t, ys[a] + (ys[b] - ys[a]) * t]); } }
+      if (pts.length === 2){ ctx.moveTo(p.X(pts[0][0]), p.Y(pts[0][1])); ctx.lineTo(p.X(pts[1][0]), p.Y(pts[1][1])); }
+      else if (pts.length === 4){ ctx.moveTo(p.X(pts[0][0]), p.Y(pts[0][1])); ctx.lineTo(p.X(pts[1][0]), p.Y(pts[1][1])); ctx.moveTo(p.X(pts[2][0]), p.Y(pts[2][1])); ctx.lineTo(p.X(pts[3][0]), p.Y(pts[3][1])); }
+    }
+    ctx.stroke();
+  });
+  ctx.restore();
+}
+function fmtSci(v){ if (v === 0) return '0'; const e = Math.floor(Math.log10(Math.abs(v))); return (v / Math.pow(10, e)).toFixed(0) + 'e' + e; }
+
+function pillText(text, x, y, o){ o = o || {}; const size = o.size || 13, w = textWidth(text, size, o.weight || 800) + 14, al = o.align || 'left', x0 = al === 'right' ? x - w + 7 : al === 'center' ? x - w / 2 : x - 7;
+  rr(x0, y - size * 0.85, w, size * 1.7, 6); ctx.fillStyle = 'rgba(255,255,255,.92)'; ctx.fill(); return T(text, x, y, o); }
+
+/* kp6 (2/3) — 隱藏層的 δ 如何往回傳 (Eq. 13–19) */
+const st = { step: 1, act: 'tanh', d: [0.8, -0.4, 0.5], wj: [0.6, -1.0, 0.9], a: 0.5, zl: 1.0 };
+const ETA = 0.1;
+const LP = { x: 40, y: 150, w: 760, h: 710 }, RP = { x: 820, y: 150, w: 740, h: 710 };
+function calc(){
+  const s = SIG[st.act], contrib = st.d.map((d, j) => d * st.wj[j]), S = contrib.reduce((q, v) => q + v, 0), sp = s.d(st.a), di = sp * S, g = st.zl * di;
+  return { contrib, S, sp, di, g };
+}
+seg({ id:'step', x: LP.x + 24, y: LP.y + 64, w: 712, h: 46, value: st.step, fs: 15, color: P.blue,
+  options: [{ id:1, label:'① δ 的遞推 Recursion' }, { id:2, label:'② 隱藏層梯度 Gradient' }, { id:3, label:'③ 兩種更新式 Updates' }],
+  onChange: v => { st.step = v; syncFormulas(); } });
+const CX = [RP.x + 24, RP.x + 262, RP.x + 500];
+[0, 1, 2].forEach(j => slider({ id:'d' + j, x: CX[j], y: RP.y + 318, w: 216, min: -1.5, max: 1.5, step: 0.1, value: st.d[j], color: P.red, label: 'δ_{' + (j + 1) + '} 下游誤差', fmt: v => f2(v, 1), onChange: v => { st.d[j] = v; } }));
+[0, 1, 2].forEach(j => slider({ id:'w' + j, x: CX[j], y: RP.y + 380, w: 216, min: -2, max: 2, step: 0.1, value: st.wj[j], color: P.blue, label: 'w_{' + (j + 1) + 'i} 連接權重', fmt: v => f2(v, 1), onChange: v => { st.wj[j] = v; } }));
+slider({ id:'a', x: CX[0], y: RP.y + 442, w: 216, min: -2, max: 2, step: 0.1, value: st.a, color: P.violet, label: 'a_{i} 激活前輸入', fmt: v => f2(v, 1), onChange: v => { st.a = v; } });
+slider({ id:'zl', x: CX[1], y: RP.y + 442, w: 216, min: -2, max: 2, step: 0.1, value: st.zl, color: P.green, label: 'z_{ℓ} 上一層輸出', fmt: v => f2(v, 1), onChange: v => { st.zl = v; } });
+seg({ id:'act', x: CX[2], y: RP.y + 466, w: 216, h: 38, value: st.act, fs: 14, color: P.violet,
+  options: [{ id:'sq', label:'a²' }, { id:'tanh', label:'tanh' }, { id:'relu', label:'ReLU' }], onChange: v => { st.act = v; } });
+
+const FW = LP.w - 48, FX = LP.x + LP.w / 2;
+addFormula({ id:'e13', tex: String.raw`\delta_i=\frac{\partial e}{\partial a_i}=\sum_{j}\left(\delta_j\times\frac{\partial a_j}{\partial a_i}\right) \tag{13}`, x: FX, y: LP.y + 162, width: FW, size: 23 });
+addFormula({ id:'e14', tex: String.raw`\frac{\partial a_j}{\partial a_i}=w_{ji}\,\sigma'(a_i) \tag{14}`, x: FX, y: LP.y + 220, width: FW, size: 23 });
+addFormula({ id:'e15', tex: String.raw`\delta_i=\sigma'(a_i)\sum_{j}\delta_j\,w_{ji} \tag{15}`, x: FX, y: LP.y + 274, width: FW, size: 23 });
+addFormula({ id:'e16', tex: String.raw`\frac{\partial e}{\partial w_{i\ell}}=z_\ell\,\sigma'(a_i)\sum_{j}\delta_j\,w_{ji} \tag{16}`, x: FX, y: LP.y + 400, width: FW, size: 23 });
+addFormula({ id:'e17', tex: String.raw`w_{i\ell}^{(k+1)}:=w_{i\ell}^{(k)}-\eta^{(k)}\,\frac{\partial e}{\partial w_{i\ell}} \tag{17}`, x: LP.x + 150, align: 'left', y: LP.y + 520, width: 586, size: 20 });
+addFormula({ id:'e18', tex: String.raw`w_{i\ell}^{(k+1)}:=w_{i\ell}^{(k)}-\eta^{(k)}\,z_\ell\,\frac{\partial e}{\partial a_i} \tag{18}`, x: LP.x + 150, y: LP.y + 570, width: 586, size: 20, align: 'left' });
+addFormula({ id:'e19', tex: String.raw`w_{i\ell}^{(k+1)}:=w_{i\ell}^{(k)}-\eta^{(k)}\,z_\ell\,\sigma'(a_i)\sum_{j}\left(\delta_j\,w_{ji}\right) \tag{19}`, x: LP.x + 150, y: LP.y + 624, width: 586, size: 20, align: 'left' });
+function syncFormulas(){ ['e13','e14','e15'].forEach(i => showFormula(i, st.step >= 1)); showFormula('e16', st.step >= 2); ['e17','e18','e19'].forEach(i => showFormula(i, st.step >= 3)); }
+syncFormulas();
+
+const NOTES = [
+  ['輸出層可直接算 δ；隱藏層的 δ 要把下游每個 δ_{j} 乘上權重後加總回來。', 'Output-layer δ is direct; a hidden δ sums the downstream δ_{j}, each weighted by w_{ji}.'],
+  ['代入 (11)：隱藏層權重的梯度多乘 σ′(a_{i}) 與下游 δ 的加權和。', 'Plug into (11): hidden weights get an extra σ′(a_{i}) and the weighted sum of downstream δ.'],
+  ['(18)(19) 都是 (17) 的特例，差在 ∂e/∂a_{i}：輸出層直接算，隱藏層由 (15) 回傳。', '(18) and (19) specialise (17); ∂e/∂a_{i} is computed directly vs. propagated by (15).']
+];
+function drawLeft(){
+  const { x, y, w, h } = LP; panel(x, y, w, h);
+  T('δ 的遞推 The backward recursion of δ', x + 24, y + 30, { size: 24, weight: 800 });
+  [[124, 232, 196], [366, 118, 80], [494, 200, 168]].forEach(([dy, dh, noff], i) => {
+    const on = st.step >= i + 1, cur = st.step === i + 1;
+    if (!on){ lockedSlot(x + 24, y + dy, w - 48, dh, '按 ' + ['①','②','③'][i] + ' 繼續 · press ' + ['①','②','③'][i] + ' to continue'); return; }
+    rr(x + 24, y + dy, w - 48, dh, 12); ctx.fillStyle = cur ? '#f3f7ff' : '#fafcff'; ctx.fill(); ctx.strokeStyle = cur ? P.blue : P.line; ctx.lineWidth = cur ? 2.4 : 1.4; ctx.stroke();
+    const ny = y + dy + noff; const n = wrap(NOTES[i][0], x + 42, ny, w - 84, 19, 14.5, P.ink, 600);
+    wrap(NOTES[i][1], x + 42, ny + n * 19 + 1, w - 84, 18, 13.5, P.muted, 500);
+    if (i === 2){
+      [[26, '一般式 general', P.blueS, P.blue], [76, '輸出層 output', P.greenS, P.green], [130, '隱藏層 hidden', P.redS, P.red]].forEach(([oy, t, bg, fg]) => {
+        rr(x + 40, y + dy + oy - 15, 100, 30, 10); ctx.fillStyle = bg; ctx.fill(); T(t, x + 90, y + dy + oy, { size: 13.5, weight: 800, color: fg, align: 'center', maxW: 94 }); });
+    }
+  });
+}
+function drawRight(){
+  const { x, y, w, h } = RP; panel(x, y, w, h); const c = calc();
+  T('動手算：δ 從下游往回匯流', x + 24, y + 30, { size: 24, weight: 800 });
+  T('Hands-on: δ flows back from the downstream neurons to hidden neuron i', x + 24, y + 56, { size: 15, weight: 500, color: P.muted });
+  const cy = y + 182, lx = x + 64, ix = x + 256, jx = x + 600, jy = j => cy + (j - 1) * 78;
+  arrow(lx + 26, cy - 8, ix - 32, cy - 8, P.blue, 2.6, 10); arrow(ix - 32, cy + 8, lx + 26, cy + 8, P.red, 2.6, 10);
+  T('w_{iℓ}', (lx + ix) / 2, cy - 22, { size: 15, weight: 700, color: P.blue, align: 'center' });
+  T('δ_{i}z_{ℓ} = ' + f2(c.g), (lx + ix) / 2, cy + 28, { size: 13.5, weight: 800, color: P.red, align: 'center' });
+  [0, 1, 2].forEach(j => {
+    const y2 = jy(j), dx = jx - 30 - (ix + 30), dy = y2 - cy, L = Math.hypot(dx, dy), nx = -dy / L, ny = dx / L;
+    const a1 = [ix + 30, cy], a2 = [jx - 28, y2];
+    arrow(a1[0] + nx * -4, a1[1] + ny * -4, a2[0] + nx * -4, a2[1] + ny * -4, P.blue, 2, 9);
+    const bw = 2 + Math.min(8, Math.abs(c.contrib[j]) * 5);
+    arrow(a2[0] + nx * 6, a2[1] + ny * 6, a1[0] + nx * 6, a1[1] + ny * 6, P.red, bw, 10 + bw * 0.4);
+    const t2 = 0.52;
+    { const lt = 'δ_{' + (j + 1) + '}w_{' + (j + 1) + 'i} = ' + f2(c.contrib[j]), lx2 = lerp(a1[0], a2[0], t2), ly2 = lerp(a1[1], a2[1], t2) + 21; const tw = textWidth('δ1w1i = 0.00', 13, 800) + 10;
+      rr(lx2 - tw / 2, ly2 - 10, tw, 20, 6); ctx.fillStyle = 'rgba(255,255,255,.93)'; ctx.fill(); T(lt, lx2, ly2, { size: 13, weight: 800, color: P.red, align: 'center' }); }
+    dot(jx, y2, 26, P.redS, P.red, 2.4); T('j_{' + (j + 1) + '}', jx, y2, { size: 16, weight: 700, align: 'center' });
+    T('δ_{' + (j + 1) + '} = ' + f2(st.d[j], 1), jx + 38, y2 - 10, { size: 15, weight: 800, color: P.red });
+    T('w_{' + (j + 1) + 'i} = ' + f2(st.wj[j], 1), jx + 38, y2 + 11, { size: 14, weight: 700, color: P.blue });
+  });
+  dot(lx, cy, 26, P.blueS, P.blue, 2.4); T('z_{ℓ}', lx, cy, { size: 17, weight: 700, align: 'center' });
+  dot(ix, cy, 32, '#fff', P.ink, 3.2); T('i', ix, cy, { size: 22, weight: 800, align: 'center' });
+  T('a_{i} = ' + f2(st.a, 1), ix, cy - 52, { size: 15, weight: 700, color: P.blue, align: 'center' });
+  T('δ_{i} = ' + f2(c.di), ix, cy + 56, { size: 17, weight: 800, color: P.red, align: 'center' });
+  T('σ′(a_{i}) = ' + f2(c.sp), ix, cy + 80, { size: 14, weight: 600, color: P.violet, align: 'center' });
+  line(x + 24, y + 302, x + w - 24, y + 302, P.line, 1.4);
+  T('激活函數 Activation σ', CX[2], y + 448, { size: 16, weight: 700 });
+  const cards = [
+    ['Σ_{j} δ_{j}w_{ji}', '下游 δ 的加權和', 'weighted sum', c.S, P.red, '= ' + c.contrib.map(v => f2(v)).join(' + ').replace(/\+ -/g, '− ')],
+    ['σ′(a_{i})', '激活函數的導數', 'derivative of σ', c.sp, P.violet, 'σ = ' + SIG[st.act].label],
+    ['δ_{i} = σ′ · Σ', '隱藏層的 δ', 'hidden-layer δ', c.di, P.red, '(15)'],
+    ['∂e/∂w_{iℓ} = z_{ℓ}δ_{i}', '權重梯度', 'weight gradient', c.g, P.blue, 'Δw = −' + ETA + ' × g = ' + f2(-ETA * c.g, 3)]
+  ];
+  cards.forEach((cd, i) => {
+    const cx = x + 24 + i * 177, cyy = y + 536, cw = 161, ch = 150;
+    rr(cx, cyy, cw, ch, 12); ctx.fillStyle = '#f7faff'; ctx.fill(); ctx.strokeStyle = P.line; ctx.lineWidth = 1.5; ctx.stroke();
+    T(cd[0], cx + cw / 2, cyy + 22, { size: 15, weight: 800, align: 'center', maxW: cw - 12 });
+    T(cd[1], cx + cw / 2, cyy + 46, { size: 13.5, weight: 600, color: P.muted, align: 'center', maxW: cw - 12 });
+    T(cd[2], cx + cw / 2, cyy + 64, { size: 12.5, weight: 500, color: P.muted, align: 'center', maxW: cw - 12 });
+    T(f2(cd[3], 3), cx + cw / 2, cyy + 100, { size: 30, weight: 900, color: cd[4], align: 'center', maxW: cw - 12 });
+    T(cd[5], cx + cw / 2, cyy + 132, { size: 12.5, weight: 600, color: P.muted, align: 'center', maxW: cw - 12 });
+  });
+}
+function draw(){
+  chrome({ tag: 'kp6 · 反向傳播 Backpropagation (2/3)', zh: '反向傳播 ②：隱藏層的 δ 如何往回傳', en: 'Backpropagation ②: how δ flows back into hidden layers', foot: 'kp6 · 本知識點共 3 張 · page 2 of 3' });
+  drawLeft(); drawRight();
+}
+window.__states = [
+  { name: 'step1', set: { step: 1 } }, { name: 'step2', set: { step: 2 } }, { name: 'step3', set: { step: 3 } },
+  { name: 'relu-neg', set: { act: 'relu', a: -2 } }, { name: 'sq-max', set: { act: 'sq', d0: 1.5, d1: 1.5, d2: 1.5, w0: 2, w1: 2, w2: 2, a: 2, zl: 2 } },
+  { name: 'all-min', set: { act: 'tanh', d0: -1.5, d1: -1.5, d2: -1.5, w0: -2, w1: -2, w2: -2, a: -2, zl: -2 } },
+  { name: 'zero-contrib', set: { d0: 0, d1: 0, d2: 0 } }
+];
+window.__reset = () => { const U = window.__ui; U.set('step', 3); U.set('act', 'tanh'); [0.8, -0.4, 0.5].forEach((v, i) => U.set('d' + i, v)); [0.6, -1.0, 0.9].forEach((v, i) => U.set('w' + i, v)); U.set('a', 0.5); U.set('zl', 1.0); };
+window.__settle = () => {};
+start(draw, 'kp6 反向傳播 (2/3)：隱藏層 δ 由下游 δ 乘以權重加總並乘上 σ′ 往回傳；右側可調整下游 δ、權重與激活函數。');
+
+})();
+</script>
+</body>
+</html>
