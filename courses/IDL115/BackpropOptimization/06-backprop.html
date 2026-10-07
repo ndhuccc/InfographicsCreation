@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>反向傳播：鏈式法則逐層算梯度｜Backpropagation: Chain Rule Layer by Layer</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#e8edf0;--fg:#14232e;--mut:#5a6a75;--teal:#1b6f7f;--card:#ffffff;--line:#c5d2d9}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei","Heiti TC",sans-serif}
+.wrap{max-width:1680px;margin:0 auto;padding:14px 16px 24px}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:baseline;margin:2px 0 10px}
+.bar.t{font-size:17px;font-weight:700}
+.bar.t small{display:block;font-weight:400;color:var(--mut);font-size:12.5px}
+.stage{position:relative;width:100%;aspect-ratio:16/9;background:#edf1f3;border-radius:6px;overflow:hidden;box-shadow:0 2px 14px rgba(0,0,0,.16)}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#math-layer{position:absolute;left:0;top:0;width:1600px;height:900px;transform-origin:top left;pointer-events:none;overflow:hidden}
+.formula{position:absolute;transform-origin:top left;line-height:1.25}
+.formula .katex-display{margin:0;padding:0}
+.controls{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;margin-top:10px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 16px}
+.controls label{font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px}
+.controls output{font-size:14px;min-width:52px;color:var(--teal);font-weight:700}
+button{font:inherit;font-size:14px;font-weight:700;border:0;border-radius:8px;padding:9px 18px;cursor:pointer;background:var(--teal);color:#fff}
+button.alt{background:#fff;color:var(--fg);border:1.5px solid var(--mut)}
+button.on{background:#e39b0b;color:#14232e}
+input[type=range]{width:130px;accent-color:var(--teal)}
+.hint{margin-top:8px;font-size:13px;color:var(--mut);line-height:1.7}
+.hint b{color:var(--fg)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="bar"><div class="t">反向傳播：鏈式法則逐層算梯度<small>Backpropagation: Chain Rule Layer by Layer · 16:9 互動式資訊圖表</small></div></div>
+<div class="stage" id="stage">
+<canvas id="c" width="3200" height="1800"></canvas>
+<div id="math-layer"></div>
+</div>
+<div class="controls" id="controls">
+<button id="s1" type="button">① 前向</button>
+<button id="s2" type="button">② 出口 δ</button>
+<button id="s3" type="button">③ 反向傳 δ</button>
+<button id="s4" type="button">④ 更新權重</button>
+<button id="s0" type="button" class="alt">顯示全部</button>
+<label>z_ℓ <input type="range" id="zl" min="0" max="2" step="0.1" value="1"><output id="zlv">1.0</output></label>
+<label>w_iℓ <input type="range" id="wil" min="0" max="2" step="0.1" value="1"><output id="wilv">1.0</output></label>
+<label>w_ji <input type="range" id="wji" min="0" max="2" step="0.1" value="1"><output id="wjiv">1.0</output></label>
+<label>t <input type="range" id="tt" min="0" max="2" step="0.1" value="0"><output id="ttv">0.0</output></label>
+</div>
+<div class="hint" id="hint"><b>操作：</b>拖曳滑桿改變 z_ℓ、權重與目標 t，數值即時重算；按 ①–④ 看網路圖高亮對應階段（驗證：預設值下 δ_j = 1、δ_i = 2、隱藏梯度 = 2）。</div>
+</div>
+<script>
+/* ================= 共享繪圖系統（1600x900 logical，backing store 3200x1800） ================= */
+const stage=document.getElementById('stage'), cv=document.getElementById('c'), ctx=cv.getContext('2d');
+const S=2, W=1600, H=900;
+ctx.setTransform(S,0,0,S,0,0);
+const C={bg:'#EDF1F3',ink:'#14232E',mut:'#5A6A75',teal:'#1B6F7F',tealL:'#DCEBEF',tealM:'#A9CBD3',
+amb:'#E39B0B',ambL:'#FBEBC8',red:'#D64545',redL:'#F6DDD6',grn:'#1E8A49',grnL:'#DDF3E4',
+blu:'#2563EB',bluL:'#DBEAFE',org:'#EA580C',orgL:'#FDEBD7',pur:'#7C3AED',purL:'#EDE7FB',
+pan:'#FFFFFF',line:'#C5D2D9'};
+const FAM='"Noto Sans TC","PingFang TC","Microsoft JhengHei","Heiti TC","Segoe UI",sans-serif';
+const F=(s,w)=>`${w||400} ${s}px ${FAM}`;
+function T(s,x,y,o){o=o||{};ctx.font=F(o.size||15,o.w||400);ctx.fillStyle=o.c||C.ink;
+ctx.textAlign=o.a||'left';ctx.textBaseline=o.b||'alphabetic';ctx.fillText(s,x,y);
+return ctx.measureText(s).width;}
+function wrap(s,maxW,size,w){s=String(s).replace(/\\n/g,'\n');ctx.font=F(size,w);
+const out=[];for(const para of s.split('\n')){
+const toks=para.match(/[\x21-\x7E\u00A0-\u024F]+|\s+|[^\s]/gu)||[];let line='';
+for(const t of toks){if(/^\s+$/.test(t)&&line==='')continue;
+if(ctx.measureText(line+t).width>maxW&&line.trim()!==''){out.push(line.trimEnd());line=/^\s+$/.test(t)?'':t;}
+else line+=t;}
+if(line.trim()!=='')out.push(line.trimEnd());}
+return out;}
+function P(s,x,y,maxW,lh,size,w,c,a){const ls=wrap(s,maxW,size,w);
+ls.forEach((l,i)=>T(l,x,y+i*lh,{size:size,w:w,c:c,a:a}));return ls.length;}
+function wrapCenter(s,cx,y,maxW,lh,size,w,c){const ls=wrap(s,maxW,size,w);
+ls.forEach((l,i)=>T(l,cx,y+i*lh,{size:size,w:w,c:c,a:'center'}));return ls.length;}
+function rr(x,y,w,h,r){ctx.beginPath();ctx.roundRect(x,y,w,h,r);}
+function panel(x,y,w,h,zh,en){rr(x,y,w,h,10);ctx.fillStyle=C.pan;ctx.fill();
+ctx.strokeStyle=C.line;ctx.lineWidth=1.5;ctx.stroke();
+const tw=T(zh,x+18,y+30,{size:17,w:700});T(en,x+18+tw+10,y+30,{size:11.5,c:C.mut});}
+function chip(x,y,w,h,txt,bg,fg,size){rr(x,y,w,h,h/2);ctx.fillStyle=bg;ctx.fill();
+T(txt,x+w/2,y+h/2+(size||12)*0.35,{size:size||12,w:700,c:fg||'#fff',a:'center'});}
+function arrow(x1,y1,x2,y2,col,lw,hs){hs=hs||8;ctx.strokeStyle=col;ctx.fillStyle=col;
+ctx.lineWidth=lw||2.5;ctx.lineCap='round';const a=Math.atan2(y2-y1,x2-x1);
+ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2-Math.cos(a)*hs*0.55,y2-Math.sin(a)*hs*0.55);ctx.stroke();
+ctx.beginPath();ctx.moveTo(x2,y2);ctx.lineTo(x2-hs*Math.cos(a-0.42),y2-hs*Math.sin(a-0.42));
+ctx.lineTo(x2-hs*Math.cos(a+0.42),y2-hs*Math.sin(a+0.42));ctx.closePath();ctx.fill();}
+function dot(x,y,r,fill,stroke,lw){ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);
+ctx.fillStyle=fill;ctx.fill();if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw||2;ctx.stroke();}}
+function strip(x,y,w,h,zh,en,bg,fg){rr(x,y,w,h,8);ctx.fillStyle=bg||C.tealL;ctx.fill();
+wrapCenter(zh,x+w/2,y+26,w-40,24,15,700,fg||C.ink);
+wrapCenter(en,x+w/2,y+52,w-40,20,12,400,C.mut);}
+const mathLayer=document.getElementById('math-layer');
+function addFormula(o){let el=document.getElementById('fx-'+o.id);
+if(!el){el=document.createElement('div');el.className='formula';el.id='fx-'+o.id;mathLayer.appendChild(el);}
+el.style.left=o.x+'px';el.style.top=o.y+'px';el.style.width=(o.w||600)+'px';
+el.style.textAlign=o.align||'center';el.style.fontSize=(o.fontSize||28)+'px';
+el.style.color=o.color||C.ink;
+try{katex.render(o.tex,el,{displayMode:true,throwOnError:false});}catch(e){el.textContent='[公式渲染失敗]';}
+return el;}
+function syncMathLayer(){const r=stage.getBoundingClientRect();
+mathLayer.style.transform=`scale(${r.width/W},${r.height/H})`;}
+new ResizeObserver(syncMathLayer).observe(stage);
+window.addEventListener('resize',syncMathLayer);
+window.addEventListener('load',syncMathLayer);
+function header(zh,en,tag,tagEn){
+T(zh,40,60,{size:40,w:900});
+T(en,40,90,{size:19,w:500,c:C.teal});
+if(tag){const tw=ctx.measureText(tag).width;
+rr(1560-tw-56,30,tw+56,52,26);ctx.fillStyle=C.teal;ctx.fill();
+T(tag,1560-28,52,{size:15,w:700,c:'#fff',a:'center'});
+if(tagEn)T(tagEn,1560-28,70,{size:10,c:'#CFE6EB',a:'center'});}
+}
+/* ================= 頁面內容 ================= */
+const state={step:0,zl:1,wil:1,wji:1,t:0};
+const f2=v=>{if(Math.abs(v)<0.005)v=0;return v.toFixed(2);};
+function neuron(x,y,r,label,bc,lw){
+ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill();
+ctx.strokeStyle=bc;ctx.lineWidth=lw;ctx.stroke();
+T(label,x,y+8,{size:22,w:700,a:'center'});}
+
+function drawNet(){
+panel(40,110,1520,300,'網路結構：前向與反向','Network: forward & backward pass');
+const st=state.step;
+let bcIn=C.mut,bcH=C.mut,bcO=C.red,lwO=3,fw=C.blu,fwW=3,bw=C.red,bwW=3;
+if(st===1){bcIn=C.blu;bcH=C.blu;bcO=C.blu;fwW=7;}
+if(st===2){lwO=7;}
+if(st===3){bcH=C.red;lwO=5;bwW=7;}
+if(st===4){bcIn=C.grn;bcH=C.grn;bcO=C.grn;lwO=5;}
+/* 前向箭頭（藍，上） */
+arrow(356,170,1244,170,fw,fwW,10);
+T('z_ℓ → a_i → z_i → z_j',800,146,{size:14,c:C.blu,a:'center'});
+T('w_iℓ',560,194,{size:13,c:C.mut,a:'center'});
+T('w_ji',1040,194,{size:13,c:C.mut,a:'center'});
+T('看不到標籤',800,194,{size:12.5,c:C.mut,a:'center'});
+/* 神經元 */
+neuron(300,250,46,'z_ℓ',bcIn,2.5);
+neuron(800,250,46,'i',bcH,2.5);
+neuron(1300,250,46,'z_j',bcO,lwO);
+T('輸入層',300,322,{size:13,c:C.mut,a:'center'});
+T('隱藏層',800,322,{size:13,c:C.mut,a:'center'});
+T('輸出層',1300,322,{size:13,c:C.mut,a:'center'});
+/* 反向箭頭（紅，下） */
+arrow(1244,352,356,352,bw,bwW,10);
+T('δ_j → δ_i',800,378,{size:14,c:C.red,a:'center'});
+}
+
+function drawFormulas(){
+panel(40,430,1520,180,'三組核心公式','Three key formula groups');
+T('前向傳播 (9)(10)',280,492,{size:15,w:700,a:'center'});
+T('單權重梯度 (11)(12)',800,492,{size:15,w:700,a:'center'});
+T('隱藏層 δ 回傳 (15)',1305,492,{size:15,w:700,a:'center'});
+}
+
+function drawInteractive(){
+panel(40,630,1520,180,'互動：兩層網路，δ 從出口倒灌','Interactive: δ flowing back in a 2-layer net');
+const zl=state.zl,wil=state.wil,wji=state.wji,t=state.t;
+const ai=wil*zl, zi=ai*ai, zj=wji*zi, e=0.5*(zj-t)*(zj-t);
+const dj=zj-t, di=dj*wji*2*ai;
+const st=state.step;
+const cF=st===1?C.blu:C.ink, cO=st===2?C.red:C.ink,
+cB=st===3?C.red:C.ink, cU=st===4?C.grn:C.ink;
+T('a_i = w_iℓ × z_ℓ = '+f2(wil)+' × '+f2(zl)+' = '+f2(ai),70,694,{size:14,c:cF});
+T('z_i = σ(a_i) = a_i² = '+f2(zi),70,722,{size:14,c:cF});
+T('z_j = w_ji × z_i = '+f2(wji)+' × '+f2(zi)+' = '+f2(zj),70,750,{size:14,c:cF});
+T('e = ½(z_j − t)² = '+f2(e),70,778,{size:14,c:cF});
+T('δ_j = z_j − t = '+f2(dj),600,694,{size:14,c:cO});
+T('δ_i = δ_j × w_ji × 2a_i = '+f2(di),600,722,{size:14,c:cB});
+T('出口梯度 = δ_j × z_i = '+f2(dj*zi),600,750,{size:14,c:cU});
+T('隱藏梯度 = δ_i × z_ℓ = '+f2(di*zl),600,778,{size:14,c:cU});
+const desc=[
+'按下方 ①–④ 按鈕，逐步看 δ 從出口倒灌回隱藏層。',
+'① 前向：z_ℓ 經權重成 a_i，經 σ 成 z_i，再成 z_j，算出 loss e。',
+'② 出口 δ：δ_j = z_j − t；輸出層看得到標籤，可直接算。',
+'③ 反向傳 δ：δ_i = Σ_j δ_j w_ji σ′(a_i)，誤差按權重比例往回分。',
+'④ 更新權重：每個權重的梯度 = δ × 該層輸入（δ_j z_i、δ_i z_ℓ）。'];
+P(desc[st],1060,694,460,26,14,400,C.ink);
+}
+
+function draw(){
+ctx.fillStyle=C.bg;ctx.fillRect(0,0,W,H);
+header('反向傳播：鏈式法則逐層算梯度','Backpropagation: Chain Rule Layer by Layer','IDL115','Ch.3 §3');
+drawNet();drawFormulas();drawInteractive();
+strip(40,828,1520,56,'口語：先 forward 算 a、z 和 loss → 輸出層算 δ → 一層層往回傳 → 用 δz 更新每個權重','Forward pass → output δ → propagate back → update every weight with δz');
+}
+function initFormulas(){
+addFormula({id:'g1',tex:String.raw`a_i=\sum_{\ell} w_{i\ell}z_{\ell},\quad z_i:=\sigma_i(a_i)`,x:50,y:506,w:460,fontSize:24});
+addFormula({id:'g2',tex:String.raw`\frac{\partial e}{\partial w_{i\ell}}=\delta_i\, z_{\ell},\quad \delta_i:=\frac{\partial e}{\partial a_i}`,x:540,y:506,w:520,fontSize:24});
+addFormula({id:'g3',tex:String.raw`\delta_i=\sum_j \delta_j\, w_{ji}\,\sigma'(a_i)`,x:1090,y:506,w:430,fontSize:24});
+}
+document.addEventListener('DOMContentLoaded',()=>{
+initFormulas();syncMathLayer();draw();
+const btns={s0:0,s1:1,s2:2,s3:3,s4:4};
+Object.keys(btns).forEach(id=>{
+document.getElementById(id).addEventListener('click',()=>{
+state.step=btns[id];
+Object.keys(btns).forEach(k=>document.getElementById(k).classList.toggle('on',k===id&&id!=='s0'));
+draw();});});
+[['zl','zlv',1],['wil','wilv',1],['wji','wjiv',1],['tt','ttv',0]].forEach(([sid,oid])=>{
+const sl=document.getElementById(sid);
+sl.addEventListener('input',()=>{
+state[sid]=parseFloat(sl.value);
+document.getElementById(oid).textContent=state[sid].toFixed(1);draw();});});
+});
+</script>
+</body>
+</html>

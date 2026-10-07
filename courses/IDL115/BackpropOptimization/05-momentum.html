@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>動量：給梯度下降加慣性｜Momentum: Adding Inertia to Gradient Descent</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#e8edf0;--fg:#14232e;--mut:#5a6a75;--teal:#1b6f7f;--card:#ffffff;--line:#c5d2d9}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei","Heiti TC",sans-serif}
+.wrap{max-width:1680px;margin:0 auto;padding:14px 16px 24px}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:baseline;margin:2px 0 10px}
+.bar.t{font-size:17px;font-weight:700}
+.bar.t small{display:block;font-weight:400;color:var(--mut);font-size:12.5px}
+.stage{position:relative;width:100%;aspect-ratio:16/9;background:#edf1f3;border-radius:6px;overflow:hidden;box-shadow:0 2px 14px rgba(0,0,0,.16)}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#math-layer{position:absolute;left:0;top:0;width:1600px;height:900px;transform-origin:top left;pointer-events:none;overflow:hidden}
+.formula{position:absolute;transform-origin:top left;line-height:1.25}
+.formula .katex-display{margin:0;padding:0}
+.controls{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;margin-top:10px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 16px}
+.controls label{font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px}
+.controls output{font-size:14px;min-width:52px;color:var(--teal);font-weight:700}
+button{font:inherit;font-size:14px;font-weight:700;border:0;border-radius:8px;padding:9px 18px;cursor:pointer;background:var(--teal);color:#fff}
+button.alt{background:#fff;color:var(--fg);border:1.5px solid var(--mut)}
+button.on{background:#e39b0b;color:#14232e}
+input[type=range]{width:150px;accent-color:var(--teal)}
+.hint{margin-top:8px;font-size:13px;color:var(--mut);line-height:1.7}
+.hint b{color:var(--fg)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="bar"><div class="t">動量：給梯度下降加慣性<small>Momentum: Adding Inertia to Gradient Descent · 16:9 互動式資訊圖表</small></div></div>
+<div class="stage" id="stage">
+<canvas id="c" width="3200" height="1800"></canvas>
+<div id="math-layer"></div>
+</div>
+<div class="controls" id="controls">
+<button id="runBtn" type="button">跑 40 步</button>
+<button id="resetBtn" type="button" class="alt">重設</button>
+<label>學習率 η <input type="range" id="eta" min="0.01" max="0.12" step="0.01" value="0.05"><output id="etav">0.05</output></label>
+<label>動量係數 α <input type="range" id="alpha" min="0" max="0.9" step="0.05" value="0.7"><output id="alphav">0.70</output></label>
+</div>
+<div class="hint" id="hint"><b>操作：</b>調整 η 與 α 後按「跑 40 步」，比較純梯度下降（紅）與動量（綠）在狹長山谷中的軌跡；若線條中斷並顯示發散，表示 η 相對曲率太大。</div>
+</div>
+<script>
+/* ================= 共享繪圖系統（1600x900 logical，backing store 3200x1800） ================= */
+const stage=document.getElementById('stage'), cv=document.getElementById('c'), ctx=cv.getContext('2d');
+const S=2, W=1600, H=900;
+ctx.setTransform(S,0,0,S,0,0);
+const C={bg:'#EDF1F3',ink:'#14232E',mut:'#5A6A75',teal:'#1B6F7F',tealL:'#DCEBEF',tealM:'#A9CBD3',
+amb:'#E39B0B',ambL:'#FBEBC8',red:'#D64545',redL:'#F6DDD6',grn:'#1E8A49',grnL:'#DDF3E4',
+blu:'#2563EB',bluL:'#DBEAFE',org:'#EA580C',orgL:'#FDEBD7',pur:'#7C3AED',purL:'#EDE7FB',
+pan:'#FFFFFF',line:'#C5D2D9'};
+const FAM='"Noto Sans TC","PingFang TC","Microsoft JhengHei","Heiti TC","Segoe UI",sans-serif';
+const F=(s,w)=>`${w||400} ${s}px ${FAM}`;
+function T(s,x,y,o){o=o||{};ctx.font=F(o.size||15,o.w||400);ctx.fillStyle=o.c||C.ink;
+ctx.textAlign=o.a||'left';ctx.textBaseline=o.b||'alphabetic';ctx.fillText(s,x,y);
+return ctx.measureText(s).width;}
+function wrap(s,maxW,size,w){s=String(s).replace(/\\n/g,'\n');ctx.font=F(size,w);
+const out=[];for(const para of s.split('\n')){
+const toks=para.match(/[\x21-\x7E\u00A0-\u024F]+|\s+|[^\s]/gu)||[];let line='';
+for(const t of toks){if(/^\s+$/.test(t)&&line==='')continue;
+if(ctx.measureText(line+t).width>maxW&&line.trim()!==''){out.push(line.trimEnd());line=/^\s+$/.test(t)?'':t;}
+else line+=t;}
+if(line.trim()!=='')out.push(line.trimEnd());}
+return out;}
+function P(s,x,y,maxW,lh,size,w,c,a){const ls=wrap(s,maxW,size,w);
+ls.forEach((l,i)=>T(l,x,y+i*lh,{size:size,w:w,c:c,a:a}));return ls.length;}
+function wrapCenter(s,cx,y,maxW,lh,size,w,c){const ls=wrap(s,maxW,size,w);
+ls.forEach((l,i)=>T(l,cx,y+i*lh,{size:size,w:w,c:c,a:'center'}));return ls.length;}
+function rr(x,y,w,h,r){ctx.beginPath();ctx.roundRect(x,y,w,h,r);}
+function panel(x,y,w,h,zh,en){rr(x,y,w,h,10);ctx.fillStyle=C.pan;ctx.fill();
+ctx.strokeStyle=C.line;ctx.lineWidth=1.5;ctx.stroke();
+const tw=T(zh,x+18,y+30,{size:17,w:700});T(en,x+18+tw+10,y+30,{size:11.5,c:C.mut});}
+function chip(x,y,w,h,txt,bg,fg,size){rr(x,y,w,h,h/2);ctx.fillStyle=bg;ctx.fill();
+T(txt,x+w/2,y+h/2+(size||12)*0.35,{size:size||12,w:700,c:fg||'#fff',a:'center'});}
+function arrow(x1,y1,x2,y2,col,lw,hs){hs=hs||8;ctx.strokeStyle=col;ctx.fillStyle=col;
+ctx.lineWidth=lw||2.5;ctx.lineCap='round';const a=Math.atan2(y2-y1,x2-x1);
+ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2-Math.cos(a)*hs*0.55,y2-Math.sin(a)*hs*0.55);ctx.stroke();
+ctx.beginPath();ctx.moveTo(x2,y2);ctx.lineTo(x2-hs*Math.cos(a-0.42),y2-hs*Math.sin(a-0.42));
+ctx.lineTo(x2-hs*Math.cos(a+0.42),y2-hs*Math.sin(a+0.42));ctx.closePath();ctx.fill();}
+function dot(x,y,r,fill,stroke,lw){ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);
+ctx.fillStyle=fill;ctx.fill();if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw||2;ctx.stroke();}}
+function strip(x,y,w,h,zh,en,bg,fg){rr(x,y,w,h,8);ctx.fillStyle=bg||C.tealL;ctx.fill();
+wrapCenter(zh,x+w/2,y+26,w-40,24,15,700,fg||C.ink);
+wrapCenter(en,x+w/2,y+52,w-40,20,12,400,C.mut);}
+const mathLayer=document.getElementById('math-layer');
+function addFormula(o){let el=document.getElementById('fx-'+o.id);
+if(!el){el=document.createElement('div');el.className='formula';el.id='fx-'+o.id;mathLayer.appendChild(el);}
+el.style.left=o.x+'px';el.style.top=o.y+'px';el.style.width=(o.w||600)+'px';
+el.style.textAlign=o.align||'center';el.style.fontSize=(o.fontSize||28)+'px';
+el.style.color=o.color||C.ink;
+try{katex.render(o.tex,el,{displayMode:true,throwOnError:false});}catch(e){el.textContent='[公式渲染失敗]';}
+return el;}
+function syncMathLayer(){const r=stage.getBoundingClientRect();
+mathLayer.style.transform=`scale(${r.width/W},${r.height/H})`;}
+new ResizeObserver(syncMathLayer).observe(stage);
+window.addEventListener('resize',syncMathLayer);
+window.addEventListener('load',syncMathLayer);
+function header(zh,en,tag,tagEn){
+T(zh,40,60,{size:40,w:900});
+T(en,40,90,{size:19,w:500,c:C.teal});
+if(tag){const tw=ctx.measureText(tag).width;
+rr(1560-tw-56,30,tw+56,52,26);ctx.fillStyle=C.teal;ctx.fill();
+T(tag,1560-28,52,{size:15,w:700,c:'#fff',a:'center'});
+if(tagEn)T(tagEn,1560-28,70,{size:10,c:'#CFE6EB',a:'center'});}
+}
+/* ================= 頁面內容 ================= */
+const state={eta:0.05,alpha:0.7,ran:true};
+/* f = 1/2 (x^2 + 25 y^2)，繪圖區 x∈[-5,5]→[90,890]，y∈[-2.5,2.5]→[770,330] */
+const PX=x=>490+80*x, PY=y=>550-88*y;
+function computeTraj(){
+const eta=state.eta,alpha=state.alpha;
+const gd={x:4.2,y:2.2,pts:[[4.2,2.2]],div:false};
+const mo={x:4.2,y:2.2,dx:0,dy:0,pts:[[4.2,2.2]],div:false};
+for(let k=0;k<40;k++){
+if(!gd.div){
+gd.x-=eta*gd.x;gd.y-=eta*25*gd.y;
+if(Math.abs(gd.x)>6||Math.abs(gd.y)>3)gd.div=true;else gd.pts.push([gd.x,gd.y]);}
+if(!mo.div){
+mo.dx=alpha*mo.dx-eta*mo.x;mo.dy=alpha*mo.dy-eta*25*mo.y;
+mo.x+=mo.dx;mo.y+=mo.dy;
+if(Math.abs(mo.x)>6||Math.abs(mo.y)>3)mo.div=true;else mo.pts.push([mo.x,mo.y]);}}
+return{gd,mo};}
+function drawTraj(pts,color){
+ctx.strokeStyle=color;ctx.lineWidth=2.5;ctx.lineJoin='round';ctx.beginPath();
+pts.forEach((p,i)=>{const X=PX(p[0]),Y=PY(p[1]);i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);});
+ctx.stroke();ctx.fillStyle=color;
+pts.forEach((p,i)=>{if(i%2===0){ctx.beginPath();ctx.arc(PX(p[0]),PY(p[1]),4,0,7);ctx.fill();}});
+const l=pts[pts.length-1];dot(PX(l[0]),PY(l[1]),6.5,color,'#fff',2);}
+
+function drawLeft(){
+panel(40,260,900,550,'狹長山谷：有無動量對比','Ravine: with vs without momentum');
+/* 圖例 */
+ctx.strokeStyle=C.red;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(100,308);ctx.lineTo(150,308);ctx.stroke();
+dot(125,308,5,C.red);T('純 GD（無動量）',160,313,{size:13.5});
+ctx.strokeStyle=C.grn;ctx.beginPath();ctx.moveTo(360,308);ctx.lineTo(410,308);ctx.stroke();
+dot(385,308,5,C.grn);T('動量',420,313,{size:13.5});
+ctx.save();ctx.beginPath();ctx.rect(90,330,800,440);ctx.clip();
+/* 座標軸 */
+ctx.strokeStyle='#B9C6CD';ctx.lineWidth=1;
+ctx.beginPath();ctx.moveTo(90,550);ctx.lineTo(890,550);ctx.stroke();
+ctx.beginPath();ctx.moveTo(490,330);ctx.lineTo(490,770);ctx.stroke();
+/* 等高線 x^2+25y^2=c */
+ctx.strokeStyle=C.tealM;ctx.lineWidth=1.5;
+[2,8,18,32,50].forEach(c=>{
+ctx.beginPath();ctx.ellipse(490,550,80*Math.sqrt(c),17.6*Math.sqrt(c),0,0,Math.PI*2);ctx.stroke();});
+dot(490,550,4,C.mut);
+/* 軌跡 */
+if(state.ran){
+const{gd,mo}=computeTraj();
+drawTraj(gd.pts,C.red);drawTraj(mo.pts,C.grn);
+state._last={gd,mo};}
+ctx.restore();
+/* 起點標記 */
+dot(PX(4.2),PY(2.2),6,C.ink,'#fff',2);
+T('起點 (4.2, 2.2)',700,344,{size:12,c:C.mut});
+/* 軸標 */
+T('-5',92,568,{size:11,c:C.mut});T('0',484,568,{size:11,c:C.mut});T('5',878,568,{size:11,c:C.mut});
+T('2.5',482,336,{size:11,c:C.mut,a:'right'});T('-2.5',482,774,{size:11,c:C.mut,a:'right'});
+T('x',896,554,{size:13,c:C.mut});T('y',494,324,{size:13,c:C.mut});
+/* 讀出列 */
+if(!state.ran){
+T('按「跑 40 步」：從起點 (4.2, 2.2) 同時跑兩條軌跡',100,789,{size:13.5,c:C.mut});
+}else{
+const{gd,mo}=state._last;
+const gl=gd.pts[gd.pts.length-1],ml=mo.pts[mo.pts.length-1];
+const d1=Math.hypot(gl[0],gl[1]).toFixed(3),d2=Math.hypot(ml[0],ml[1]).toFixed(3);
+dot(100,784,5,C.red);T('純 GD 終點距原點：'+d1,112,789,{size:13.5});
+dot(430,784,5,C.grn);T('動量終點距原點：'+d2,442,789,{size:13.5});
+if(gd.div||mo.div)T('發散：η 相對曲率太大',740,789,{size:13.5,w:700,c:C.red});
+}
+}
+
+function drawRight(){
+/* 註：規格右面板 (960,110,600,700) 與頂部公式列重疊，故下移為 (960,260,600,550)，底部仍對齊 810 */
+panel(960,260,600,550,'向量合成：側向抵消','Vector sum: lateral cancellation');
+const O=[1130,430],B=[1330,450],R=[1285,550],Pp=[1485,550];
+/* 歷史慣性（藍，較平） */
+arrow(O[0],O[1],B[0],B[1],C.blu,5,10);
+T('歷史慣性 αΔw',1230,428,{size:13.5,c:C.blu,a:'center'});
+/* 當前梯度（紅，較陡） */
+arrow(O[0],O[1],R[0],R[1],C.red,5,10);
+T('當前梯度 −η∇f',1245,534,{size:13.5,c:C.red,a:'center'});
+/* 平行四邊形虛線（向量相加示意） */
+ctx.save();ctx.setLineDash([6,5]);ctx.strokeStyle=C.mut;ctx.lineWidth=1.5;
+ctx.beginPath();ctx.moveTo(B[0],B[1]);ctx.lineTo(Pp[0],Pp[1]);ctx.stroke();ctx.restore();
+/* 合成（紫，幾乎水平） */
+arrow(O[0],O[1],Pp[0],Pp[1],C.pur,7,11);
+T('合成 Δw',1310,478,{size:14,w:700,c:C.pur,a:'center'});
+dot(O[0],O[1],5,C.ink,'#fff',2);
+chip(1130,596,260,34,'側向抵消、前進保留',C.purL,C.pur,13);
+P('直覺：像把球推下山，慣性抹平左右搖晃。',990,650,545,30,14.5,400,C.ink);
+P('無動量像醉漢走路：y 方向來回震盪。',990,680,545,30,14.5,400,C.ink);
+P('α = 0 即退化為純梯度下降。',990,710,545,30,14.5,400,C.ink);
+P('狹長山谷（ravine）最能發揮效果。',990,740,545,30,14.5,400,C.ink);
+P('α 越大記得越久，但太大會衝過頭。',990,770,545,30,14.5,400,C.ink);
+}
+
+function draw(){
+ctx.fillStyle=C.bg;ctx.fillRect(0,0,W,H);
+header('動量：給梯度下降加慣性','Momentum: Adding Inertia to Gradient Descent','IDL115','Ch.3 §2.4');
+panel(40,110,1520,130,'動量更新式','Momentum update');
+wrapCenter('α > 0 為動量係數：決定保留多少上一步的更新量；α = 0 即退化為純梯度下降',800,222,1400,24,14,400,C.mut);
+drawLeft();drawRight();
+strip(40,828,1520,56,'動量 = 梯度下降 + 慣性；不只看腳下，還記得剛才往哪走','Momentum = GD + inertia: remember where you were heading');
+}
+function initFormulas(){
+addFormula({id:'eq8',tex:String.raw`(\Delta \boldsymbol{w})^{(k)}:=\alpha(\Delta \boldsymbol{w})^{(k-1)}-\eta^{(k)} \nabla f(\boldsymbol{w}^{(k)})`,x:70,y:148,w:880,fontSize:30});
+addFormula({id:'wupd',tex:String.raw`\boldsymbol{w}^{(k+1)}:=\boldsymbol{w}^{(k)}+(\Delta \boldsymbol{w})^{(k)}`,x:1000,y:156,w:540,fontSize:21});
+}
+document.addEventListener('DOMContentLoaded',()=>{
+initFormulas();syncMathLayer();draw();
+const eta=document.getElementById('eta'),alpha=document.getElementById('alpha');
+eta.addEventListener('input',()=>{state.eta=parseFloat(eta.value);
+document.getElementById('etav').textContent=state.eta.toFixed(2);if(state.ran)draw();});
+alpha.addEventListener('input',()=>{state.alpha=parseFloat(alpha.value);
+document.getElementById('alphav').textContent=state.alpha.toFixed(2);if(state.ran)draw();});
+document.getElementById('runBtn').addEventListener('click',()=>{state.ran=true;draw();});
+document.getElementById('resetBtn').addEventListener('click',()=>{
+state.ran=false;state.eta=0.05;state.alpha=0.7;
+eta.value='0.05';alpha.value='0.7';
+document.getElementById('etav').textContent='0.05';
+document.getElementById('alphav').textContent='0.70';draw();});
+});
+</script>
+</body>
+</html>

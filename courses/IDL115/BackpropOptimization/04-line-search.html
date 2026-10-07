@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>線搜索與最陡下降｜Line Search and Steepest Descent</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#e8edf0;--fg:#14232e;--mut:#5a6a75;--teal:#1b6f7f;--card:#ffffff;--line:#c5d2d9}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei","Heiti TC",sans-serif}
+.wrap{max-width:1680px;margin:0 auto;padding:14px 16px 24px}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:baseline;margin:2px 0 10px}
+.bar.t{font-size:17px;font-weight:700}
+.bar.t small{display:block;font-weight:400;color:var(--mut);font-size:12.5px}
+.stage{position:relative;width:100%;aspect-ratio:16/9;background:#edf1f3;border-radius:6px;overflow:hidden;box-shadow:0 2px 14px rgba(0,0,0,.16)}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+#math-layer{position:absolute;left:0;top:0;width:1600px;height:900px;transform-origin:top left;pointer-events:none;overflow:hidden}
+.formula{position:absolute;transform-origin:top left;line-height:1.25}
+.formula .katex-display{margin:0;padding:0}
+.controls{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;margin-top:10px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 16px}
+.controls label{font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px}
+.controls output{font-size:14px;min-width:52px;color:var(--teal);font-weight:700}
+button{font:inherit;font-size:14px;font-weight:700;border:0;border-radius:8px;padding:9px 18px;cursor:pointer;background:var(--teal);color:#fff}
+button.alt{background:#fff;color:var(--fg);border:1.5px solid var(--mut)}
+button.on{background:#e39b0b;color:#14232e}
+button:disabled{opacity:.45;cursor:not-allowed}
+input[type=range]{width:150px;accent-color:var(--teal)}
+.hint{margin-top:8px;font-size:13px;color:var(--mut);line-height:1.7}
+.hint b{color:var(--fg)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="bar"><div class="t">線搜索與最陡下降<small>Line Search and Steepest Descent · 16:9 互動式資訊圖表</small></div></div>
+<div class="stage" id="stage">
+<canvas id="c" width="3200" height="1800"></canvas>
+<div id="math-layer"></div>
+</div>
+<div class="controls" id="controls">
+<button id="stepBtn" type="button">試探下一步</button>
+<button id="resetBtn" type="button" class="alt">重設</button>
+</div>
+<div class="hint" id="hint"><b>操作：</b>按「試探下一步」依序試探 η = 1、1/2、1/4：前兩次試探損失高於目前損失而被拒絕並減半，第三次低於目前損失被接受。</div>
+</div>
+<script>
+/* ================= 共享繪圖系統（1600x900 logical，backing store 3200x1800） ================= */
+const stage=document.getElementById('stage'), cv=document.getElementById('c'), ctx=cv.getContext('2d');
+const S=2, W=1600, H=900;
+ctx.setTransform(S,0,0,S,0,0);
+const C={bg:'#EDF1F3',ink:'#14232E',mut:'#5A6A75',teal:'#1B6F7F',tealL:'#DCEBEF',tealM:'#A9CBD3',
+amb:'#E39B0B',ambL:'#FBEBC8',red:'#D64545',redL:'#F6DDD6',grn:'#1E8A49',grnL:'#DDF3E4',
+blu:'#2563EB',bluL:'#DBEAFE',org:'#EA580C',orgL:'#FDEBD7',pur:'#7C3AED',purL:'#EDE7FB',
+pan:'#FFFFFF',line:'#C5D2D9'};
+const FAM='"Noto Sans TC","PingFang TC","Microsoft JhengHei","Heiti TC","Segoe UI",sans-serif';
+const F=(s,w)=>`${w||400} ${s}px ${FAM}`;
+function T(s,x,y,o){o=o||{};ctx.font=F(o.size||15,o.w||400);ctx.fillStyle=o.c||C.ink;
+ctx.textAlign=o.a||'left';ctx.textBaseline=o.b||'alphabetic';ctx.fillText(s,x,y);
+return ctx.measureText(s).width;}
+function wrap(s,maxW,size,w){s=String(s).replace(/\\n/g,'\n');ctx.font=F(size,w);
+const out=[];for(const para of s.split('\n')){
+const toks=para.match(/[\x21-\x7E\u00A0-\u024F]+|\s+|[^\s]/gu)||[];let line='';
+for(const t of toks){if(/^\s+$/.test(t)&&line==='')continue;
+if(ctx.measureText(line+t).width>maxW&&line.trim()!==''){out.push(line.trimEnd());line=/^\s+$/.test(t)?'':t;}
+else line+=t;}
+if(line.trim()!=='')out.push(line.trimEnd());}
+return out;}
+function P(s,x,y,maxW,lh,size,w,c,a){const ls=wrap(s,maxW,size,w);
+ls.forEach((l,i)=>T(l,x,y+i*lh,{size:size,w:w,c:c,a:a}));return ls.length;}
+function wrapCenter(s,cx,y,maxW,lh,size,w,c){const ls=wrap(s,maxW,size,w);
+ls.forEach((l,i)=>T(l,cx,y+i*lh,{size:size,w:w,c:c,a:'center'}));return ls.length;}
+function rr(x,y,w,h,r){ctx.beginPath();ctx.roundRect(x,y,w,h,r);}
+function panel(x,y,w,h,zh,en){rr(x,y,w,h,10);ctx.fillStyle=C.pan;ctx.fill();
+ctx.strokeStyle=C.line;ctx.lineWidth=1.5;ctx.stroke();
+const tw=T(zh,x+18,y+30,{size:17,w:700});T(en,x+18+tw+10,y+30,{size:11.5,c:C.mut});}
+function chip(x,y,w,h,txt,bg,fg,size){rr(x,y,w,h,h/2);ctx.fillStyle=bg;ctx.fill();
+T(txt,x+w/2,y+h/2+(size||12)*0.35,{size:size||12,w:700,c:fg||'#fff',a:'center'});}
+function arrow(x1,y1,x2,y2,col,lw,hs){hs=hs||8;ctx.strokeStyle=col;ctx.fillStyle=col;
+ctx.lineWidth=lw||2.5;ctx.lineCap='round';const a=Math.atan2(y2-y1,x2-x1);
+ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2-Math.cos(a)*hs*0.55,y2-Math.sin(a)*hs*0.55);ctx.stroke();
+ctx.beginPath();ctx.moveTo(x2,y2);ctx.lineTo(x2-hs*Math.cos(a-0.42),y2-hs*Math.sin(a-0.42));
+ctx.lineTo(x2-hs*Math.cos(a+0.42),y2-hs*Math.sin(a+0.42));ctx.closePath();ctx.fill();}
+function dot(x,y,r,fill,stroke,lw){ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);
+ctx.fillStyle=fill;ctx.fill();if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw||2;ctx.stroke();}}
+function strip(x,y,w,h,zh,en,bg,fg){rr(x,y,w,h,8);ctx.fillStyle=bg||C.tealL;ctx.fill();
+wrapCenter(zh,x+w/2,y+26,w-40,24,15,700,fg||C.ink);
+wrapCenter(en,x+w/2,y+52,w-40,20,12,400,C.mut);}
+const mathLayer=document.getElementById('math-layer');
+function addFormula(o){let el=document.getElementById('fx-'+o.id);
+if(!el){el=document.createElement('div');el.className='formula';el.id='fx-'+o.id;mathLayer.appendChild(el);}
+el.style.left=o.x+'px';el.style.top=o.y+'px';el.style.width=(o.w||600)+'px';
+el.style.textAlign=o.align||'center';el.style.fontSize=(o.fontSize||28)+'px';
+el.style.color=o.color||C.ink;
+try{katex.render(o.tex,el,{displayMode:true,throwOnError:false});}catch(e){el.textContent='[公式渲染失敗]';}
+return el;}
+function syncMathLayer(){const r=stage.getBoundingClientRect();
+mathLayer.style.transform=`scale(${r.width/W},${r.height/H})`;}
+new ResizeObserver(syncMathLayer).observe(stage);
+window.addEventListener('resize',syncMathLayer);
+window.addEventListener('load',syncMathLayer);
+function header(zh,en,tag,tagEn){
+T(zh,40,60,{size:40,w:900});
+T(en,40,90,{size:19,w:500,c:C.teal});
+if(tag){const tw=ctx.measureText(tag).width;
+rr(1560-tw-56,30,tw+56,52,26);ctx.fillStyle=C.teal;ctx.fill();
+T(tag,1560-28,52,{size:15,w:700,c:'#fff',a:'center'});
+if(tagEn)T(tagEn,1560-28,70,{size:10,c:'#CFE6EB',a:'center'});}
+}
+/* ================= 頁面內容 ================= */
+const state={trial:0};
+/* 試探曲線 f(η) = f0 + 2.2η(η−0.375)：η=1 拒絕、η=1/2 拒絕、η=1/4 接受 */
+const X=e=>150+500*e, Y=f=>520-110*f, FTRIAL=e=>2.2*e*(e-0.375);
+function fbox(x,y,w,h,label,bc,tc,lw){rr(x,y,w,h,10);ctx.fillStyle='#fff';ctx.fill();
+ctx.strokeStyle=bc||C.teal;ctx.lineWidth=lw||2;ctx.stroke();
+T(label,x+w/2,y+h/2+5.5,{size:15,w:700,c:tc||C.ink,a:'center'});}
+function diamond(cx,cy,w,h,l1,l2){ctx.beginPath();
+ctx.moveTo(cx,cy-h/2);ctx.lineTo(cx+w/2,cy);ctx.lineTo(cx,cy+h/2);ctx.lineTo(cx-w/2,cy);ctx.closePath();
+ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle=C.amb;ctx.lineWidth=2.5;ctx.stroke();
+T(l1,cx,cy-4,{size:14,w:700,a:'center'});T(l2,cx,cy+18,{size:14,w:700,a:'center'});}
+
+function drawLeft(){
+panel(40,110,760,560,'線搜索：步子太大就對半砍','Line search: halve until it descends');
+/* 座標軸 */
+ctx.strokeStyle=C.mut;ctx.lineWidth=1.5;
+ctx.beginPath();ctx.moveTo(150,240);ctx.lineTo(150,610);ctx.stroke();
+ctx.beginPath();ctx.moveTo(150,600);ctx.lineTo(750,600);ctx.stroke();
+T('試探點損失',150,230,{size:13,c:C.mut});
+[0,0.25,0.5,0.75,1,1.2].forEach(e=>{
+T(String(e),X(e),620,{size:12,c:C.mut,a:'center'});
+ctx.beginPath();ctx.moveTo(X(e),596);ctx.lineTo(X(e),604);ctx.stroke();});
+T('步長 η',742,620,{size:13,c:C.mut,a:'center'});
+/* 目前損失水平虛線 */
+ctx.save();ctx.setLineDash([8,6]);ctx.strokeStyle=C.mut;ctx.lineWidth=1.5;
+ctx.beginPath();ctx.moveTo(150,520);ctx.lineTo(745,520);ctx.stroke();ctx.restore();
+T('目前損失',640,512,{size:12.5,c:C.mut});
+/* U 形試探曲線 */
+ctx.beginPath();
+for(let e=0;e<=1.201;e+=0.02){const px=X(e),py=Y(FTRIAL(e));e===0?ctx.moveTo(px,py):ctx.lineTo(px,py);}
+ctx.strokeStyle=C.teal;ctx.lineWidth=3;ctx.stroke();
+dot(150,520,6,C.mut,'#fff',2);
+T('起點 η=0',160,512,{size:12,c:C.mut});
+/* 試探點（依 state.trial 點亮） */
+if(state.trial>=1){
+dot(X(1),Y(FTRIAL(1)),9,C.red,'#fff',2.5);
+T('η = 1，拒絕',X(1)+16,Y(FTRIAL(1))+5,{size:13,w:700,c:C.red});}
+if(state.trial>=2){
+dot(X(0.5),Y(FTRIAL(0.5)),9,C.org,'#fff',2.5);
+T('η = 1/2，再減半',X(0.5)+16,Y(FTRIAL(0.5))+5,{size:13,w:700,c:C.org});}
+if(state.trial>=3){
+dot(X(0.25),Y(FTRIAL(0.25)),9,C.grn,'#fff',2.5);
+T('η = 1/4，接受',X(0.25)+16,Y(FTRIAL(0.25))+5,{size:13,w:700,c:C.grn});}
+/* 讀出列 */
+if(state.trial===0){
+T('尚未試探：按下「試探下一步」，從 η = 1 開始',150,634,{size:14,c:C.mut});
+T('目標：找到第一個讓試探損失低於目前損失的 η',150,656,{size:12.5,c:C.mut});
+}else if(state.trial===1){
+T('試探 1｜η = 1：試探損失高於目前損失 → 拒絕，η ← η/2',150,634,{size:14.5,w:700,c:C.red});
+T('步子太大，損失反而上升',150,656,{size:12.5,c:C.mut});
+}else if(state.trial===2){
+T('試探 2｜η = 1/2：仍高於目前損失 → 拒絕，再減半',150,634,{size:14.5,w:700,c:C.org});
+T('快接近了，但還不夠小',150,656,{size:12.5,c:C.mut});
+}else{
+T('試探 3｜η = 1/4：低於目前損失 → 接受，更新 w',150,634,{size:14.5,w:700,c:C.grn});
+T('內層迴圈結束，回到外層繼續下一輪',150,656,{size:12.5,c:C.mut});
+}
+}
+
+function drawRight(){
+panel(820,110,740,560,'Algorithm 1：內層迴圈','Algorithm 1: inner loop');
+fbox(1070,170,240,54,'η = 1 出發',C.teal);
+arrow(1190,226,1190,258,C.ink,2.5);
+diamond(1190,320,300,116,'式(5)','成立？');
+arrow(1190,380,1190,420,C.grn,2.5);
+T('是',1208,408,{size:13,w:700,c:C.grn});
+fbox(1070,424,240,54,'更新 w',C.grn);
+arrow(1342,320,1428,320,C.red,2.5);
+T('否',1378,310,{size:13,w:700,c:C.red});
+arrow(1430,322,1430,356,C.red,2.5);
+fbox(1300,360,260,54,'η ← η / 2',C.red);
+ctx.strokeStyle=C.red;ctx.lineWidth=2.5;ctx.beginPath();
+ctx.moveTo(1300,387);ctx.lineTo(1000,387);ctx.lineTo(1000,320);ctx.lineTo(1034,320);ctx.stroke();
+arrow(1000,320,1038,320,C.red,2.5,8);
+T('步長縮到夠小必能下降，故內層迴圈必定終止',1190,612,{size:15,w:700,a:'center'});
+wrapCenter('進階版：Armijo（充分下降）、Wolfe（兼顧步長別太小）；深度學習較少使用',1190,640,680,20,12.5,400,C.mut);
+}
+
+function drawCompare(){
+rr(40,690,1520,120,10);ctx.fillStyle=C.pan;ctx.fill();
+ctx.strokeStyle=C.line;ctx.lineWidth=1.5;ctx.stroke();
+ctx.strokeStyle=C.line;ctx.lineWidth=1;
+ctx.beginPath();ctx.moveTo(546.7,700);ctx.lineTo(546.7,800);ctx.stroke();
+ctx.beginPath();ctx.moveTo(1053.3,700);ctx.lineTo(1053.3,800);ctx.stroke();
+/* 欄一：固定學習率 */
+let tw=T('固定學習率',70,724,{size:16,w:700});
+T('Fixed learning rate',70+tw+8,724,{size:11,c:C.mut});
+['η 固定不變','實作最簡單','深度學習最常用'].forEach((s,i)=>T('・'+s,70,750+i*20,{size:14}));
+/* 欄二：線搜索 */
+tw=T('線搜索',576,724,{size:16,w:700});
+T('Line search',576+tw+8,724,{size:11,c:C.mut});
+['從 η = 1 減半試探','保證每步都下降','有內層迴圈成本'].forEach((s,i)=>T('・'+s,576,750+i*20,{size:14}));
+/* 欄三：最陡下降 */
+tw=T('最陡下降',1083,724,{size:16,w:700});
+T('Steepest descent',1083+tw+8,724,{size:11,c:C.mut});
+T('每步解一維 min：下降最多，但每步要多算',1083,782,{size:13.5});
+}
+
+function draw(){
+ctx.fillStyle=C.bg;ctx.fillRect(0,0,W,H);
+header('線搜索與最陡下降','Line Search and Steepest Descent','IDL115','Ch.3 §2.2–2.3');
+drawLeft();drawRight();drawCompare();
+strip(40,828,1520,56,'線搜索像試走看、太大就縮半步；最陡下降像精算最遠能走多遠；敢走不如肯縮','Try a step; halve if too big. Steepest descent finds the farthest safe step.');
+}
+function initFormulas(){
+addFormula({id:'eq5',tex:String.raw`f(\boldsymbol{w}^{(k)}-\eta\nabla f(\boldsymbol{w}^{(k)}))<f(\boldsymbol{w}^{(k)})`,x:70,y:158,w:680,fontSize:25});
+addFormula({id:'eq6',tex:String.raw`\eta<\frac{1}{L}`,x:840,y:528,w:700,fontSize:30});
+addFormula({id:'eq7',tex:String.raw`\eta^{(k)}:=\arg\min_{\eta} f(\boldsymbol{w}^{(k)}-\eta\nabla f(\boldsymbol{w}^{(k)}))`,x:1065,y:736,w:480,fontSize:18});
+}
+document.addEventListener('DOMContentLoaded',()=>{
+initFormulas();syncMathLayer();draw();
+const stepBtn=document.getElementById('stepBtn');
+stepBtn.addEventListener('click',()=>{
+if(state.trial<3){state.trial++;if(state.trial>=3)stepBtn.disabled=true;draw();}});
+document.getElementById('resetBtn').addEventListener('click',()=>{
+state.trial=0;stepBtn.disabled=false;draw();});
+});
+</script>
+</body>
+</html>
