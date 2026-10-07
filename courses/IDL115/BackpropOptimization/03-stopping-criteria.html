@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>收斂準則：什麼時候該停｜Convergence Criteria: When to Stop</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#e8edf0;--fg:#14232e;--mut:#5a6a75;--teal:#1b6f7f;--card:#ffffff;--line:#c5d2d9}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei","Heiti TC",sans-serif}
+.wrap{max-width:1680px;margin:0 auto;padding:14px 16px 24px}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:baseline;margin:2px 0 10px}
+.bar.t{font-size:17px;font-weight:700}
+.bar.t small{display:block;font-weight:400;color:var(--mut);font-size:12.5px}
+.stage{position:relative;width:100%;aspect-ratio:16/9;background:#edf1f3;border-radius:6px;overflow:hidden;box-shadow:0 2px 14px rgba(0,0,0,.16)}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+/* KaTeX 層：固定 1600x900 logical，與 canvas 同一座標系（SOP 18.5 問題A） */
+#math-layer{position:absolute;left:0;top:0;width:1600px;height:900px;transform-origin:top left;pointer-events:none;overflow:hidden}
+.formula{position:absolute;transform-origin:top left;line-height:1.25}
+.formula .katex-display{margin:0;padding:0}
+.controls{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;margin-top:10px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 16px}
+.controls label{font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px}
+.controls output{font-size:14px;min-width:52px;color:var(--teal);font-weight:700}
+button{font:inherit;font-size:14px;font-weight:700;border:0;border-radius:8px;padding:9px 18px;cursor:pointer;background:var(--teal);color:#fff}
+button.alt{background:#fff;color:var(--fg);border:1.5px solid var(--mut)}
+button.on{background:#e39b0b;color:#14232e}
+input[type=range]{width:150px;accent-color:var(--teal)}
+.hint{margin-top:8px;font-size:13px;color:var(--mut);line-height:1.7}
+.hint b{color:var(--fg)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="bar"><div class="t">收斂準則：什麼時候該停<small>Convergence Criteria: When to Stop · IDL115 第三章 · 16:9 互動式資訊圖表</small></div></div>
+<div class="stage" id="stage">
+<canvas id="c" width="3200" height="1800"></canvas>
+<div id="math-layer"></div>
+</div>
+<div class="controls" id="controls">
+<button type="button" data-tab="0" class="on">梯度範數</button>
+<button type="button" data-tab="1">cost 變化</button>
+<button type="button" data-tab="2">梯度變化</button>
+<button type="button" data-tab="3">最大迭代</button>
+</div>
+<div class="hint" id="hint"><b>操作：</b>切換四種停表準則，左側會顯示公式、說明與示意圖。右側提醒：非凸地形有鞍點陷阱。</div>
+</div>
+<script>
+/* ================= 共享繪圖系統（1600x900 logical，backing store 3200x1800） ================= */
+const stage=document.getElementById('stage'), cv=document.getElementById('c'), ctx=cv.getContext('2d');
+const S=2, W=1600, H=900;
+ctx.setTransform(S,0,0,S,0,0);
+const C={bg:'#EDF1F3',ink:'#14232E',mut:'#5A6A75',teal:'#1B6F7F',tealL:'#DCEBEF',tealM:'#A9CBD3',
+amb:'#E39B0B',ambL:'#FBEBC8',red:'#D64545',redL:'#F6DDD6',grn:'#1E8A49',grnL:'#DDF3E4',
+blu:'#2563EB',bluL:'#DBEAFE',org:'#EA580C',orgL:'#FDEBD7',pur:'#7C3AED',purL:'#EDE7FB',
+pan:'#FFFFFF',line:'#C5D2D9'};
+const FAM='"Noto Sans TC","PingFang TC","Microsoft JhengHei","Heiti TC","Segoe UI",sans-serif';
+const F=(s,w)=>`${w||400} ${s}px ${FAM}`;
+function T(s,x,y,o){o=o||{};ctx.font=F(o.size||15,o.w||400);ctx.fillStyle=o.c||C.ink;
+ctx.textAlign=o.a||'left';ctx.textBaseline=o.b||'alphabetic';ctx.fillText(s,x,y);
+return ctx.measureText(s).width;}
+/* 換行：先把字面 \n 正規化（SOP 18.5），再做中英混合斷詞 */
+function wrap(s,maxW,size,w){s=String(s).replace(/\\n/g,'\n');ctx.font=F(size,w);
+const out=[];for(const para of s.split('\n')){
+const toks=para.match(/[\x21-\x7E\u00A0-\u024F]+|\s+|[^\s]/gu)||[];let line='';
+for(const t of toks){if(/^\s+$/.test(t)&&line==='')continue;
+if(ctx.measureText(line+t).width>maxW&&line.trim()!==''){out.push(line.trimEnd());line=/^\s+$/.test(t)?'':t;}
+else line+=t;}
+if(line.trim()!=='')out.push(line.trimEnd());}
+return out;}
+function P(s,x,y,maxW,lh,size,w,c,a){const ls=wrap(s,maxW,size,w);
+ls.forEach((l,i)=>T(l,x,y+i*lh,{size:size,w:w,c:c,a:a}));return ls.length;}
+/* 置中段落專用：cx 必須是容器的真正中心 x（SOP 18.5 問題B/I：勿用 wrap(...,'center') 配左緣 x） */
+function wrapCenter(s,cx,y,maxW,lh,size,w,c){const ls=wrap(s,maxW,size,w);
+ls.forEach((l,i)=>T(l,cx,y+i*lh,{size:size,w:w,c:c,a:'center'}));return ls.length;}
+function rr(x,y,w,h,r){ctx.beginPath();ctx.roundRect(x,y,w,h,r);}
+function panel(x,y,w,h,zh,en){rr(x,y,w,h,10);ctx.fillStyle=C.pan;ctx.fill();
+ctx.strokeStyle=C.line;ctx.lineWidth=1.5;ctx.stroke();
+const tw=T(zh,x+18,y+30,{size:17,w:700});T(en,x+18+tw+10,y+30,{size:11.5,c:C.mut});}
+function chip(x,y,w,h,txt,bg,fg,size){rr(x,y,w,h,h/2);ctx.fillStyle=bg;ctx.fill();
+T(txt,x+w/2,y+h/2+(size||12)*0.35,{size:size||12,w:700,c:fg||'#fff',a:'center'});}
+function arrow(x1,y1,x2,y2,col,lw,hs){hs=hs||8;ctx.strokeStyle=col;ctx.fillStyle=col;
+ctx.lineWidth=lw||2.5;ctx.lineCap='round';const a=Math.atan2(y2-y1,x2-x1);
+ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2-Math.cos(a)*hs*0.55,y2-Math.sin(a)*hs*0.55);ctx.stroke();
+ctx.beginPath();ctx.moveTo(x2,y2);ctx.lineTo(x2-hs*Math.cos(a-0.42),y2-hs*Math.sin(a-0.42));
+ctx.lineTo(x2-hs*Math.cos(a+0.42),y2-hs*Math.sin(a+0.42));ctx.closePath();ctx.fill();}
+function dot(x,y,r,fill,stroke,lw){ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);
+ctx.fillStyle=fill;ctx.fill();if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw||2;ctx.stroke();}}
+function strip(x,y,w,h,zh,en,bg,fg){rr(x,y,w,h,8);ctx.fillStyle=bg||C.tealL;ctx.fill();
+wrapCenter(zh,x+w/2,y+26,w-40,24,15,700,fg||C.ink);
+wrapCenter(en,x+w/2,y+52,w-40,20,12,400,C.mut);}
+/* ================= KaTeX hybrid（SOP 4.3；LaTeX 一律用 String.raw 單反斜線，勿雙重跳脫） ================= */
+const mathLayer=document.getElementById('math-layer');
+function addFormula(o){let el=document.getElementById('fx-'+o.id);
+if(!el){el=document.createElement('div');el.className='formula';el.id='fx-'+o.id;mathLayer.appendChild(el);}
+el.style.left=o.x+'px';el.style.top=o.y+'px';el.style.width=(o.w||600)+'px';
+el.style.textAlign=o.align||'center';el.style.fontSize=(o.fontSize||28)+'px';
+el.style.color=o.color||C.ink;
+try{katex.render(o.tex,el,{displayMode:true,throwOnError:false});}catch(e){el.textContent='[公式渲染失敗]';}
+return el;}
+function syncMathLayer(){const r=stage.getBoundingClientRect();
+mathLayer.style.transform=`scale(${r.width/W},${r.height/H})`;}
+new ResizeObserver(syncMathLayer).observe(stage);
+window.addEventListener('resize',syncMathLayer);
+window.addEventListener('load',syncMathLayer);
+/* ================= 頁首 ================= */
+function header(zh,en,tag,tagEn){
+T(zh,40,60,{size:40,w:900});
+T(en,40,90,{size:19,w:500,c:C.teal});
+if(tag){const tw=ctx.measureText(tag).width;
+rr(1560-tw-56,30,tw+56,52,26);ctx.fillStyle=C.teal;ctx.fill();
+T(tag,1560-28,52,{size:15,w:700,c:'#fff',a:'center'});
+if(tagEn)T(tagEn,1560-28,70,{size:10,c:'#CFE6EB',a:'center'});}
+}
+/* ================= 頁面內容 ================= */
+const TABS=[
+{t:'梯度範數夠小',en:'Small gradient norm',
+ tex:String.raw`\|\nabla f(\boldsymbol{w}^{(k+1)})\|_2 \leq \epsilon`,
+ desc:'一階最優性條件：梯度為零代表沒有可下降的方向。但在非凸地形裡，鞍點的梯度也是零。'},
+{t:'cost 變化夠小',en:'Small cost change',
+ tex:String.raw`|f(\boldsymbol{w}^{(k+1)})-f(\boldsymbol{w}^{(k)})| \leq \epsilon`,
+ desc:'loss 曲線磨平了：再多迭代也降不了多少。實務上常搭配「連續 N 步」一起用，更穩。'},
+{t:'梯度變化夠小',en:'Small gradient change',
+ tex:String.raw`\|\nabla f(\boldsymbol{w}^{(k+1)})-\nabla f(\boldsymbol{w}^{(k)})\|_2 \leq \epsilon`,
+ desc:'連續兩步的梯度幾乎一樣：優化方向趨於穩定，可以收工。'},
+{t:'達到最大迭代次數',en:'Max iterations',
+ tex:String.raw`\text{達到 max iterations 即停}`,
+ desc:'不看梯度也不看 loss：epoch 或 step 數到了就停。深度學習實務上最常用的停表法。'}
+];
+const state={tab:0};
+function draw(){
+ctx.fillStyle=C.bg;ctx.fillRect(0,0,W,H);
+header('收斂準則：什麼時候該停','Convergence Criteria: When to Stop','IDL115','Ch.3 §2.1');
+/* ---- 左：四種停表準則 ---- */
+panel(40,110,980,560,'四種停表準則','Four stopping criteria');
+const tb=TABS[state.tab];
+const ttw=T(tb.t,62,208,{size:20,w:700});
+T(tb.en,62+ttw+10,208,{size:12.5,c:C.mut});
+addFormula({id:'crit',tex:tb.tex,x:62,y:228,w:936,align:'left',fontSize:30});
+P(tb.desc,62,336,936,26,16);
+if(state.tab===0){
+/* 儀表：指針靠近 0 */
+const gx=330,gy=610,gr=140;
+ctx.strokeStyle=C.mut;ctx.lineWidth=6;ctx.lineCap='round';
+ctx.beginPath();ctx.arc(gx,gy,gr,Math.PI,2*Math.PI);ctx.stroke();
+T('0',gx-gr-8,gy+26,{size:13,c:C.mut,a:'center'});
+T('大',gx+gr+8,gy+26,{size:13,c:C.mut,a:'center'});
+const na=Math.PI+0.22;
+arrow(gx,gy,gx+gr*0.92*Math.cos(na),gy+gr*0.92*Math.sin(na),C.red,5,10);
+dot(gx,gy,9,C.ink);
+T('梯度範數 → 0',gx,gy+52,{size:13,c:C.mut,a:'center'});
+chip(600,548,170,38,'鞍點也是零！',C.red,'#fff',15);
+}else if(state.tab===1){
+/* 磨平的 loss 曲線 + ε 帶 */
+ctx.strokeStyle=C.mut;ctx.lineWidth=1.5;
+ctx.beginPath();ctx.moveTo(120,620);ctx.lineTo(950,620);ctx.stroke();
+ctx.beginPath();ctx.moveTo(120,430);ctx.lineTo(120,620);ctx.stroke();
+T('loss',106,448,{size:12.5,c:C.mut,a:'center'});
+T('迭代次數',948,646,{size:12.5,c:C.mut,a:'right'});
+ctx.strokeStyle=C.teal;ctx.lineWidth=3.5;ctx.beginPath();
+for(let i=0;i<=60;i++){const x=140+i*(760/60);
+const y=i<36?460+130*(1-Math.exp(-i/10)):460+130*(1-Math.exp(-3.6));
+i?ctx.lineTo(x,y):ctx.moveTo(x,y);}
+ctx.stroke();
+ctx.setLineDash([7,6]);ctx.strokeStyle=C.amb;ctx.lineWidth=2;
+ctx.beginPath();ctx.moveTo(560,576);ctx.lineTo(900,576);ctx.stroke();
+ctx.beginPath();ctx.moveTo(560,598);ctx.lineTo(900,598);ctx.stroke();
+ctx.setLineDash([]);
+T('ε',912,592,{size:14,w:700,c:C.amb});
+T('曲線磨平：再迭代也降不了多少',560,548,{size:13,c:C.mut});
+}else if(state.tab===2){
+/* 兩支幾乎重合的梯度箭頭 */
+dot(250,620,7,C.ink);
+arrow(250,620,760,470,C.teal,6,12);
+ctx.setLineDash([9,7]);
+arrow(250,620,792,450,C.blu,4,12);
+ctx.setLineDash([]);
+T('第 k 步的梯度',802,472,{size:13,w:700,c:C.teal});
+T('第 k+1 步的梯度',812,446,{size:13,w:700,c:C.blu});
+T('兩支箭頭幾乎重合：優化方向已穩定',250,662,{size:13,c:C.mut});
+}else{
+/* 沙漏 + epoch 計數 */
+ctx.strokeStyle=C.teal;ctx.lineWidth=3;
+ctx.beginPath();ctx.moveTo(250,430);ctx.lineTo(410,430);ctx.lineTo(330,530);ctx.closePath();ctx.stroke();
+ctx.beginPath();ctx.moveTo(250,640);ctx.lineTo(410,640);ctx.lineTo(330,530);ctx.closePath();ctx.stroke();
+ctx.fillStyle=C.amb;
+ctx.beginPath();ctx.moveTo(300,505);ctx.lineTo(360,505);ctx.lineTo(330,530);ctx.closePath();ctx.fill();
+ctx.beginPath();ctx.moveTo(312,640);ctx.lineTo(348,640);ctx.lineTo(330,598);ctx.closePath();ctx.fill();
+T('epoch',560,492,{size:16,c:C.mut});
+T('200 / 200',560,548,{size:36,w:900,c:C.teal});
+T('步數跑滿就停，不管 loss 還能不能降',560,594,{size:13,c:C.mut});
+T('時間到就停：最粗糙，也最常用',560,620,{size:13,c:C.mut});
+}
+/* ---- 右：鞍點陷阱 ---- */
+panel(1040,110,520,560,'非凸陷阱：鞍點','Non-convex trap: saddle points');
+P('梯度範數 ≤ ε 只代表「坡度夠平」，不代表到了最低點：鞍點的梯度也是零。',1062,180,476,24,15);
+T('只用梯度範數停表，可能卡在鞍點！',1062,262,{size:15,w:700,c:C.red});
+T('從鞍點逃向兩側最低點',1290,392,{size:12.5,c:C.mut,a:'center'});
+const X=u=>1290+u*131.25, Y=f=>630-(f-0.2)*90;
+ctx.strokeStyle=C.teal;ctx.lineWidth=3;ctx.beginPath();
+for(let i=0;i<=120;i++){const u=-1.6+i*(3.2/120),f=u*u*u*u-2*u*u+1.2;i?ctx.lineTo(X(u),Y(f)):ctx.moveTo(X(u),Y(f));}
+ctx.stroke();
+dot(1290,540,9,C.org,'#fff',2.5);
+T('鞍點：梯度≈0',1290,514,{size:14,w:700,c:C.org,a:'center'});
+arrow(1270,554,1174,610,C.grn,2.5,8);
+arrow(1310,554,1406,610,C.grn,2.5,8);
+dot(1159,630,8,C.grn,'#fff',2.5);
+dot(1421,630,8,C.grn,'#fff',2.5);
+T('局部最低',1159,658,{size:12.5,c:C.grn,a:'center'});
+T('局部最低',1421,658,{size:12.5,c:C.grn,a:'center'});
+/* ---- 底部說明列 ---- */
+rr(40,690,1520,120,10);ctx.fillStyle=C.pan;ctx.fill();ctx.strokeStyle=C.line;ctx.lineWidth=1.5;ctx.stroke();
+T('實務上怎麼做',58,724,{size:16,w:700});
+P('實務組合：loss 連續 N 步變化 < ε，或跑滿 max epoch 就停。深度學習最常用的其實是最粗糙的那條：時間到就停。',58,752,1480,26,15);
+strip(40,828,1520,56,'數學上「坡度夠平」≠ 找到最低點；非凸時鞍點的梯度也是零','Flat gradient ≠ global minimum; at a saddle the gradient is also zero');
+}
+document.addEventListener('DOMContentLoaded',()=>{
+syncMathLayer();draw();
+const btns=[...document.querySelectorAll('#controls button')];
+btns.forEach(b=>b.addEventListener('click',()=>{
+state.tab=+b.dataset.tab;
+btns.forEach(x=>x.classList.toggle('on',x===b));
+draw();}));
+});
+</script>
+</body>
+</html>

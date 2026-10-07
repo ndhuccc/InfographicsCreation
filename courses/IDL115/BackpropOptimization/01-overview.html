@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>導論：優化是訓練神經網路的引擎｜Introduction: Optimization as the Engine of Deep Learning</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#e8edf0;--fg:#14232e;--mut:#5a6a75;--teal:#1b6f7f;--card:#ffffff;--line:#c5d2d9}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei","Heiti TC",sans-serif}
+.wrap{max-width:1680px;margin:0 auto;padding:14px 16px 24px}
+.bar{display:flex;flex-wrap:wrap;gap:8px;align-items:baseline;margin:2px 0 10px}
+.bar.t{font-size:17px;font-weight:700}
+.bar.t small{display:block;font-weight:400;color:var(--mut);font-size:12.5px}
+.stage{position:relative;width:100%;aspect-ratio:16/9;background:#edf1f3;border-radius:6px;overflow:hidden;box-shadow:0 2px 14px rgba(0,0,0,.16)}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+/* KaTeX 層：固定 1600x900 logical，與 canvas 同一座標系（SOP 18.5 問題A） */
+#math-layer{position:absolute;left:0;top:0;width:1600px;height:900px;transform-origin:top left;pointer-events:none;overflow:hidden}
+.formula{position:absolute;transform-origin:top left;line-height:1.25}
+.formula .katex-display{margin:0;padding:0}
+.controls{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;margin-top:10px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 16px}
+.controls label{font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px}
+.controls output{font-size:14px;min-width:52px;color:var(--teal);font-weight:700}
+button{font:inherit;font-size:14px;font-weight:700;border:0;border-radius:8px;padding:9px 18px;cursor:pointer;background:var(--teal);color:#fff}
+button.alt{background:#fff;color:var(--fg);border:1.5px solid var(--mut)}
+button.on{background:#e39b0b;color:#14232e}
+input[type=range]{width:150px;accent-color:var(--teal)}
+.hint{margin-top:8px;font-size:13px;color:var(--mut);line-height:1.7}
+.hint b{color:var(--fg)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="bar"><div class="t">導論：優化是訓練神經網路的引擎<small>Introduction: Optimization as the Engine of Deep Learning · IDL115 第三章 · 16:9 互動式資訊圖表</small></div></div>
+<div class="stage" id="stage">
+<canvas id="c" width="3200" height="1800"></canvas>
+<div id="math-layer"></div>
+</div>
+<div class="controls" id="controls">
+<button type="button" data-tab="0" class="on">總覽</button>
+<button type="button" data-tab="1">§2 梯度下降</button>
+<button type="button" data-tab="2">§3 反向傳播</button>
+<button type="button" data-tab="3">§4 SGD</button>
+<button type="button" data-tab="4">§5 自適應學習率</button>
+<button type="button" data-tab="5">§6 SAM</button>
+<button type="button" data-tab="6">§7 收斂理論</button>
+</div>
+<div class="hint" id="hint"><b>導覽：</b>七節內容的地圖。點選頁籤，看看每一節在解決什麼問題；對應的 chip 會以青色粗框高亮。</div>
+</div>
+<script>
+/* ================= 共享繪圖系統（1600x900 logical，backing store 3200x1800） ================= */
+const stage=document.getElementById('stage'), cv=document.getElementById('c'), ctx=cv.getContext('2d');
+const S=2, W=1600, H=900;
+ctx.setTransform(S,0,0,S,0,0);
+const C={bg:'#EDF1F3',ink:'#14232E',mut:'#5A6A75',teal:'#1B6F7F',tealL:'#DCEBEF',tealM:'#A9CBD3',
+amb:'#E39B0B',ambL:'#FBEBC8',red:'#D64545',redL:'#F6DDD6',grn:'#1E8A49',grnL:'#DDF3E4',
+blu:'#2563EB',bluL:'#DBEAFE',org:'#EA580C',orgL:'#FDEBD7',pur:'#7C3AED',purL:'#EDE7FB',
+pan:'#FFFFFF',line:'#C5D2D9'};
+const FAM='"Noto Sans TC","PingFang TC","Microsoft JhengHei","Heiti TC","Segoe UI",sans-serif';
+const F=(s,w)=>`${w||400} ${s}px ${FAM}`;
+function T(s,x,y,o){o=o||{};ctx.font=F(o.size||15,o.w||400);ctx.fillStyle=o.c||C.ink;
+ctx.textAlign=o.a||'left';ctx.textBaseline=o.b||'alphabetic';ctx.fillText(s,x,y);
+return ctx.measureText(s).width;}
+/* 換行：先把字面 \n 正規化（SOP 18.5），再做中英混合斷詞 */
+function wrap(s,maxW,size,w){s=String(s).replace(/\\n/g,'\n');ctx.font=F(size,w);
+const out=[];for(const para of s.split('\n')){
+const toks=para.match(/[\x21-\x7E\u00A0-\u024F]+|\s+|[^\s]/gu)||[];let line='';
+for(const t of toks){if(/^\s+$/.test(t)&&line==='')continue;
+if(ctx.measureText(line+t).width>maxW&&line.trim()!==''){out.push(line.trimEnd());line=/^\s+$/.test(t)?'':t;}
+else line+=t;}
+if(line.trim()!=='')out.push(line.trimEnd());}
+return out;}
+function P(s,x,y,maxW,lh,size,w,c,a){const ls=wrap(s,maxW,size,w);
+ls.forEach((l,i)=>T(l,x,y+i*lh,{size:size,w:w,c:c,a:a}));return ls.length;}
+/* 置中段落專用：cx 必須是容器的真正中心 x（SOP 18.5 問題B/I：勿用 wrap(...,'center') 配左緣 x） */
+function wrapCenter(s,cx,y,maxW,lh,size,w,c){const ls=wrap(s,maxW,size,w);
+ls.forEach((l,i)=>T(l,cx,y+i*lh,{size:size,w:w,c:c,a:'center'}));return ls.length;}
+function rr(x,y,w,h,r){ctx.beginPath();ctx.roundRect(x,y,w,h,r);}
+function panel(x,y,w,h,zh,en){rr(x,y,w,h,10);ctx.fillStyle=C.pan;ctx.fill();
+ctx.strokeStyle=C.line;ctx.lineWidth=1.5;ctx.stroke();
+const tw=T(zh,x+18,y+30,{size:17,w:700});T(en,x+18+tw+10,y+30,{size:11.5,c:C.mut});}
+function chip(x,y,w,h,txt,bg,fg,size){rr(x,y,w,h,h/2);ctx.fillStyle=bg;ctx.fill();
+T(txt,x+w/2,y+h/2+(size||12)*0.35,{size:size||12,w:700,c:fg||'#fff',a:'center'});}
+function arrow(x1,y1,x2,y2,col,lw,hs){hs=hs||8;ctx.strokeStyle=col;ctx.fillStyle=col;
+ctx.lineWidth=lw||2.5;ctx.lineCap='round';const a=Math.atan2(y2-y1,x2-x1);
+ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2-Math.cos(a)*hs*0.55,y2-Math.sin(a)*hs*0.55);ctx.stroke();
+ctx.beginPath();ctx.moveTo(x2,y2);ctx.lineTo(x2-hs*Math.cos(a-0.42),y2-hs*Math.sin(a-0.42));
+ctx.lineTo(x2-hs*Math.cos(a+0.42),y2-hs*Math.sin(a+0.42));ctx.closePath();ctx.fill();}
+function dot(x,y,r,fill,stroke,lw){ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);
+ctx.fillStyle=fill;ctx.fill();if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw||2;ctx.stroke();}}
+function strip(x,y,w,h,zh,en,bg,fg){rr(x,y,w,h,8);ctx.fillStyle=bg||C.tealL;ctx.fill();
+wrapCenter(zh,x+w/2,y+26,w-40,24,15,700,fg||C.ink);
+wrapCenter(en,x+w/2,y+52,w-40,20,12,400,C.mut);}
+/* ================= KaTeX hybrid（SOP 4.3；LaTeX 一律用 String.raw 單反斜線，勿雙重跳脫） ================= */
+const mathLayer=document.getElementById('math-layer');
+function addFormula(o){let el=document.getElementById('fx-'+o.id);
+if(!el){el=document.createElement('div');el.className='formula';el.id='fx-'+o.id;mathLayer.appendChild(el);}
+el.style.left=o.x+'px';el.style.top=o.y+'px';el.style.width=(o.w||600)+'px';
+el.style.textAlign=o.align||'center';el.style.fontSize=(o.fontSize||28)+'px';
+el.style.color=o.color||C.ink;
+try{katex.render(o.tex,el,{displayMode:true,throwOnError:false});}catch(e){el.textContent='[公式渲染失敗]';}
+return el;}
+function syncMathLayer(){const r=stage.getBoundingClientRect();
+mathLayer.style.transform=`scale(${r.width/W},${r.height/H})`;}
+new ResizeObserver(syncMathLayer).observe(stage);
+window.addEventListener('resize',syncMathLayer);
+window.addEventListener('load',syncMathLayer);
+/* ================= 頁首 ================= */
+function header(zh,en,tag,tagEn){
+T(zh,40,60,{size:40,w:900});
+T(en,40,90,{size:19,w:500,c:C.teal});
+if(tag){const tw=ctx.measureText(tag).width;
+rr(1560-tw-56,30,tw+56,52,26);ctx.fillStyle=C.teal;ctx.fill();
+T(tag,1560-28,52,{size:15,w:700,c:'#fff',a:'center'});
+if(tagEn)T(tagEn,1560-28,70,{size:10,c:'#CFE6EB',a:'center'});}
+}
+/* ================= 頁面內容 ================= */
+const HINTS=[
+'總覽：七節內容的地圖。點選頁籤，看看每一節在解決什麼問題；對應的 chip 會以青色粗框高亮。',
+'§2 梯度下降：沿負梯度方向走一步，關鍵超參數是學習率 η。',
+'§3 反向傳播：梯度下降＋鏈式法則，高效算出每一層的梯度；本章核心，必讀。',
+'§4 SGD 與 mini-batch：一筆資料太吵、全批太慢，mini-batch 是實務上的折衷。',
+'§5 自適應學習率：AdaGrad、RMSProp、Adam——每個維度用自己的步長。',
+'§6 SAM：找「平坦」的極小值，min-max 目標，泛化更好。',
+'§7 收斂理論：過參數化的神經網路，梯度法仍然找得到好的解。'
+];
+const CHIP_LABELS=['§2 梯度下降','§3 反向傳播（必讀）','§4 SGD 與 mini-batch','§5 自適應學習率','§6 SAM 找平坦解','§7 收斂理論'];
+const state={sel:0};
+function terrain(t){return 1.05+0.42*Math.sin(t*9.0)+0.26*Math.sin(t*16.3+1.1);}
+function draw(){
+ctx.fillStyle=C.bg;ctx.fillRect(0,0,W,H);
+header('導論：優化是訓練神經網路的引擎','Introduction: Optimization as the Engine of Deep Learning','IDL115','Ch.3 §1');
+/* ---- 左：機器學習三步驟 ---- */
+panel(40,110,470,560,'機器學習三步驟','Three steps of ML');
+const rows=[
+{n:'1',t:'提出假設類別',en:'Hypothesis class',d:'先決定模型家族，例如多層神經網路：架構定了，才有參數可以調。'},
+{n:'2',t:'用損失函數排名',en:'Loss function',d:'定義猜錯的代價：模型好不好，用一個數字打分數、排出高下。'},
+{n:'3',t:'搜尋最佳假設',en:'Optimization',d:'在假設空間中找出損失最小的模型：本章要解決的核心問題。'}
+];
+rows.forEach((r,i)=>{
+const ry=165+i*132;
+if(i===2){rr(52,ry-8,446,140,8);ctx.fillStyle=C.tealL;ctx.fill();}
+dot(75,ry+24,19,C.teal);T(r.n,75,ry+31,{size:16,w:700,c:'#fff',a:'center'});
+T(r.t,112,ry+20,{size:17,w:700});
+T(r.en,112,ry+42,{size:12,c:C.mut});
+P(r.d,112,ry+66,368,22,14);
+});
+chip(392,425,100,30,'本章主角',C.teal,'#fff',14);
+/* ---- 中：損失地形 ---- */
+panel(530,110,500,560,'損失地形：高維、非凸','Loss landscape: high-dimensional, non-convex');
+P('損失函數的自變數是全部參數：百萬維的地形坑洞無數。一階方法便宜又耐用，傾向停在「較平坦」的解，實務上已經夠好。',550,232,460,24,15);
+const px0=560,px1=1000,pyTop=340,pyBase=635;
+const N=400,vs=[];let mn=1e9,mx=-1e9;
+for(let i=0;i<=N;i++){const v=terrain(i/N);vs.push(v);if(v<mn)mn=v;if(v>mx)mx=v;}
+const X=t=>px0+t*(px1-px0),Y=v=>pyBase-(v-mn)/(mx-mn)*(pyBase-pyTop);
+T('損失 f(w)',566,332,{size:12.5,c:C.mut});
+ctx.strokeStyle=C.line;ctx.lineWidth=1.5;
+ctx.beginPath();ctx.moveTo(px0,pyBase);ctx.lineTo(px1,pyBase);ctx.stroke();
+ctx.strokeStyle=C.teal;ctx.lineWidth=3;ctx.beginPath();
+for(let i=0;i<=N;i++){const x=X(i/N),y=Y(vs[i]);i?ctx.lineTo(x,y):ctx.moveTo(x,y);}
+ctx.stroke();
+function findExt(kind){const res=[],Wd=10;
+for(let i=Wd;i<=N-Wd;i++){let ok=true;
+for(let j=i-Wd;j<=i+Wd;j++){if(j===i)continue;
+if(kind==='min'&&vs[j]<vs[i]-1e-9){ok=false;break;}
+if(kind==='max'&&vs[j]>vs[i]+1e-9){ok=false;break;}}
+if(ok&&res.every(k=>Math.abs(k-i)>Wd))res.push(i);}
+return res;}
+const valleys=findExt('min'),peaks=findExt('max');
+valleys.slice(0,2).forEach(k=>{const x=X(k/N),y=Y(vs[k]);
+dot(x,y,6,C.teal);T('局部谷',x,y+22,{size:12,c:C.mut,a:'center'});});
+let saddle=-1,best=1e9;
+const near=new Set();
+valleys.concat(peaks).forEach(k=>{for(let j=k-25;j<=k+25;j++)near.add(j);});
+for(let i=10;i<N-10;i++){if(near.has(i))continue;
+const d2=Math.abs(vs[i+1]-2*vs[i]+vs[i-1]),g=Math.abs(vs[i+1]-vs[i-1]);
+if(d2<0.0025&&g<best){best=g;saddle=i;}}
+if(saddle>0){const x=X(saddle/N),y=Y(vs[saddle]);
+dot(x,y,8,C.org,'#fff',2.5);
+T('鞍點 saddle',x,y-34,{size:12.5,w:700,c:C.org,a:'center'});}
+const sx=X(0.05),sy=Y(vs[Math.round(0.05*N)]);
+const ex=X(0.20),ey=Y(vs[Math.round(0.20*N)]);
+arrow(sx,sy,ex,ey,C.grn,3,10);
+dot(sx,sy,8,C.red,'#fff',2.5);
+T('起點',sx-14,sy+5,{size:13,w:700,c:C.red,a:'right'});
+T('一維示意：實際參數是百萬維',780,662,{size:12.5,c:C.mut,a:'center'});
+/* ---- 右：一階 vs 二階 ---- */
+panel(1050,110,510,560,'一階 vs 二階','First- vs second-order');
+T('一階：梯度下降',1070,200,{size:17,w:700});
+chip(1436,176,104,30,'實務主力',C.grn,'#fff',14);
+const b1=['每一步只算梯度，計算便宜','實務上的主力方法','傾向停在平坦極小值','泛化能力通常較好'];
+b1.forEach((s,i)=>{const y=236+i*36;dot(1078,y-5,4.5,C.teal);T(s,1096,y,{size:15});});
+ctx.strokeStyle=C.line;ctx.lineWidth=1.5;
+ctx.beginPath();ctx.moveTo(1070,380);ctx.lineTo(1540,380);ctx.stroke();
+T('二階：Newton 法',1070,414,{size:17,w:700});
+chip(1436,390,104,30,'規模瓶頸',C.red,'#fff',14);
+const b2=['需計算並反轉 Hessian 矩陣','參數量大時規模扛不住','可能鑽進尖銳極小值','泛化表現往往較差'];
+b2.forEach((s,i)=>{const y=450+i*36;dot(1078,y-5,4.5,C.red);T(s,1096,y,{size:15});});
+/* ---- 路線圖 ---- */
+rr(40,690,1520,120,10);ctx.fillStyle=C.pan;ctx.fill();ctx.strokeStyle=C.line;ctx.lineWidth=1.5;ctx.stroke();
+const rtw=T('本章路線圖',58,722,{size:16,w:700});
+T('Roadmap',58+rtw+8,722,{size:12,c:C.mut});
+CHIP_LABELS.forEach((s,i)=>{const x=60+i*254;
+chip(x,738,230,54,s,C.tealL,C.teal,15);
+if(state.sel>0&&i===state.sel-1){rr(x,738,230,54,27);ctx.strokeStyle=C.teal;ctx.lineWidth=4;ctx.stroke();}});
+strip(40,828,1520,56,'訓練神經網路 = 最小化損失；backprop 讓多層網路能算梯度；一階方法在實務上贏了二階方法','Training = minimizing loss; backprop makes deep nets trainable; first-order wins in practice');
+}
+function initFormulas(){
+addFormula({id:'obj',tex:String.raw`\min_{\boldsymbol{w}} f(\boldsymbol{w})`,x:545,y:288,w:470,fontSize:24});
+}
+document.addEventListener('DOMContentLoaded',()=>{
+initFormulas();syncMathLayer();draw();
+const hint=document.getElementById('hint');
+const btns=[...document.querySelectorAll('#controls button')];
+btns.forEach(b=>b.addEventListener('click',()=>{
+state.sel=+b.dataset.tab;
+btns.forEach(x=>x.classList.toggle('on',x===b));
+hint.innerHTML='<b>導覽：</b>'+HINTS[state.sel];
+draw();}));
+});
+</script>
+</body>
+</html>
