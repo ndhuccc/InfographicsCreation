@@ -1,0 +1,33 @@
+{
+  "date": "2026-10-07",
+  "pages": 49,
+  "kp": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16
+  ],
+  "syntaxChecks": 98,
+  "formulaChecks": 96,
+  "interactionStates": 294,
+  "numericalChecks": [
+    "Hidden delta = sigmoid(0.5)(1-sigmoid(0.5)) * (0.6*0.2 + (-0.4)*(-0.1)) = 0.0376006",
+    "Both backprop weight gradients agree with centered finite differences within 1e-8.",
+    "n=10, b=4 retains final batch: [4,4,2], three updates.",
+    "Adam t=1 corrected m=(2,0.2), v=(4,0.04) for gradient (2,0.2)."
+  ],
+  "issues": [],
+  "browserAudit": "Pending: Chromium launch blocked by Windows sandbox (EPERM / Mojo access denied). Earlier browser-audit.json predates final fixes and is historical evidence only."
+}

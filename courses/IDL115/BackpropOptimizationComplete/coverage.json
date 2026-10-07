@@ -1,0 +1,363 @@
+{
+  "source_sha": "06cd5749cf8d9a96bba2deec522629f3e1d41bfa",
+  "count": 49,
+  "pages": [
+    {
+      "kp": 1,
+      "filename": "01-kp01-optimization-map.html",
+      "zh": "訓練神經網路：從模型到優化",
+      "en": "Training: model, loss, and optimization",
+      "mode": "map"
+    },
+    {
+      "kp": 1,
+      "filename": "02-kp01-first-second-order.html",
+      "zh": "一階與二階：資訊量與計算代價",
+      "en": "First and second order: information and cost",
+      "mode": "cost"
+    },
+    {
+      "kp": 2,
+      "filename": "03-kp02-gradient-direction.html",
+      "zh": "梯度與更新：方向一定要分清楚",
+      "en": "Gradient versus parameter update",
+      "mode": "gd"
+    },
+    {
+      "kp": 2,
+      "filename": "04-kp02-learning-rate.html",
+      "zh": "學習率：慢、震盪與發散",
+      "en": "Learning rate: slow progress, oscillation, divergence",
+      "mode": "gd"
+    },
+    {
+      "kp": 2,
+      "filename": "05-kp02-smoothness-convexity.html",
+      "zh": "平滑性與凸性：下降與全域解的條件",
+      "en": "Smoothness and convexity: what is guaranteed?",
+      "mode": "landscape"
+    },
+    {
+      "kp": 3,
+      "filename": "06-kp03-stopping-rules.html",
+      "zh": "什麼時候停止：四種判斷依據",
+      "en": "Four stopping criteria",
+      "mode": "stop"
+    },
+    {
+      "kp": 3,
+      "filename": "07-kp03-saddle-warning.html",
+      "zh": "梯度為零：最低點與鞍點的差別",
+      "en": "Zero gradient: minimum or saddle?",
+      "mode": "saddle"
+    },
+    {
+      "kp": 4,
+      "filename": "08-kp04-backtracking.html",
+      "zh": "線搜索：試一步，不合適就縮小",
+      "en": "Backtracking line search",
+      "mode": "line"
+    },
+    {
+      "kp": 4,
+      "filename": "09-kp04-wolfe-steepest.html",
+      "zh": "Wolfe 條件與最陡方向",
+      "en": "Wolfe conditions and steepest direction",
+      "mode": "line"
+    },
+    {
+      "kp": 5,
+      "filename": "10-kp05-momentum-update.html",
+      "zh": "動量：把過去方向帶進這一步",
+      "en": "Momentum carries previous motion forward",
+      "mode": "momentum"
+    },
+    {
+      "kp": 5,
+      "filename": "11-kp05-momentum-valley.html",
+      "zh": "狹長谷地：震盪相消、主方向累積",
+      "en": "Momentum in an elongated valley",
+      "mode": "momentum"
+    },
+    {
+      "kp": 6,
+      "filename": "12-kp06-forward-neuron.html",
+      "zh": "前向傳播：加權和到預測",
+      "en": "Forward propagation through a neuron",
+      "mode": "network"
+    },
+    {
+      "kp": 6,
+      "filename": "13-kp06-chain-rule-gradient.html",
+      "zh": "權重梯度：δ 乘上上游輸出",
+      "en": "Weight gradient = delta times upstream activation",
+      "mode": "network"
+    },
+    {
+      "kp": 6,
+      "filename": "14-kp06-output-delta.html",
+      "zh": "輸出層 δ：損失與激活都要微分",
+      "en": "Output delta: differentiate loss and activation",
+      "mode": "network"
+    },
+    {
+      "kp": 6,
+      "filename": "15-kp06-hidden-delta.html",
+      "zh": "隱藏層 δ：下游分支加總後傳回",
+      "en": "Hidden delta sums downstream contributions",
+      "mode": "network"
+    },
+    {
+      "kp": 6,
+      "filename": "16-kp06-backprop-numeric.html",
+      "zh": "完整算例：前向、反向、更新與驗證",
+      "en": "A complete numerical backpropagation example",
+      "mode": "backprop"
+    },
+    {
+      "kp": 6,
+      "filename": "17-kp06-backprop-algorithm.html",
+      "zh": "一輪訓練：梯度計算與更新分開",
+      "en": "One training step: compute, then update",
+      "mode": "map"
+    },
+    {
+      "kp": 7,
+      "filename": "18-kp07-sgd-objective.html",
+      "zh": "SGD：用一筆估計整體梯度",
+      "en": "SGD estimates the full gradient from one sample",
+      "mode": "sampling"
+    },
+    {
+      "kp": 7,
+      "filename": "19-kp07-sgd-noise.html",
+      "zh": "同一位置，不同樣本可能指向不同方向",
+      "en": "Different samples, different gradient directions",
+      "mode": "sampling"
+    },
+    {
+      "kp": 7,
+      "filename": "20-kp07-sgd-step-schedule.html",
+      "zh": "SGD 的衰減步長：早期探索，後期縮步",
+      "en": "Decaying SGD steps: exploration then refinement",
+      "mode": "noise"
+    },
+    {
+      "kp": 8,
+      "filename": "21-kp08-batch-epoch.html",
+      "zh": "Batch、Step、Epoch：三個不同計數",
+      "en": "Batch, step, and epoch are different counts",
+      "mode": "batch"
+    },
+    {
+      "kp": 8,
+      "filename": "22-kp08-batch-variance.html",
+      "zh": "批次大小如何降低梯度噪聲",
+      "en": "Batch size controls gradient-estimate variance",
+      "mode": "variance"
+    },
+    {
+      "kp": 8,
+      "filename": "23-kp08-batch-error-cost.html",
+      "zh": "小批次梯度：誤差、成本與記憶體",
+      "en": "Mini-batch gradient: error, cost, and memory",
+      "mode": "variance"
+    },
+    {
+      "kp": 9,
+      "filename": "24-kp09-gd-rate.html",
+      "zh": "全梯度收斂率：O(1/t) 說的是什麼",
+      "en": "Full-gradient rate under convex smooth assumptions",
+      "mode": "rates"
+    },
+    {
+      "kp": 9,
+      "filename": "25-kp09-sgd-schedules.html",
+      "zh": "SGD 步長策略：先認清收斂指標",
+      "en": "SGD schedules and the quantity being bounded",
+      "mode": "rates"
+    },
+    {
+      "kp": 9,
+      "filename": "26-kp09-sgd-noise-floor.html",
+      "zh": "固定步長的噪聲底：用可解例子看懂",
+      "en": "A solvable example of the fixed-step noise floor",
+      "mode": "noise"
+    },
+    {
+      "kp": 9,
+      "filename": "27-kp09-sgd-bound-derivation.html",
+      "zh": "SGD 上界推導：下降收益與噪聲代價",
+      "en": "Deriving the SGD stationarity bound",
+      "mode": "rates"
+    },
+    {
+      "kp": 10,
+      "filename": "28-kp10-adagrad-rule.html",
+      "zh": "AdaGrad：每個參數有自己的步長",
+      "en": "AdaGrad: one effective step size per coordinate",
+      "mode": "adaptive"
+    },
+    {
+      "kp": 10,
+      "filename": "29-kp10-adagrad-sparse.html",
+      "zh": "AdaGrad 的優點與長期限制",
+      "en": "AdaGrad: sparse features and shrinking steps",
+      "mode": "adaptive"
+    },
+    {
+      "kp": 11,
+      "filename": "30-kp11-rmsprop.html",
+      "zh": "RMSProp：把永久記憶改成近期平均",
+      "en": "RMSProp uses a decaying squared-gradient average",
+      "mode": "adaptive"
+    },
+    {
+      "kp": 11,
+      "filename": "31-kp11-adam-moments.html",
+      "zh": "Adam：方向記憶與尺度記憶",
+      "en": "Adam combines direction and scale estimates",
+      "mode": "adaptive"
+    },
+    {
+      "kp": 11,
+      "filename": "32-kp11-adam-bias.html",
+      "zh": "偏差修正：從第 1 步開始計數",
+      "en": "Adam bias correction starts at step one",
+      "mode": "bias"
+    },
+    {
+      "kp": 11,
+      "filename": "33-kp11-adam-update.html",
+      "zh": "Adam 完整更新：每個量放在哪裡",
+      "en": "The complete Adam update",
+      "mode": "adaptive"
+    },
+    {
+      "kp": 12,
+      "filename": "34-kp12-flat-sharp.html",
+      "zh": "平坦與尖銳：同樣谷底，不同敏感度",
+      "en": "Flat versus sharp minima: sensitivity differs",
+      "mode": "flat"
+    },
+    {
+      "kp": 12,
+      "filename": "35-kp12-flat-scale.html",
+      "zh": "參數量尺：同一函數也能看起來更尖",
+      "en": "Parameter scaling changes apparent sharpness",
+      "mode": "scale"
+    },
+    {
+      "kp": 13,
+      "filename": "36-kp13-sam-objective.html",
+      "zh": "SAM：最小化鄰域中的最壞損失",
+      "en": "SAM minimizes the worst loss in a neighborhood",
+      "mode": "sam"
+    },
+    {
+      "kp": 13,
+      "filename": "37-kp13-sam-sharpness.html",
+      "zh": "SAM 分解：中心損失加上銳度",
+      "en": "SAM = center loss plus sharpness",
+      "mode": "flat"
+    },
+    {
+      "kp": 13,
+      "filename": "38-kp13-sam-perturbation.html",
+      "zh": "內層近似：沿梯度方向走 ρ",
+      "en": "Linearized SAM perturbation",
+      "mode": "sam"
+    },
+    {
+      "kp": 13,
+      "filename": "39-kp13-sam-dual-norm.html",
+      "zh": "不同范數的最壞擾動",
+      "en": "Worst perturbations under different norms",
+      "mode": "norm"
+    },
+    {
+      "kp": 13,
+      "filename": "40-kp13-sam-two-pass.html",
+      "zh": "SAM 兩次反傳：擾動點算梯度，原點更新",
+      "en": "SAM: evaluate at the perturbation, update the original",
+      "mode": "sam"
+    },
+    {
+      "kp": 14,
+      "filename": "41-kp14-esam-swp.html",
+      "zh": "ESAM 的 SWP：抽一部分權重擾動",
+      "en": "ESAM stochastic weight perturbation",
+      "mode": "mask"
+    },
+    {
+      "kp": 14,
+      "filename": "42-kp14-esam-sds.html",
+      "zh": "ESAM 的 SDS：挑對擾動敏感的樣本",
+      "en": "Sharpness-sensitive data selection",
+      "mode": "selection"
+    },
+    {
+      "kp": 14,
+      "filename": "43-kp14-asam.html",
+      "zh": "ASAM：讓擾動量尺隨權重改變",
+      "en": "ASAM uses adaptive perturbation geometry",
+      "mode": "scale"
+    },
+    {
+      "kp": 15,
+      "filename": "44-kp15-shallow-landscape.html",
+      "zh": "淺層二次網路：沒有較差的局部最低點",
+      "en": "Quadratic shallow networks: no spurious local minima",
+      "mode": "landscape"
+    },
+    {
+      "kp": 15,
+      "filename": "45-kp15-zero-loss-conditions.html",
+      "zh": "零訓練損失：別把定理條件刪掉",
+      "en": "Zero training loss requires additional conditions",
+      "mode": "theory"
+    },
+    {
+      "kp": 15,
+      "filename": "46-kp15-deep-convergence.html",
+      "zh": "深層過參數化：訓練收斂有前提",
+      "en": "Deep overparameterized convergence is conditional",
+      "mode": "theory"
+    },
+    {
+      "kp": 15,
+      "filename": "47-kp15-deep-width-steps.html",
+      "zh": "深網定理：寬度、批次與步長一起讀",
+      "en": "Read width, batch, and step-size conditions together",
+      "mode": "theory"
+    },
+    {
+      "kp": 16,
+      "filename": "48-kp16-theory-frontiers.html",
+      "zh": "收斂理論延伸：模型、資料與分析工具",
+      "en": "Convergence theory across models and assumptions",
+      "mode": "map"
+    },
+    {
+      "kp": 16,
+      "filename": "49-kp16-chapter-summary.html",
+      "zh": "全章收網：各工具改了哪個環節",
+      "en": "Chapter synthesis: what each tool changes",
+      "mode": "map"
+    }
+  ],
+  "corrections": {
+    "2": "一般非凸不保證最低點；適用結論需指定步長、平滑性與駐點指標。",
+    "3": "向量差需使用范數；梯度零不代表沒有二階下降方向。",
+    "6": "所有梯度先以同一組前向權重算完，再一起更新；δ 已包含下游與激活導數。",
+    "7": "本版統一平均損失。若改用總和，梯度與學習率需相應縮放。",
+    "8": "未整除時保留餘數批次；1/b 不能不加補償就省略；方差公式需指定分母。",
+    "9": "一般非凸速率針對加權平均梯度平方；O(η) 不必是參數距離；零噪聲是例外。",
+    "10": "分子應為梯度的 j 分量；有效步長是否趨零依平方和是否發散而定。",
+    "11": "RMSProp/Adam 逐元素平方；從第 1 次更新計算偏差修正；二階矩不是中心方差。",
+    "13": "擾動為線性化內層近似；更新前還原原權重；零梯度與范數端點需另處理。",
+    "14": "遮罩用逐元素乘法；SDS 由每筆 fi 計算；尺度不變性僅對允許的重參數化成立。",
+    "15": "固定 v；零損失結論有「幾乎所有输入」條件；常數 c 不可任意選；寬度與步長須滿足定理。",
+    "16": "優化命題不是泛化保證；已有特定設定的泛化界，仍無完整通用解釋。"
+  }
+}
