@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>03 分數除以權重長度才是距離 / Distance and Scaling</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<style>
+:root{--bg:#071521}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;background:#02080d;color:#f7fbff;font-family:"WenQuanYi Micro Hei","Noto Sans TC",sans-serif}
+.wrap{width:100vw;height:100vh;display:grid;place-items:center;background:radial-gradient(circle at 18% 0%,#12344c 0,#02080d 58%)}
+.stage{position:relative;width:min(100vw,177.7778vh);height:min(56.25vw,100vh);aspect-ratio:16/9;background:#071521;overflow:hidden}
+canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+#math-layer{position:absolute;left:0;top:0;width:1600px;height:900px;transform-origin:0 0;pointer-events:none}
+.formula{position:absolute;transform:translateY(-50%);line-height:1.15}
+.formula .katex-display{margin:0}
+.formula .katex{color:inherit}
+</style>
+</head>
+<body>
+<div class="wrap"><div class="stage" id="stage">
+<canvas id="c" width="1600" height="900"></canvas>
+<div id="math-layer"></div>
+</div></div>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script>
+const CW=1600,CH=900;
+const c=document.getElementById('c'),ctx=c.getContext('2d');
+const stage=document.getElementById('stage'),mathLayer=document.getElementById('math-layer');
+const P={bg:'#071521',panel:'#0f2637',panel2:'#123044',ink:'#f7fbff',muted:'#a9bfd0',cyan:'#4fd1c5',amber:'#f6c85f',coral:'#ff8a6a',lime:'#8fd694',violet:'#c4b5fd',blue:'#7eb6ff',grid:'#1a4060',line:'#d7e6f2'};
+const FONT='"WenQuanYi Micro Hei","Noto Sans TC","Microsoft JhengHei",Inter,sans-serif';
+let zones=[];
+let drag=null;
+const FM={};
+function reset(){
+  zones=[];
+  ctx.clearRect(0,0,CW,CH);
+  ctx.fillStyle=P.bg;ctx.fillRect(0,0,CW,CH);
+  for(let x=0;x<CW;x+=80)line(x,0,x,CH,'#0c2233',1);
+  for(let y=0;y<CH;y+=80)line(0,y,CW,y,'#0c2233',1);
+}
+function line(x1,y1,x2,y2,color='#fff',lw=3,dash=[]){
+  ctx.save();ctx.strokeStyle=color;ctx.lineWidth=lw;ctx.setLineDash(dash);
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();ctx.restore();
+}
+function rr(x,y,w,h,r=18,fill=P.panel,stroke=null,lw=2){
+  ctx.beginPath();ctx.roundRect(x,y,w,h,r);
+  if(fill){ctx.fillStyle=fill;ctx.fill();}
+  if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw;ctx.stroke();}
+}
+function dot(x,y,r,color){ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();}
+function tri(x,y,r,color){
+  ctx.fillStyle=color;ctx.beginPath();
+  ctx.moveTo(x,y-r);ctx.lineTo(x-r*0.92,y+r*0.72);ctx.lineTo(x+r*0.92,y+r*0.72);
+  ctx.closePath();ctx.fill();
+}
+function sq(x,y,r,color){ctx.fillStyle=color;ctx.fillRect(x-r,y-r,r*2,r*2);}
+function setFont(size,weight){ctx.font=`${weight} ${size}px ${FONT}`;}
+function txt(t,x,y,size=28,color=P.ink,align='left',weight=700){
+  t=String(t);ctx.fillStyle=color;setFont(size,weight);ctx.textAlign=align;ctx.textBaseline='middle';ctx.fillText(t,x,y);
+}
+function wrap(t,x,y,maxw,lh=32,size=22,color=P.muted,weight=550,align='left'){
+  t=String(t).replace(/\\n/g,'\n');setFont(size,weight);ctx.fillStyle=color;ctx.textBaseline='top';ctx.textAlign=align;
+  const out=[];
+  for(const para of t.split('\n')){
+    const raw=para.match(/[一-鿿]|[^\s一-鿿　-〿＀-￯]+\s*|\s+|[　-〿＀-￯]/g)||[''];
+    const toks=[];
+    for(let i=0;i<raw.length;i++){
+      if(/^[「『（《【“‘]$/.test(raw[i])&&i+1<raw.length){toks.push(raw[i]+raw[i+1]);i++;}
+      else toks.push(raw[i]);
+    }
+    let ln='';
+    for(const tk of toks){
+      const q=ln+tk;
+      const isPunct=/^[　-〿＀-￯，。、；：？！]$/.test(tk);
+      if(ctx.measureText(q.trimEnd()).width>maxw&&ln&&!isPunct){out.push(ln.trimEnd());ln=tk.trimStart();}
+      else ln=q;
+    }
+    out.push(ln.trimEnd());
+  }
+  let yy=y;
+  for(const l of out){if(l)ctx.fillText(l,x,yy);yy+=lh;}
+  return yy;
+}
+function wrapCenter(t,cx,y,maxw,lh=32,size=22,color=P.muted,weight=550){return wrap(t,cx,y,maxw,lh,size,color,weight,'center');}
+function footer(n,total){
+  txt('PR115  ·  Chapter 3  ·  Linear classifiers / Perceptron',48,872,15,'#7f9aaf','left',600);
+  txt(String(n).padStart(2,'0')+' / '+String(total).padStart(2,'0'),1552,872,15,'#7f9aaf','right',700);
+}
+function title(zh,en,no,total){
+  txt(String(no).padStart(2,'0')+'   '+zh,48,46,34,P.ink,'left',800);
+  txt(en,48,86,18,P.cyan,'left',600);
+  line(48,112,1552,112,'#1e4664',2);
+  footer(no,total);
+}
+function chip(t,x,y,w,h,color,active){
+  rr(x,y,w,h,14,active?color+'33':'#ffffff0c',active?color:'#ffffff22',2);
+  txt(t,x+w/2,y+h/2,16,active?color:P.ink,'center',700);
+}
+function btn(label,x,y,w,h,onClick,active=false,color=P.cyan,size=18){
+  rr(x,y,w,h,14,active?color+'2b':'#ffffff0c',active?color:'#ffffff28',2);
+  txt(label,x+w/2,y+h/2,size,active?color:P.ink,'center',750);
+  zones.push({type:'button',x,y,w,h,onClick});
+}
+function slider(x,y,w,min,max,value,onChange,label,fmt=v=>String(v),accent=P.amber){
+  txt(label,x,y-28,16,P.muted,'left',650);
+  txt(fmt(value),x+w,y-28,18,accent,'right',800);
+  line(x,y,x+w,y,'#ffffff30',8);
+  const t=(value-min)/(max-min),kx=x+Math.max(0,Math.min(1,t))*w;
+  line(x,y,kx,y,accent+'aa',8);dot(kx,y,12,accent);
+  zones.push({type:'slider',x:x-16,y:y-22,w:w+32,h:44,min,max,onChange});
+}
+function arrow(x1,y1,x2,y2,color=P.cyan,lw=4){
+  line(x1,y1,x2,y2,color,lw);
+  const a=Math.atan2(y2-y1,x2-x1),s=13;
+  ctx.fillStyle=color;ctx.beginPath();
+  ctx.moveTo(x2,y2);
+  ctx.lineTo(x2-s*Math.cos(a-.45),y2-s*Math.sin(a-.45));
+  ctx.lineTo(x2-s*Math.cos(a+.45),y2-s*Math.sin(a+.45));
+  ctx.closePath();ctx.fill();
+}
+function mapper(px,py,pw,ph,x0,x1,y0,y1){
+  return {px,py,pw,ph,x0,x1,y0,y1,
+    X:x=>px+(x-x0)/(x1-x0)*pw,
+    Y:y=>py+ph-(y-y0)/(y1-y0)*ph,
+    dx:X=>x0+(X-px)/pw*(x1-x0),
+    dy:Y=>y1-(Y-py)/ph*(y1-y0)};
+}
+function axes(m,xticks,yticks){
+  rr(m.px-8,m.py-8,m.pw+16,m.ph+16,16,'#0b1c2b',null);
+  ctx.save();ctx.beginPath();ctx.rect(m.px,m.py,m.pw,m.ph);ctx.clip();
+  ctx.fillStyle='#0b1c2b';ctx.fillRect(m.px,m.py,m.pw,m.ph);
+  for(const v of yticks){const Y=m.Y(v);line(m.px,Y,m.px+m.pw,Y,'#ffffff12',1);}
+  for(const v of xticks){const X=m.X(v);line(X,m.py,X,m.py+m.ph,'#ffffff10',1);}
+  ctx.restore();
+  line(m.px,m.py+m.ph,m.px+m.pw,m.py+m.ph,'#ffffff55',1.5);
+  line(m.px,m.py,m.px,m.py+m.ph,'#ffffff55',1.5);
+  for(const v of yticks){const Y=m.Y(v);txt(String(v),m.px-10,Y,14,P.muted,'right',600);}
+  for(const v of xticks){const X=m.X(v);txt(String(v),X,m.py+m.ph+18,14,P.muted,'center',600);}
+}
+function clipLine(m,a,b,c){
+  const xs=[m.x0,m.x1],ys=[m.y0,m.y1],pts=[];
+  const corners=[[m.x0,m.y0,m.x1,m.y0],[m.x1,m.y0,m.x1,m.y1],[m.x1,m.y1,m.x0,m.y1],[m.x0,m.y1,m.x0,m.y0]];
+  for(const [x1,y1,x2,y2] of corners){
+    const f1=a*x1+b*y1+c,f2=a*x2+b*y2+c;
+    if(Math.abs(f1)<1e-12)pts.push([x1,y1]);
+    else if(f1*f2<0){const t=f1/(f1-f2);pts.push([x1+t*(x2-x1),y1+t*(y2-y1)]);}
+  }
+  const uniq=[];
+  for(const p of pts){if(!uniq.some(q=>Math.hypot(q[0]-p[0],q[1]-p[1])<1e-6))uniq.push(p);}
+  return uniq.slice(0,2);
+}
+function drawBoundary(m,a,b,cc,color,dash,lw=3){
+  const pts=clipLine(m,a,b,cc);if(pts.length<2)return;
+  line(m.X(pts[0][0]),m.Y(pts[0][1]),m.X(pts[1][0]),m.Y(pts[1][1]),color,lw,dash);
+}
+function shadeSign(m,a,b,cc,pos,neg){
+  ctx.save();ctx.beginPath();ctx.rect(m.px,m.py,m.pw,m.ph);ctx.clip();
+  const step=7;
+  for(let x=m.px;x<m.px+m.pw;x+=step){
+    for(let y=m.py;y<m.py+m.ph;y+=step){
+      const g=a*m.dx(x+step/2)+b*m.dy(y+step/2)+cc;
+      ctx.fillStyle=g>=0?pos:neg;ctx.fillRect(x,y,step,step);
+    }
+  }
+  ctx.restore();
+}
+function rightAngle(x,y,ux,uy,vx,vy,size,color){
+  const n1=Math.hypot(ux,uy)||1,n2=Math.hypot(vx,vy)||1;
+  const a1x=ux/n1*size,a1y=uy/n1*size,a2x=vx/n2*size,a2y=vy/n2*size;
+  ctx.save();ctx.strokeStyle=color;ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(x+a1x,y+a1y);ctx.lineTo(x+a1x+a2x,y+a1y+a2y);ctx.lineTo(x+a2x,y+a2y);ctx.stroke();ctx.restore();
+}
+function pos(e){const r=c.getBoundingClientRect();return{x:(e.clientX-r.left)*CW/r.width,y:(e.clientY-r.top)*CH/r.height};}
+function sliderVal(z,p){const t=Math.max(0,Math.min(1,(p.x-(z.x+16))/(z.w-32)));return z.min+t*(z.max-z.min);}
+c.addEventListener('pointerdown',e=>{
+  const p=pos(e);
+  for(let i=zones.length-1;i>=0;i--){
+    const z=zones[i];
+    if(p.x>=z.x&&p.x<=z.x+z.w&&p.y>=z.y&&p.y<=z.y+z.h){
+      if(z.type==='button'){z.onClick(p);return;}
+      if(z.type==='slider'||z.type==='drag'){drag=z;z.onChange(z.type==='slider'?sliderVal(z,p):p,p);return;}
+    }
+  }
+});
+c.addEventListener('pointermove',e=>{if(!drag)return;const p=pos(e);drag.onChange(drag.type==='slider'?sliderVal(drag,p):p,p);});
+addEventListener('pointerup',()=>drag=null);
+addEventListener('pointercancel',()=>drag=null);
+function placeFormula(f){
+  const s=f.el.style;s.width=f.w+'px';s.fontSize=f.size+'px';s.color=f.color;s.textAlign=f.align;
+  let left=f.x+f.ox;if(f.align==='center')left-=f.w/2;else if(f.align==='right')left-=f.w;
+  s.left=left+'px';s.top=(f.y+f.oy)+'px';s.display=f.show===false?'none':'block';
+}
+function setTex(id,tex){const f=FM[id];if(!f||f.cur===tex)return;f.cur=tex;
+  katex.render(tex,f.el,{displayMode:true,throwOnError:true,strict:'ignore'});}
+function addFormula(o){
+  const el=document.createElement('div');el.className='formula';el.dataset.fid=o.id;mathLayer.appendChild(el);
+  const f=Object.assign({el,align:'center',size:22,ox:0,oy:0,w:500,color:'#f7fbff',show:true},o);
+  FM[o.id]=f;placeFormula(f);setTex(o.id,o.tex);return f;
+}
+function moveFormula(id,o){Object.assign(FM[id],o);placeFormula(FM[id]);}
+function showF(ids){for(const k in FM){FM[k].show=ids.includes(k);placeFormula(FM[k]);}}
+function syncMath(){const r=stage.getBoundingClientRect();mathLayer.style.transform=`scale(${r.width/CW},${r.height/CH})`;}
+new ResizeObserver(syncMath).observe(stage);addEventListener('resize',syncMath);syncMath();
+function fmt(v,d){return (Math.round(v*10**d)/10**d).toFixed(d);}
+function hashState(){
+  const h=location.hash.replace(/^#/,'');
+  const o={};
+  if(!h)return o;
+  for(const part of h.split('&')){
+    const [k,v]=part.split('=');
+    if(k)o[decodeURIComponent(k)]=v===undefined?'1':decodeURIComponent(v);
+  }
+  return o;
+}
+
+const TOTAL=13;
+let cscale=1;
+let which='A';
+let practice=false;
+const A={x:1,y:1}, B={x:0.4,y:0.05};
+function gRaw(x,y){return x+y-0.5;}
+addFormula({id:'dist',tex:String.raw`r=\frac{g}{\|\mathbf{w}\|},\quad z=|r|\ \ (\mathbf{w}\ne 0)`,x:1210,y:210,w:620,size:24,color:P.cyan});
+addFormula({id:'calc',tex:String.raw`g_A=1.5,\ z_A=\dfrac{1.5}{\sqrt{2}}\approx 1.060660`,x:1210,y:430,w:640,size:22,color:P.coral});
+addFormula({id:'calcb',tex:String.raw`g_B=-0.05,\ z_B=\dfrac{0.05}{\sqrt{2}}\approx 0.035355`,x:1210,y:430,w:660,size:22,color:P.blue});
+addFormula({id:'scale',tex:String.raw`g'=c(x_1+x_2-0.5),\ \ \|\mathbf{w}'\|=|c|\sqrt{2}`,x:1210,y:640,w:660,size:22,color:P.amber});
+addFormula({id:'prac',tex:String.raw`3x_1-4x_2+10=0,\ \ z_0=2,\ \ g(1,2)=5>0`,x:1210,y:430,w:680,size:22,color:P.lime});
+function render(){
+  reset();
+  title('分數除以權重長度才是距離','Score over the weight length is the distance',3,TOTAL);
+  const m=mapper(48,148,760,640,-0.2,1.7,-0.35,1.45);
+  axes(m,[0,0.5,1,1.5],[0,0.5,1]);
+  const c=cscale;
+  if(Math.abs(c)>1e-6)shadeSign(m,c,c,-0.5*c,c>0?'#ff8a6a16':'#7eb6ff16',c>0?'#7eb6ff16':'#ff8a6a16');
+  if(Math.abs(c)>1e-6)drawBoundary(m,c,c,-0.5*c,P.line,[],3);
+  function foot(p){
+    const g=gRaw(p.x,p.y);
+    const r=g/Math.SQRT2;
+    return {x:p.x-r/Math.SQRT2,y:p.y-r/Math.SQRT2,g,z:Math.abs(r)};
+  }
+  const fA=foot(A), fB=foot(B);
+  function mark(p,f,name,color,on){
+    line(m.X(p.x),m.Y(p.y),m.X(f.x),m.Y(f.y),color,on?3:1.5,on?[]:[5,4]);
+    dot(m.X(f.x),m.Y(f.y),5,color);
+    dot(m.X(p.x),m.Y(p.y),on?11:8,color);
+    txt(name,m.X(p.x)+12,m.Y(p.y)-12,16,color,'left',800);
+    const tx=m.X(p.x)-m.X(f.x), ty=m.Y(p.y)-m.Y(f.y);
+    const bx=m.X(f.x+0.2)-m.X(f.x), by=m.Y(f.y-0.2)-m.Y(f.y);
+    if(on)rightAngle(m.X(f.x),m.Y(f.y),tx,ty,bx,by,14,color);
+  }
+  mark(A,fA,'A',P.coral,which==='A'&&!practice);
+  mark(B,fB,'B',P.blue,which==='B'&&!practice);
+  txt('垂足 A (0.25, 0.25)    B (0.425, 0.075)',m.px+12,m.py+22,14,P.ink,'left',650);
+  rr(836,148,716,680,18,P.panel,'#ffffff14',2);
+  btn('點 A',868,300,150,48,()=>{which='A';practice=false;render();},which==='A'&&!practice,P.coral,18);
+  btn('點 B',1034,300,150,48,()=>{which='B';practice=false;render();},which==='B'&&!practice,P.blue,18);
+  btn('練習',1200,300,150,48,()=>{practice=!practice;render();},practice,P.lime,18);
+  const zShow=Math.abs(c)<1e-6?null:(which==='A'?fA.z:fB.z);
+  txt(Math.abs(c)<1e-6?'c = 0：權重為零，距離未定義':'幾何距離仍約 '+fmt(zShow,6),868,500,22,Math.abs(c)<1e-6?P.coral:P.ink,'left',750);
+  txt(c<0?'負倍數把兩側對調，距離的絕對值不變。':'正倍數不改變邊界，也不改變距離。',868,538,17,c<0?P.amber:P.lime,'left',650);
+  if(practice)wrap('原點距離 2，在正側。(1, 2) 的分數是 5，距離 1，仍在正側。',868,575,640,26,17,P.ink,600,'left');
+  slider(900,780,600,-2,2,cscale,v=>{cscale=Math.round(v*10)/10;render();},'縮放係數 c',v=>'c = '+(v>0?'+':'')+fmt(v,1),P.amber);
+  const ids=['dist','scale'];
+  if(practice)ids.push('prac');
+  else ids.push(which==='A'?'calc':'calcb');
+  showF(ids);
+  moveFormula('scale',{y:690});
+}
+const hs=hashState();
+if(hs.c)cscale=+hs.c;
+if(hs.which)which=hs.which;
+if(hs.practice)practice=hs.practice==='1';
+render();
+
+</script>
+</body>
+</html>

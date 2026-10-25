@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>01 第三章路線圖 / Chapter 3 Roadmap</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<style>
+:root{--bg:#071521}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;background:#02080d;color:#f7fbff;font-family:"WenQuanYi Micro Hei","Noto Sans TC",sans-serif}
+.wrap{width:100vw;height:100vh;display:grid;place-items:center;background:radial-gradient(circle at 18% 0%,#12344c 0,#02080d 58%)}
+.stage{position:relative;width:min(100vw,177.7778vh);height:min(56.25vw,100vh);aspect-ratio:16/9;background:#071521;overflow:hidden}
+canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none}
+#math-layer{position:absolute;left:0;top:0;width:1600px;height:900px;transform-origin:0 0;pointer-events:none}
+.formula{position:absolute;transform:translateY(-50%);line-height:1.15}
+.formula .katex-display{margin:0}
+.formula .katex{color:inherit}
+</style>
+</head>
+<body>
+<div class="wrap"><div class="stage" id="stage">
+<canvas id="c" width="1600" height="900"></canvas>
+<div id="math-layer"></div>
+</div></div>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script>
+const CW=1600,CH=900;
+const c=document.getElementById('c'),ctx=c.getContext('2d');
+const stage=document.getElementById('stage'),mathLayer=document.getElementById('math-layer');
+const P={bg:'#071521',panel:'#0f2637',panel2:'#123044',ink:'#f7fbff',muted:'#a9bfd0',cyan:'#4fd1c5',amber:'#f6c85f',coral:'#ff8a6a',lime:'#8fd694',violet:'#c4b5fd',blue:'#7eb6ff',grid:'#1a4060',line:'#d7e6f2'};
+const FONT='"WenQuanYi Micro Hei","Noto Sans TC","Microsoft JhengHei",Inter,sans-serif';
+let zones=[];
+let drag=null;
+const FM={};
+function reset(){
+  zones=[];
+  ctx.clearRect(0,0,CW,CH);
+  ctx.fillStyle=P.bg;ctx.fillRect(0,0,CW,CH);
+  for(let x=0;x<CW;x+=80)line(x,0,x,CH,'#0c2233',1);
+  for(let y=0;y<CH;y+=80)line(0,y,CW,y,'#0c2233',1);
+}
+function line(x1,y1,x2,y2,color='#fff',lw=3,dash=[]){
+  ctx.save();ctx.strokeStyle=color;ctx.lineWidth=lw;ctx.setLineDash(dash);
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();ctx.restore();
+}
+function rr(x,y,w,h,r=18,fill=P.panel,stroke=null,lw=2){
+  ctx.beginPath();ctx.roundRect(x,y,w,h,r);
+  if(fill){ctx.fillStyle=fill;ctx.fill();}
+  if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw;ctx.stroke();}
+}
+function dot(x,y,r,color){ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();}
+function tri(x,y,r,color){
+  ctx.fillStyle=color;ctx.beginPath();
+  ctx.moveTo(x,y-r);ctx.lineTo(x-r*0.92,y+r*0.72);ctx.lineTo(x+r*0.92,y+r*0.72);
+  ctx.closePath();ctx.fill();
+}
+function sq(x,y,r,color){ctx.fillStyle=color;ctx.fillRect(x-r,y-r,r*2,r*2);}
+function setFont(size,weight){ctx.font=`${weight} ${size}px ${FONT}`;}
+function txt(t,x,y,size=28,color=P.ink,align='left',weight=700){
+  t=String(t);ctx.fillStyle=color;setFont(size,weight);ctx.textAlign=align;ctx.textBaseline='middle';ctx.fillText(t,x,y);
+}
+function wrap(t,x,y,maxw,lh=32,size=22,color=P.muted,weight=550,align='left'){
+  t=String(t).replace(/\\n/g,'\n');setFont(size,weight);ctx.fillStyle=color;ctx.textBaseline='top';ctx.textAlign=align;
+  const out=[];
+  for(const para of t.split('\n')){
+    const raw=para.match(/[一-鿿]|[^\s一-鿿　-〿＀-￯]+\s*|\s+|[　-〿＀-￯]/g)||[''];
+    const toks=[];
+    for(let i=0;i<raw.length;i++){
+      if(/^[「『（《【“‘]$/.test(raw[i])&&i+1<raw.length){toks.push(raw[i]+raw[i+1]);i++;}
+      else toks.push(raw[i]);
+    }
+    let ln='';
+    for(const tk of toks){
+      const q=ln+tk;
+      const isPunct=/^[　-〿＀-￯，。、；：？！]$/.test(tk);
+      if(ctx.measureText(q.trimEnd()).width>maxw&&ln&&!isPunct){out.push(ln.trimEnd());ln=tk.trimStart();}
+      else ln=q;
+    }
+    out.push(ln.trimEnd());
+  }
+  let yy=y;
+  for(const l of out){if(l)ctx.fillText(l,x,yy);yy+=lh;}
+  return yy;
+}
+function wrapCenter(t,cx,y,maxw,lh=32,size=22,color=P.muted,weight=550){return wrap(t,cx,y,maxw,lh,size,color,weight,'center');}
+function footer(n,total){
+  txt('PR115  ·  Chapter 3  ·  Linear classifiers / Perceptron',48,872,15,'#7f9aaf','left',600);
+  txt(String(n).padStart(2,'0')+' / '+String(total).padStart(2,'0'),1552,872,15,'#7f9aaf','right',700);
+}
+function title(zh,en,no,total){
+  txt(String(no).padStart(2,'0')+'   '+zh,48,46,34,P.ink,'left',800);
+  txt(en,48,86,18,P.cyan,'left',600);
+  line(48,112,1552,112,'#1e4664',2);
+  footer(no,total);
+}
+function chip(t,x,y,w,h,color,active){
+  rr(x,y,w,h,14,active?color+'33':'#ffffff0c',active?color:'#ffffff22',2);
+  txt(t,x+w/2,y+h/2,16,active?color:P.ink,'center',700);
+}
+function btn(label,x,y,w,h,onClick,active=false,color=P.cyan,size=18){
+  rr(x,y,w,h,14,active?color+'2b':'#ffffff0c',active?color:'#ffffff28',2);
+  txt(label,x+w/2,y+h/2,size,active?color:P.ink,'center',750);
+  zones.push({type:'button',x,y,w,h,onClick});
+}
+function slider(x,y,w,min,max,value,onChange,label,fmt=v=>String(v),accent=P.amber){
+  txt(label,x,y-28,16,P.muted,'left',650);
+  txt(fmt(value),x+w,y-28,18,accent,'right',800);
+  line(x,y,x+w,y,'#ffffff30',8);
+  const t=(value-min)/(max-min),kx=x+Math.max(0,Math.min(1,t))*w;
+  line(x,y,kx,y,accent+'aa',8);dot(kx,y,12,accent);
+  zones.push({type:'slider',x:x-16,y:y-22,w:w+32,h:44,min,max,onChange});
+}
+function arrow(x1,y1,x2,y2,color=P.cyan,lw=4){
+  line(x1,y1,x2,y2,color,lw);
+  const a=Math.atan2(y2-y1,x2-x1),s=13;
+  ctx.fillStyle=color;ctx.beginPath();
+  ctx.moveTo(x2,y2);
+  ctx.lineTo(x2-s*Math.cos(a-.45),y2-s*Math.sin(a-.45));
+  ctx.lineTo(x2-s*Math.cos(a+.45),y2-s*Math.sin(a+.45));
+  ctx.closePath();ctx.fill();
+}
+function mapper(px,py,pw,ph,x0,x1,y0,y1){
+  return {px,py,pw,ph,x0,x1,y0,y1,
+    X:x=>px+(x-x0)/(x1-x0)*pw,
+    Y:y=>py+ph-(y-y0)/(y1-y0)*ph,
+    dx:X=>x0+(X-px)/pw*(x1-x0),
+    dy:Y=>y1-(Y-py)/ph*(y1-y0)};
+}
+function axes(m,xticks,yticks){
+  rr(m.px-8,m.py-8,m.pw+16,m.ph+16,16,'#0b1c2b',null);
+  ctx.save();ctx.beginPath();ctx.rect(m.px,m.py,m.pw,m.ph);ctx.clip();
+  ctx.fillStyle='#0b1c2b';ctx.fillRect(m.px,m.py,m.pw,m.ph);
+  for(const v of yticks){const Y=m.Y(v);line(m.px,Y,m.px+m.pw,Y,'#ffffff12',1);}
+  for(const v of xticks){const X=m.X(v);line(X,m.py,X,m.py+m.ph,'#ffffff10',1);}
+  ctx.restore();
+  line(m.px,m.py+m.ph,m.px+m.pw,m.py+m.ph,'#ffffff55',1.5);
+  line(m.px,m.py,m.px,m.py+m.ph,'#ffffff55',1.5);
+  for(const v of yticks){const Y=m.Y(v);txt(String(v),m.px-10,Y,14,P.muted,'right',600);}
+  for(const v of xticks){const X=m.X(v);txt(String(v),X,m.py+m.ph+18,14,P.muted,'center',600);}
+}
+function clipLine(m,a,b,c){
+  const xs=[m.x0,m.x1],ys=[m.y0,m.y1],pts=[];
+  const corners=[[m.x0,m.y0,m.x1,m.y0],[m.x1,m.y0,m.x1,m.y1],[m.x1,m.y1,m.x0,m.y1],[m.x0,m.y1,m.x0,m.y0]];
+  for(const [x1,y1,x2,y2] of corners){
+    const f1=a*x1+b*y1+c,f2=a*x2+b*y2+c;
+    if(Math.abs(f1)<1e-12)pts.push([x1,y1]);
+    else if(f1*f2<0){const t=f1/(f1-f2);pts.push([x1+t*(x2-x1),y1+t*(y2-y1)]);}
+  }
+  const uniq=[];
+  for(const p of pts){if(!uniq.some(q=>Math.hypot(q[0]-p[0],q[1]-p[1])<1e-6))uniq.push(p);}
+  return uniq.slice(0,2);
+}
+function drawBoundary(m,a,b,cc,color,dash,lw=3){
+  const pts=clipLine(m,a,b,cc);if(pts.length<2)return;
+  line(m.X(pts[0][0]),m.Y(pts[0][1]),m.X(pts[1][0]),m.Y(pts[1][1]),color,lw,dash);
+}
+function shadeSign(m,a,b,cc,pos,neg){
+  ctx.save();ctx.beginPath();ctx.rect(m.px,m.py,m.pw,m.ph);ctx.clip();
+  const step=7;
+  for(let x=m.px;x<m.px+m.pw;x+=step){
+    for(let y=m.py;y<m.py+m.ph;y+=step){
+      const g=a*m.dx(x+step/2)+b*m.dy(y+step/2)+cc;
+      ctx.fillStyle=g>=0?pos:neg;ctx.fillRect(x,y,step,step);
+    }
+  }
+  ctx.restore();
+}
+function rightAngle(x,y,ux,uy,vx,vy,size,color){
+  const n1=Math.hypot(ux,uy)||1,n2=Math.hypot(vx,vy)||1;
+  const a1x=ux/n1*size,a1y=uy/n1*size,a2x=vx/n2*size,a2y=vy/n2*size;
+  ctx.save();ctx.strokeStyle=color;ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(x+a1x,y+a1y);ctx.lineTo(x+a1x+a2x,y+a1y+a2y);ctx.lineTo(x+a2x,y+a2y);ctx.stroke();ctx.restore();
+}
+function pos(e){const r=c.getBoundingClientRect();return{x:(e.clientX-r.left)*CW/r.width,y:(e.clientY-r.top)*CH/r.height};}
+function sliderVal(z,p){const t=Math.max(0,Math.min(1,(p.x-(z.x+16))/(z.w-32)));return z.min+t*(z.max-z.min);}
+c.addEventListener('pointerdown',e=>{
+  const p=pos(e);
+  for(let i=zones.length-1;i>=0;i--){
+    const z=zones[i];
+    if(p.x>=z.x&&p.x<=z.x+z.w&&p.y>=z.y&&p.y<=z.y+z.h){
+      if(z.type==='button'){z.onClick(p);return;}
+      if(z.type==='slider'||z.type==='drag'){drag=z;z.onChange(z.type==='slider'?sliderVal(z,p):p,p);return;}
+    }
+  }
+});
+c.addEventListener('pointermove',e=>{if(!drag)return;const p=pos(e);drag.onChange(drag.type==='slider'?sliderVal(drag,p):p,p);});
+addEventListener('pointerup',()=>drag=null);
+addEventListener('pointercancel',()=>drag=null);
+function placeFormula(f){
+  const s=f.el.style;s.width=f.w+'px';s.fontSize=f.size+'px';s.color=f.color;s.textAlign=f.align;
+  let left=f.x+f.ox;if(f.align==='center')left-=f.w/2;else if(f.align==='right')left-=f.w;
+  s.left=left+'px';s.top=(f.y+f.oy)+'px';s.display=f.show===false?'none':'block';
+}
+function setTex(id,tex){const f=FM[id];if(!f||f.cur===tex)return;f.cur=tex;
+  katex.render(tex,f.el,{displayMode:true,throwOnError:true,strict:'ignore'});}
+function addFormula(o){
+  const el=document.createElement('div');el.className='formula';el.dataset.fid=o.id;mathLayer.appendChild(el);
+  const f=Object.assign({el,align:'center',size:22,ox:0,oy:0,w:500,color:'#f7fbff',show:true},o);
+  FM[o.id]=f;placeFormula(f);setTex(o.id,o.tex);return f;
+}
+function moveFormula(id,o){Object.assign(FM[id],o);placeFormula(FM[id]);}
+function showF(ids){for(const k in FM){FM[k].show=ids.includes(k);placeFormula(FM[k]);}}
+function syncMath(){const r=stage.getBoundingClientRect();mathLayer.style.transform=`scale(${r.width/CW},${r.height/CH})`;}
+new ResizeObserver(syncMath).observe(stage);addEventListener('resize',syncMath);syncMath();
+function fmt(v,d){return (Math.round(v*10**d)/10**d).toFixed(d);}
+function hashState(){
+  const h=location.hash.replace(/^#/,'');
+  const o={};
+  if(!h)return o;
+  for(const part of h.split('&')){
+    const [k,v]=part.split('=');
+    if(k)o[decodeURIComponent(k)]=v===undefined?'1':decodeURIComponent(v);
+  }
+  return o;
+}
+
+const TOTAL=13;
+const routes=[
+  {id:'geo',zh:'幾何',en:'Geometry',kp:['KP01'],color:P.cyan},
+  {id:'err',zh:'誤判更新',en:'Error updates',kp:['KP02','KP03','KP04','KP05','KP06'],color:P.amber},
+  {id:'mse',zh:'平方損失',en:'Squared loss',kp:[],color:P.lime},
+  {id:'prob',zh:'機率模型',en:'Probability models',kp:[],color:P.violet},
+  {id:'margin',zh:'最大間隔',en:'Maximum margin',kp:[],color:P.coral}
+];
+const kps={
+  KP01:{zh:'分數與法向量',en:'Score and normal',bridge:'貝氏法比較機率；現在直接設計分數，再找零分邊界。',enbridge:'Bayes compares probabilities. Design a score and locate its zero boundary.',next:'誤判如何更新權重？',formula:'g'},
+  KP02:{zh:'批次感知器',en:'Batch perceptron',bridge:'分類線已定義；讓整批錯點一起指出修正方向。',enbridge:'The boundary is defined. Mistakes in the whole batch supply one correction.',next:'嚴格可分時，為什麼更新一定會停？',formula:'batch'},
+  KP03:{zh:'收斂證明',en:'Convergence',bridge:'先寫下嚴格可分，再用距離平方的上界排除無窮更新。',enbridge:'State strict separability, then rule out infinite updates by a squared-distance bound.',next:'能否不等整批掃完就更新？',formula:'conv'},
+  KP04:{zh:'線上感知器',en:'Online perceptron',bridge:'停止已有證明；改成每讀一筆就決定要不要修正。',enbridge:'Termination is proved. Now each sample decides whether to update.',next:'不可分時，有限時間該交哪個結果？',formula:'online'},
+  KP05:{zh:'神經元與口袋',en:'Neuron and pocket',bridge:'線上法要零錯誤才停；先把預測的硬限幅器和訓練時保留的最佳結果分開。',enbridge:'Online training waits for zero mistakes. Separate the hard limiter from the retained result.',next:'多類時，正確類要贏過誰？',formula:'hard'},
+  KP06:{zh:'Kesler 構造',en:"Kesler's construction",bridge:'口袋保留較佳權重；多類還要讓正確類的分數贏過每一個對手。',enbridge:'The pocket keeps a better vector. Multiple classes still need the correct score to beat every rival.',next:'不能完美分開時，能否改求輸出接近目標？',formula:'kes'}
+};
+let sel='KP01';
+let route='geo';
+addFormula({id:'g',tex:String.raw`g(\mathbf{x})=\mathbf{w}^{\mathsf T}\mathbf{x}+b`,x:1080,y:690,w:760,size:28,color:P.cyan});
+addFormula({id:'batch',tex:String.raw`\mathbf{v}_{t+1}=\mathbf{v}_t+\rho_t\sum_{i\in Y_t} y_i\mathbf{a}_i`,x:1080,y:690,w:820,size:26,color:P.amber});
+addFormula({id:'conv',tex:String.raw`D_{t+1}\le D_t+\rho_t^2 B^2-2\rho_t\alpha\gamma`,x:1080,y:690,w:820,size:26,color:P.amber});
+addFormula({id:'online',tex:String.raw`\mathbf{v}\leftarrow \mathbf{v}+\rho y\mathbf{a}\quad\text{only if }y\mathbf{v}^{\mathsf T}\mathbf{a}\le 0`,x:1080,y:690,w:860,size:24,color:P.amber});
+addFormula({id:'hard',tex:String.raw`h(z)=\begin{cases}+1,&z\ge 0\\-1,&z<0\end{cases}`,x:1080,y:690,w:520,size:26,color:P.lime});
+addFormula({id:'kes',tex:String.raw`g_i-g_j>0\quad\text{for every }j\ne i`,x:1080,y:690,w:700,size:28,color:P.violet});
+function render(){
+  reset();
+  title('第三章路線圖','Five routes, then the perceptron chain KP01–KP06',1,TOTAL);
+  txt('KP01 開場列出的五條路。本批只展開前兩條裡的 KP01–KP06。',48,138,16,P.muted,'left',550);
+  routes.forEach((r,i)=>{
+    const x=48+i*306,active=route===r.id;
+    rr(x,168,292,92,16,active?P.panel2:P.panel,active?r.color:'#ffffff18',2);
+    txt(r.zh,x+18,198,22,active?r.color:P.ink,'left',800);
+    txt(r.en,x+18,228,15,P.muted,'left',600);
+    zones.push({type:'button',x,y:168,w:292,h:92,onClick:()=>{route=r.id;if(r.kp.length)sel=r.kp[0];render();}});
+  });
+  const order=['KP01','KP02','KP03','KP04','KP05','KP06'];
+  order.forEach((id,i)=>{
+    const x=48+i*252,y=286,active=sel===id;
+    const onRoute=routes.find(r=>r.id===route).kp.includes(id);
+    rr(x,y,236,78,16,active?P.panel2:P.panel,active?P.cyan:(onRoute?P.amber+'88':'#ffffff16'),2);
+    txt(id,x+16,y+28,18,active?P.cyan:P.ink,'left',800);
+    txt(kps[id].zh,x+78,y+28,16,P.ink,'left',700);
+    txt(kps[id].en,x+16,y+54,13,P.muted,'left',550);
+    if(i<5)arrow(x+236,y+39,x+252,y+39,'#3d6d88',3);
+    zones.push({type:'button',x,y,w:236,h:78,onClick:()=>{sel=id;route=routes.find(r=>r.kp.includes(id)).id;render();}});
+  });
+  const k=kps[sel];
+  rr(48,390,1504,430,20,P.panel,'#ffffff14',2);
+  txt(sel+'   '+k.zh,78,430,28,P.ink,'left',800);
+  txt(k.en,78,466,18,P.cyan,'left',650);
+  wrap(k.bridge,78,500,680,30,20,P.ink,650,'left');
+  wrap(k.enbridge,78,570,680,26,16,P.muted,550,'left');
+  rr(820,490,680,120,16,'#0b1c2b',P.cyan+'55',2);
+  txt('這一頁留下的問題',844,518,16,P.amber,'left',700);
+  wrap(k.next,844,540,630,28,20,P.ink,650,'left');
+  const routeNote={
+    geo:'幾何這條路就是 KP01：正負分數、法向量、有號距離、同比縮放。',
+    err:'誤判更新這條路是 KP02–KP06：批次、收斂、線上、口袋、Kesler。',
+    mse:'平方損失留到下一批。KP06 的出口是：不能零錯誤時，改讓輸出接近目標。',
+    prob:'機率模型留到下一批。KP01 已說明：分數本身不是機率。',
+    margin:'最大間隔留到下一批。KP01 只把它列成第三條以後的路線。'
+  };
+  wrap(routeNote[route],78,790,1420,24,16,P.muted,550,'left');
+  showF([k.formula]);
+}
+render();
+
+</script>
+</body>
+</html>
