@@ -232,12 +232,18 @@ function render(){
   const m=mapper(48,148,760,640,-0.2,1.7,-0.35,1.45);
   axes(m,[0,0.5,1,1.5],[0,0.5,1]);
   const c=cscale;
-  if(Math.abs(c)>1e-6)shadeSign(m,c,c,-0.5*c,c>0?'#ff8a6a16':'#7eb6ff16',c>0?'#7eb6ff16':'#ff8a6a16');
+  // 正側固定珊瑚、負側固定藍；c 的正負只透過係數決定哪一側為正。
+  if(Math.abs(c)>1e-6)shadeSign(m,c,c,-0.5*c,'#ff8a6a16','#7eb6ff16');
   if(Math.abs(c)>1e-6)drawBoundary(m,c,c,-0.5*c,P.line,[],3);
   function foot(p){
     const g=gRaw(p.x,p.y);
     const r=g/Math.SQRT2;
     return {x:p.x-r/Math.SQRT2,y:p.y-r/Math.SQRT2,g,z:Math.abs(r)};
+  }
+  function scoreColor(p){
+    if(Math.abs(c)<1e-6)return P.amber;
+    const gs=c*gRaw(p.x,p.y);
+    return gs>0?P.coral:gs<0?P.blue:P.amber;
   }
   const fA=foot(A), fB=foot(B);
   function mark(p,f,name,color,on){
@@ -249,15 +255,18 @@ function render(){
     const bx=m.X(f.x+0.2)-m.X(f.x), by=m.Y(f.y-0.2)-m.Y(f.y);
     if(on)rightAngle(m.X(f.x),m.Y(f.y),tx,ty,bx,by,14,color);
   }
-  mark(A,fA,'A',P.coral,which==='A'&&!practice);
-  mark(B,fB,'B',P.blue,which==='B'&&!practice);
+  mark(A,fA,'A',scoreColor(A),which==='A'&&!practice);
+  mark(B,fB,'B',scoreColor(B),which==='B'&&!practice);
   txt('垂足 A (0.25, 0.25)    B (0.425, 0.075)',m.px+12,m.py+22,14,P.ink,'left',650);
   rr(836,148,716,680,18,P.panel,'#ffffff14',2);
   btn('點 A',868,300,150,48,()=>{which='A';practice=false;render();},which==='A'&&!practice,P.coral,18);
   btn('點 B',1034,300,150,48,()=>{which='B';practice=false;render();},which==='B'&&!practice,P.blue,18);
   btn('練習',1200,300,150,48,()=>{practice=!practice;render();},practice,P.lime,18);
   const zShow=Math.abs(c)<1e-6?null:(which==='A'?fA.z:fB.z);
-  txt(Math.abs(c)<1e-6?'c = 0：權重為零，距離未定義':'幾何距離仍約 '+fmt(zShow,6),868,500,22,Math.abs(c)<1e-6?P.coral:P.ink,'left',750);
+  const focus=which==='A'?A:B;
+  const gs=c*gRaw(focus.x,focus.y);
+  const sc=scoreColor(focus);
+  txt(Math.abs(c)<1e-6?'c = 0：權重為零，距離未定義':which+' 的 g′ = '+(gs>0?'+':'')+fmt(gs,3)+'    z ≈ '+fmt(zShow,6),868,500,22,Math.abs(c)<1e-6?P.coral:sc,'left',750);
   txt(c<0?'負倍數把兩側對調，距離的絕對值不變。':'正倍數不改變邊界，也不改變距離。',868,538,17,c<0?P.amber:P.lime,'left',650);
   if(practice)wrap('原點距離 2，在正側。(1, 2) 的分數是 5，距離 1，仍在正側。',868,575,640,26,17,P.ink,600,'left');
   slider(900,780,600,-2,2,cscale,v=>{cscale=Math.round(v*10)/10;render();},'縮放係數 c',v=>'c = '+(v>0?'+':'')+fmt(v,1),P.amber);
